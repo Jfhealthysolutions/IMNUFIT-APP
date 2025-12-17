@@ -5,14 +5,30 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>IMNUFIT - Portal de Pacientes</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Firebase SDKs -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { 
+            getAuth, 
+            signInWithEmailAndPassword, 
+            createUserWithEmailAndPassword, 
+            sendPasswordResetEmail, 
+            onAuthStateChanged, 
+            signOut,
+            setPersistence,
+            browserLocalPersistence,
+            signInAnonymously
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { 
+            getFirestore, 
+            doc, 
+            setDoc, 
+            onSnapshot, 
+            collection, 
+            getDocs,
+            addDoc
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // --- CONFIGURACIÓN DE FIREBASE ---
-        // PEGA AQUÍ TUS DATOS DE FIREBASE PASO 6
+        // --- TU CONFIGURACIÓN DE FIREBASE ---
         const firebaseConfig = {
             apiKey: "AIzaSyAJBf7TbP1GuAoA3GsrCG0EJOifEt4YodY",
             authDomain: "imnufit-cad14.firebaseapp.com",
@@ -22,183 +38,247 @@
             appId: "1:65610345018:web:eac15a30c72084faac6303"
         };
 
-        // Inicializar Firebase
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
+        const appId = "imnufit-web";
 
-        // Referencias a elementos del DOM (la pantalla)
-        const loginSection = document.getElementById('login-section');
-        const dashboardSection = document.getElementById('dashboard-section');
-        const loginForm = document.getElementById('login-form');
-        const logoutBtn = document.getElementById('logout-btn');
+        setPersistence(auth, browserLocalPersistence);
+
+        const views = ['login-view', 'signup-view', 'forgot-view', 'dashboard-view'];
         const loadingScreen = document.getElementById('loading-screen');
-        const errorMessage = document.getElementById('error-message');
 
-        // Función para mostrar mensajes personalizados
-        function showMessage(msg) {
-            errorMessage.textContent = msg;
-            errorMessage.classList.remove('hidden');
-            setTimeout(() => errorMessage.classList.add('hidden'), 5000);
+        function showView(viewName) {
+            views.forEach(v => {
+                const el = document.getElementById(v);
+                if (v === viewName) el.classList.remove('hidden');
+                else el.classList.add('hidden');
+            });
         }
 
-        // Observar estado de la sesión
+        // Observador de sesión
         onAuthStateChanged(auth, (user) => {
-            loadingScreen.classList.add('hidden');
-            if (user) {
-                loginSection.classList.add('hidden');
-                dashboardSection.classList.remove('hidden');
+            if (user && !user.isAnonymous) {
                 loadPatientData(user.uid);
+                showView('dashboard-view');
             } else {
-                loginSection.classList.remove('hidden');
-                dashboardSection.classList.add('hidden');
+                showView('login-view');
             }
+            setTimeout(() => loadingScreen.classList.add('hidden'), 500);
         });
 
-        // Iniciar Sesión
-        loginForm.addEventListener('submit', async (e) => {
+        // 1. Iniciar Sesión
+        document.getElementById('login-form').addEventListener('submit', async (e) => {
             e.preventDefault();
-            const email = e.target.email.value;
-            const password = e.target.password.value;
+            const { email, password } = e.target;
             try {
-                await signInWithEmailAndPassword(auth, email, password);
-            } catch (error) {
-                showMessage("Email o contraseña incorrectos.");
+                loadingScreen.classList.remove('hidden');
+                await signInWithEmailAndPassword(auth, email.value, password.value);
+            } catch (err) { 
+                alert("Error: Correo o contraseña incorrectos."); 
+                loadingScreen.classList.add('hidden');
             }
         });
 
-        // Cerrar Sesión
-        logoutBtn.addEventListener('click', () => signOut(auth));
+        // 2. Registro (Ahora guarda el email en una lista pública para validación)
+        document.getElementById('signup-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const { name, email, password } = e.target;
+            try {
+                loadingScreen.classList.remove('hidden');
+                const userCredential = await createUserWithEmailAndPassword(auth, email.value, password.value);
+                const user = userCredential.user;
 
-        // Cargar datos del paciente desde Firestore
+                // Guardar perfil privado
+                await setDoc(doc(db, "artifacts", appId, "users", user.uid, "profile", "info"), {
+                    Nombre: name.value,
+                    Email: email.value,
+                    Peso: "--",
+                    Grasa: "--",
+                    Dieta: "Bienvenido a IMNUFIT. Tu nutricionista cargará tu plan pronto.",
+                    NotaDoctor: "¡Felicidades por iniciar tu proceso!"
+                });
+
+                // Guardar en lista pública de validación (Siguiendo Regla 1)
+                await setDoc(doc(db, "artifacts", appId, "public", "data", "emails", user.uid), {
+                    email: email.value.toLowerCase()
+                });
+
+            } catch (err) { 
+                alert("Error al registrar: " + err.message); 
+                loadingScreen.classList.add('hidden');
+            }
+        });
+
+        // 3. Recuperar Contraseña con Validación de Existencia
+        document.getElementById('forgot-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const emailInput = e.target.email.value.toLowerCase();
+            
+            try {
+                loadingScreen.classList.remove('hidden');
+                
+                // Paso A: Login anónimo temporal si no está logueado (Regla 3)
+                if (!auth.currentUser) await signInAnonymously(auth);
+
+                // Paso B: Obtener todos los correos registrados (Regla 2: Filtrar en memoria)
+                const emailsRef = collection(db, "artifacts", appId, "public", "data", "emails");
+                const querySnapshot = await getDocs(emailsRef);
+                
+                let userExists = false;
+                querySnapshot.forEach((doc) => {
+                    if (doc.data().email === emailInput) userExists = true;
+                });
+
+                if (!userExists) {
+                    alert("Lo sentimos, este correo electrónico no está registrado en IMNUFIT.");
+                    loadingScreen.classList.add('hidden');
+                    return;
+                }
+
+                // Paso C: Si existe, enviar correo real
+                await sendPasswordResetEmail(auth, emailInput);
+                alert("¡Correo encontrado! Te hemos enviado las instrucciones para cambiar tu contraseña.");
+                showView('login-view');
+            } catch (err) {
+                console.error(err);
+                alert("Ocurrió un error al verificar el correo.");
+            } finally {
+                loadingScreen.classList.add('hidden');
+            }
+        });
+
+        // 4. Salir
+        document.getElementById('logout-btn').addEventListener('click', () => {
+            if(confirm("¿Quieres cerrar sesión?")) signOut(auth);
+        });
+
         function loadPatientData(uid) {
-            // El ID de la app se usa para organizar los datos
-            const appId = "imnufit-web"; 
-            // Ruta: /artifacts/imnufit-web/users/{ID_DEL_USUARIO}/profile/info
             const docRef = doc(db, "artifacts", appId, "users", uid, "profile", "info");
-
             onSnapshot(docRef, (docSnap) => {
                 if (docSnap.exists()) {
                     const data = docSnap.data();
-                    document.getElementById('patient-name').textContent = data.nombre || "Paciente";
-                    document.getElementById('weight-val').textContent = (data.peso || "--") + " kg";
-                    document.getElementById('fat-val').textContent = (data.grasa || "--") + "%";
-                    document.getElementById('diet-content').innerHTML = data.dieta || "Tu dieta está siendo procesada.";
-                    document.getElementById('doc-note').textContent = data.notaDoctor || "¡Sigue adelante con tu progreso!";
-                } else {
-                    document.getElementById('patient-name').textContent = "Usuario Nuevo";
-                    document.getElementById('diet-content').textContent = "Aún no tienes datos cargados. Por favor, contacta a tu nutricionista.";
+                    document.getElementById('patient-name').textContent = data.Nombre || "Paciente";
+                    document.getElementById('weight-val').textContent = (data.Peso || "--") + " kg";
+                    document.getElementById('fat-val').textContent = (data.Grasa || "--") + "%";
+                    document.getElementById('diet-content').innerHTML = (data.Dieta || "").replace(/\n/g, '<br>');
+                    document.getElementById('doc-note').textContent = data.NotaDoctor || "¡Sigue adelante!";
                 }
-            }, (error) => {
-                console.error("Error cargando datos:", error);
             });
         }
+
+        window.goToSignup = () => showView('signup-view');
+        window.goToLogin = () => showView('login-view');
+        window.goToForgot = () => showView('forgot-view');
     </script>
     <style>
         .imnufit-gradient { background: linear-gradient(135deg, #10b981 0%, #059669 100%); }
+        .glass { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); }
     </style>
 </head>
-<body class="bg-gray-50 text-gray-900 font-sans">
+<body class="bg-slate-50 text-slate-900 font-sans">
 
-    <!-- Pantalla de Carga -->
-    <div id="loading-screen" class="fixed inset-0 bg-white z-50 flex items-center justify-center">
-        <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600"></div>
+    <!-- Loading Screen -->
+    <div id="loading-screen" class="fixed inset-0 bg-white z-50 flex flex-col items-center justify-center">
+        <div class="animate-spin rounded-full h-16 w-16 border-t-4 border-emerald-600 mb-6"></div>
+        <h2 class="text-3xl font-black italic text-emerald-700 tracking-tighter">IMNUFIT</h2>
     </div>
 
-    <!-- SECCIÓN DE LOGIN -->
-    <section id="login-section" class="min-h-screen flex items-center justify-center p-4 hidden">
-        <div class="max-w-md w-full bg-white rounded-3xl shadow-2xl overflow-hidden border border-gray-100">
-            <div class="imnufit-gradient p-8 text-center text-white">
-                <h1 class="text-4xl font-black italic tracking-tighter">IMNUFIT</h1>
-                <p class="mt-2 opacity-90 font-medium">Portal de Consulta Online</p>
+    <!-- LOGIN -->
+    <section id="login-view" class="min-h-screen flex items-center justify-center p-4 hidden">
+        <div class="max-w-md w-full glass rounded-[2.5rem] shadow-2xl overflow-hidden border">
+            <div class="imnufit-gradient p-10 text-center text-white">
+                <h1 class="text-5xl font-black italic tracking-tighter">IMNUFIT</h1>
+                <p class="mt-2 text-emerald-50">Ingreso de Pacientes</p>
             </div>
-            <div class="p-8">
-                <form id="login-form" class="space-y-5">
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-600">Correo Electrónico</label>
-                        <input type="email" name="email" required class="w-full mt-1 p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none transition-all">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-600">Contraseña</label>
-                        <input type="password" name="password" required class="w-full mt-1 p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none transition-all">
-                    </div>
-                    <div id="error-message" class="hidden text-red-500 text-sm font-medium bg-red-50 p-2 rounded-lg text-center"></div>
-                    <button type="submit" class="w-full imnufit-gradient text-white py-4 rounded-xl font-bold text-lg shadow-lg hover:opacity-90 transition-all active:scale-95">
-                        Entrar a mi Perfil
-                    </button>
+            <div class="p-8 space-y-6">
+                <form id="login-form" class="space-y-4">
+                    <input type="email" name="email" placeholder="Correo Electrónico" required class="w-full p-4 bg-slate-50 border rounded-2xl outline-none focus:ring-2 focus:ring-emerald-500">
+                    <input type="password" name="password" placeholder="Contraseña" required class="w-full p-4 bg-slate-50 border rounded-2xl outline-none focus:ring-2 focus:ring-emerald-500">
+                    <button type="submit" class="w-full imnufit-gradient text-white py-4 rounded-2xl font-bold text-lg shadow-lg">Entrar</button>
                 </form>
+                <div class="text-center">
+                    <button onclick="goToForgot()" class="text-xs font-bold text-slate-400 hover:text-emerald-600 uppercase tracking-widest">¿Olvidaste tu contraseña?</button>
+                    <div class="mt-6 pt-6 border-t">
+                        <p class="text-sm text-slate-400">¿No tienes cuenta? <button onclick="goToSignup()" class="text-emerald-600 font-bold">Regístrate</button></p>
+                    </div>
+                </div>
             </div>
         </div>
     </section>
 
-    <!-- SECCIÓN DE DASHBOARD -->
-    <section id="dashboard-section" class="min-h-screen hidden">
-        <!-- Header -->
-        <header class="bg-white border-b sticky top-0 z-30">
+    <!-- REGISTRO -->
+    <section id="signup-view" class="min-h-screen flex items-center justify-center p-4 hidden">
+        <div class="max-w-md w-full glass rounded-[2.5rem] shadow-2xl overflow-hidden border">
+            <div class="p-8 border-b bg-emerald-50/50">
+                <h2 class="text-2xl font-bold text-emerald-800">Nueva Cuenta</h2>
+                <p class="text-emerald-600/70 text-sm">Crea tu perfil y recibe tu dieta</p>
+            </div>
+            <form id="signup-form" class="p-8 space-y-4">
+                <input type="text" name="name" placeholder="Nombre Completo" required class="w-full p-4 bg-slate-50 border rounded-2xl outline-none">
+                <input type="email" name="email" placeholder="Correo Electrónico" required class="w-full p-4 bg-slate-50 border rounded-2xl outline-none">
+                <input type="password" name="password" placeholder="Contraseña (mín. 6 caracteres)" required minlength="6" class="w-full p-4 bg-slate-50 border rounded-2xl outline-none">
+                <button type="submit" class="w-full imnufit-gradient text-white py-4 rounded-2xl font-bold text-lg">Registrarme</button>
+                <button type="button" onclick="goToLogin()" class="w-full text-sm font-bold text-slate-400">Volver</button>
+            </form>
+        </div>
+    </section>
+
+    <!-- OLVIDO CLAVE -->
+    <section id="forgot-view" class="min-h-screen flex items-center justify-center p-4 hidden">
+        <div class="max-w-md w-full glass rounded-[2.5rem] shadow-2xl p-10 border text-center">
+            <h2 class="text-2xl font-bold text-slate-800 mb-2 text-center">Recuperar Acceso</h2>
+            <p class="text-slate-500 text-sm mb-8">Verificaremos si tu correo existe en IMNUFIT.</p>
+            <form id="forgot-form" class="space-y-4">
+                <input type="email" name="email" placeholder="Tu Email Registrado" required class="w-full p-4 bg-slate-50 border rounded-2xl outline-none">
+                <button type="submit" class="w-full imnufit-gradient text-white py-4 rounded-2xl font-bold">Verificar y Enviar</button>
+                <button type="button" onclick="goToLogin()" class="w-full text-sm font-bold text-slate-400 mt-4">Cancelar</button>
+            </form>
+        </div>
+    </section>
+
+    <!-- DASHBOARD -->
+    <section id="dashboard-view" class="min-h-screen hidden">
+        <header class="bg-white/80 backdrop-blur-md border-b sticky top-0 z-40">
             <div class="max-w-5xl mx-auto px-6 py-4 flex justify-between items-center">
                 <h1 class="text-2xl font-black text-emerald-600 italic tracking-tighter">IMNUFIT</h1>
-                <button id="logout-btn" class="text-sm font-bold text-gray-400 hover:text-red-500 transition-colors">Cerrar Sesión</button>
+                <button id="logout-btn" class="bg-slate-100 text-slate-400 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest hover:text-red-500 transition-all">Salir</button>
             </div>
         </header>
 
-        <main class="max-w-5xl mx-auto p-6 space-y-8">
-            <!-- Saludo -->
-            <div>
-                <h2 class="text-3xl font-bold text-gray-800">Hola, <span id="patient-name">...</span> 👋</h2>
-                <p class="text-gray-500">Este es tu progreso actual y plan de alimentación.</p>
+        <main class="max-w-5xl mx-auto p-6 space-y-6">
+            <div class="imnufit-gradient rounded-[3rem] p-12 text-white shadow-2xl relative overflow-hidden">
+                <div class="relative z-10">
+                    <h2 class="text-4xl lg:text-5xl font-black mb-2 tracking-tight">Hola, <span id="patient-name">...</span>!</h2>
+                    <p class="opacity-80 font-medium text-lg">Tu camino saludable continúa aquí.</p>
+                </div>
             </div>
 
-            <!-- Grid de Contenido -->
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                
-                <!-- Columna Izquierda: Plan -->
                 <div class="lg:col-span-2 space-y-6">
-                    <div class="bg-white rounded-3xl p-8 shadow-sm border border-gray-100">
-                        <div class="flex items-center space-x-3 mb-6">
-                            <div class="bg-emerald-100 p-2 rounded-lg text-emerald-600 text-xl">🥗</div>
-                            <h3 class="text-xl font-bold text-gray-800">Mi Plan Nutricional</h3>
-                        </div>
-                        <div id="diet-content" class="text-gray-700 leading-relaxed whitespace-pre-wrap">
-                            Cargando tu plan...
-                        </div>
+                    <div class="bg-white rounded-[2.5rem] p-10 shadow-sm border border-slate-100">
+                        <h3 class="text-2xl font-bold text-slate-800 mb-8 flex items-center italic">🥗 Mi Dieta Actual</h3>
+                        <div id="diet-content" class="text-slate-600 leading-relaxed text-xl">Cargando...</div>
                     </div>
-
-                    <!-- Nota del Nutricionista -->
-                    <div class="bg-emerald-600 rounded-3xl p-8 text-white shadow-xl">
-                        <h4 class="font-bold text-lg mb-2 italic">Recomendación del día:</h4>
-                        <p id="doc-note" class="opacity-90 font-medium leading-snug">
-                            Cargando nota...
-                        </p>
+                    <div class="bg-emerald-900 rounded-[2.5rem] p-10 text-white shadow-2xl border-l-[12px] border-emerald-400">
+                        <h4 class="font-bold text-emerald-400 mb-3 uppercase tracking-tighter text-sm font-mono">Nota Médica</h4>
+                        <p id="doc-note" class="text-xl italic font-light leading-snug">...</p>
                     </div>
                 </div>
 
-                <!-- Columna Derecha: Métricas -->
                 <div class="space-y-6">
-                    <div class="bg-white rounded-3xl p-8 shadow-sm border border-gray-100">
-                        <h3 class="text-xl font-bold text-gray-800 mb-6">Mis Resultados</h3>
-                        <div class="space-y-6">
-                            <div class="flex items-center justify-between">
-                                <div class="flex items-center space-x-3">
-                                    <span class="text-2xl">⚖️</span>
-                                    <span class="font-semibold text-gray-600">Peso Actual</span>
-                                </div>
-                                <span id="weight-val" class="text-xl font-black text-emerald-600">--</span>
+                    <div class="bg-white rounded-[2.5rem] p-10 shadow-sm border border-slate-100">
+                        <h3 class="text-xl font-bold text-slate-800 mb-10">Métricas</h3>
+                        <div class="space-y-10">
+                            <div class="flex justify-between items-end">
+                                <span class="text-slate-400 font-bold uppercase text-[10px] tracking-[0.2em]">Peso</span>
+                                <span id="weight-val" class="text-4xl font-black text-emerald-600 tracking-tighter">--</span>
                             </div>
-                            <div class="flex items-center justify-between">
-                                <div class="flex items-center space-x-3">
-                                    <span class="text-2xl">📉</span>
-                                    <span class="font-semibold text-gray-600">% de Grasa</span>
-                                </div>
-                                <span id="fat-val" class="text-xl font-black text-orange-500">--</span>
+                            <div class="flex justify-between items-end border-t pt-10">
+                                <span class="text-slate-400 font-bold uppercase text-[10px] tracking-[0.2em]">Grasa</span>
+                                <span id="fat-val" class="text-4xl font-black text-orange-500 tracking-tighter">--</span>
                             </div>
                         </div>
-                    </div>
-
-                    <!-- Card de Apoyo -->
-                    <div class="bg-gray-800 rounded-3xl p-8 text-white">
-                        <h4 class="font-bold mb-4">¿Dudas con tu plan?</h4>
-                        <p class="text-sm opacity-70 mb-6">Escríbenos directamente para ajustar tu dieta.</p>
-                        <a href="#" class="block text-center bg-white text-gray-900 py-3 rounded-xl font-bold hover:bg-gray-100 transition-colors">Contactar</a>
                     </div>
                 </div>
             </div>
@@ -207,3 +287,4 @@
 
 </body>
 </html>
+
