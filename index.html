@@ -3,15 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>IMNUFIT - Gestión y Consultas</title>
+    <title>IMNUFIT - Portal Clínico</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut, setPersistence, browserLocalPersistence, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut, setPersistence, browserLocalPersistence, sendPasswordResetEmail, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, setDoc, getDoc, onSnapshot, collection, getDocs, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // --- CONFIGURACIÓN DE FIREBASE (Tus credenciales reales) ---
+        // --- CONFIGURACIÓN DE FIREBASE ---
         const firebaseConfig = {
             apiKey: "AIzaSyAJBf7TbP1GuAoA3GsrCG0EJOifEt4YodY",
             authDomain: "imnufit-cad14.firebaseapp.com",
@@ -30,35 +30,44 @@
 
         let isAdmin = false;
 
+        // --- SISTEMA DE NOTIFICACIONES ---
+        window.notify = (message, type = 'error') => {
+            const toast = document.getElementById('notification-toast');
+            const content = document.getElementById('notification-content');
+            
+            content.textContent = message;
+            toast.className = `fixed top-10 left-1/2 -translate-x-1/2 z-[200] px-6 py-3 rounded-full shadow-2xl text-sm font-semibold transition-all duration-500 scale-100 opacity-100 ${
+                type === 'success' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200'
+            }`;
+            
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'scale-95');
+                setTimeout(() => toast.classList.add('hidden'), 500);
+            }, 3000);
+            toast.classList.remove('hidden');
+        };
+
         // --- MANEJO DE VISTAS ---
         function showView(viewId) {
-            const views = ['login-view', 'signup-view', 'patient-view', 'admin-view', 'loading-screen'];
+            const views = ['login-view', 'signup-view', 'forgot-view', 'patient-view', 'admin-view', 'loading-screen'];
             views.forEach(id => {
                 const el = document.getElementById(id);
                 if (el) el.classList.toggle('hidden', id !== viewId);
             });
         }
 
-        // --- BRANDING DINÁMICO ---
-        function applyBranding(data) {
-            if (!data) return;
-            const root = document.documentElement;
-            root.style.setProperty('--primary', data.primaryColor || '#10b981');
-            document.querySelectorAll('.logo-render').forEach(img => {
-                img.src = data.logoUrl || "https://via.placeholder.com/200x80?text=IMNUFIT";
-            });
-        }
+        // --- AUTENTICACIÓN INICIAL ---
+        const initSession = async () => {
+            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                try { await signInWithCustomToken(auth, __initial_auth_token); } catch(e){}
+            }
+        };
+        initSession();
 
-        onSnapshot(doc(db, "artifacts", appId, "public", "data", "branding", "settings"), (docSnap) => {
-            if (docSnap.exists()) applyBranding(docSnap.data());
-        });
-
-        // --- OBSERVADOR DE SESIÓN ---
         onAuthStateChanged(auth, async (user) => {
-            if (user) {
+            if (user && !user.isAnonymous) {
                 const adminDoc = await getDoc(doc(db, "artifacts", appId, "public", "data", "admins", user.uid));
                 isAdmin = adminDoc.exists();
-
                 if (isAdmin) {
                     cargarListaPacientes();
                     showView('admin-view');
@@ -79,8 +88,8 @@
             try {
                 document.getElementById('loading-screen').classList.remove('hidden');
                 await signInWithEmailAndPassword(auth, email.value, pass.value);
-            } catch (err) { 
-                alert("Error: Correo o contraseña incorrectos."); 
+            } catch (err) {
+                notify("Credenciales incorrectas. Verifique su acceso.");
                 document.getElementById('loading-screen').classList.add('hidden');
             }
         };
@@ -93,15 +102,16 @@
                 const userCred = await createUserWithEmailAndPassword(auth, email.value, pass.value);
                 const uid = userCred.user.uid;
 
-                await setDoc(doc(db, "artifacts", appId, "users", uid, "profile", "info"), {
+                const profileData = {
                     nombre: nombre.value,
                     apellido: apellido.value,
-                    email: email.value,
+                    email: email.value.toLowerCase(),
                     telefono: telef.value,
-                    dieta: "Bienvenido. Tu plan nutricional será cargado pronto.",
-                    notaDoctor: "¡Hola! Pronto verás aquí tus indicaciones."
-                });
+                    dieta: "Su plan personalizado está en proceso de revisión.",
+                    notaDoctor: "Bienvenido al portal de IMNUFIT."
+                };
 
+                await setDoc(doc(db, "artifacts", appId, "users", uid, "profile", "info"), profileData);
                 await setDoc(doc(db, "artifacts", appId, "public", "data", "directory", uid), {
                     nombre: nombre.value,
                     apellido: apellido.value,
@@ -109,33 +119,51 @@
                     telefono: telef.value,
                     uid: uid
                 });
-
-                alert("¡Registro exitoso!");
-            } catch (err) { 
-                alert("Error al registrar: " + err.message); 
+                notify("Ficha clínica creada con éxito.", "success");
+            } catch (err) {
+                notify("Error al registrar: " + err.message);
                 document.getElementById('loading-screen').classList.add('hidden');
             }
         };
 
+        window.handleForgot = async (e) => {
+            e.preventDefault();
+            const email = e.target.email.value.toLowerCase();
+            try {
+                if (!auth.currentUser) await signInAnonymously(auth);
+                const directory = await getDocs(collection(db, "artifacts", appId, "public", "data", "directory"));
+                let found = false;
+                directory.forEach(d => { if(d.data().email === email) found = true; });
+
+                if (!found) {
+                    notify("Este correo no se encuentra registrado.");
+                } else {
+                    await sendPasswordResetEmail(auth, email);
+                    notify("Se ha enviado un enlace a su correo.", "success");
+                    showView('login-view');
+                }
+            } catch (err) { notify("Error al procesar la solicitud."); }
+        };
+
         window.cerrarSesion = () => signOut(auth);
 
-        // --- FUNCIONES ADMINISTRATIVAS ---
+        // --- ÁREA MÉDICA ---
         async function cargarListaPacientes() {
             const querySnapshot = await getDocs(collection(db, "artifacts", appId, "public", "data", "directory"));
-            const container = document.getElementById('lista-pacientes');
-            container.innerHTML = '';
+            const tbody = document.getElementById('lista-pacientes-body');
+            tbody.innerHTML = '';
             querySnapshot.forEach((docSnap) => {
                 const p = docSnap.data();
-                const card = document.createElement('div');
-                card.className = "bg-white p-5 rounded-3xl shadow-sm border border-slate-100 flex justify-between items-center mb-4";
-                card.innerHTML = `
-                    <div>
-                        <h4 class="font-bold text-slate-800">${p.nombre} ${p.apellido}</h4>
-                        <p class="text-slate-400 text-sm">${p.email} • ${p.telefono}</p>
-                    </div>
-                    <button onclick="window.gestionarPaciente('${p.uid}')" class="bg-brand text-white px-5 py-2 rounded-2xl font-bold text-sm shadow-md">Gestionar</button>
+                const tr = document.createElement('tr');
+                tr.className = "border-b border-gray-100";
+                tr.innerHTML = `
+                    <td class="px-6 py-5 text-sm font-medium text-slate-800">${p.nombre} ${p.apellido}</td>
+                    <td class="px-6 py-5 text-sm text-slate-500">${p.email}</td>
+                    <td class="px-6 py-5 text-right">
+                        <button onclick="window.gestionarPaciente('${p.uid}')" class="text-[11px] font-bold text-[#2E4982] bg-[#F2F7FF] px-5 py-2.5 rounded-full uppercase tracking-wider hover:bg-[#E5F0FF] transition-all">Gestionar</button>
+                    </td>
                 `;
-                container.appendChild(card);
+                tbody.appendChild(tr);
             });
         }
 
@@ -144,173 +172,252 @@
             const docSnap = await getDoc(docRef);
             if (docSnap.exists()) {
                 const data = docSnap.data();
-                const nuevaDieta = prompt(`Editar Plan para ${data.nombre}:`, data.dieta);
-                const nuevaNota = prompt(`Nota del especialista:`, data.notaDoctor);
+                const nuevaDieta = prompt(`Actualizar Dieta para ${data.nombre}:`, data.dieta);
+                const nuevaNota = prompt(`Nueva Observación Médica:`, data.notaDoctor);
                 if (nuevaDieta !== null || nuevaNota !== null) {
                     await updateDoc(docRef, { dieta: nuevaDieta || data.dieta, notaDoctor: nuevaNota || data.notaDoctor });
-                    alert("Paciente actualizado.");
+                    notify("Información actualizada correctamente.", "success");
                     cargarListaPacientes();
                 }
             }
         };
 
-        window.guardarConfigBranding = async (e) => {
-            e.preventDefault();
-            const { logo_url, primary_color } = e.target;
-            await setDoc(doc(db, "artifacts", appId, "public", "data", "branding", "settings"), {
-                logoUrl: logo_url.value,
-                primaryColor: primary_color.value
-            });
-            alert("Imagen corporativa guardada.");
-        };
-
-        // --- FUNCIONES DE PACIENTE ---
+        // --- ÁREA PACIENTE ---
         function cargarDatosPaciente(uid) {
             onSnapshot(doc(db, "artifacts", appId, "users", uid, "profile", "info"), (docSnap) => {
                 if (docSnap.exists()) {
                     const d = docSnap.data();
-                    document.getElementById('display-nombre').textContent = d.nombre;
+                    document.getElementById('display-nombre').textContent = d.nombre + " " + (d.apellido || "");
                     document.getElementById('display-dieta').innerHTML = (d.dieta || "").replace(/\n/g, '<br>');
-                    document.getElementById('display-nota').textContent = d.notaDoctor || "Sin notas por ahora.";
+                    document.getElementById('display-nota').textContent = d.notaDoctor || "";
                 }
-            });
+            }, (error) => notify("Error al sincronizar datos."));
         }
 
         window.toggleView = (id) => showView(id);
-        window.toggleAdminTab = (tabId) => {
-            document.getElementById('admin-tab-pacientes').classList.toggle('hidden', tabId !== 'pacientes');
-            document.getElementById('admin-tab-branding').classList.toggle('hidden', tabId !== 'branding');
-        };
     </script>
     <style>
-        :root { --primary: #10b981; }
-        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
-        .bg-brand { background-color: var(--primary); }
-        .text-brand { color: var(--primary); }
-        .border-brand { border-color: var(--primary); }
-        .input-style { 
-            @apply w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all duration-200; 
+        :root { --primary: #2E4982; }
+        body { font-family: 'Inter', sans-serif; background-color: #FFFFFF; color: #1D1D1F; overflow-x: hidden; }
+        
+        .input-apple { 
+            width: 100%;
+            padding: 14px 20px !important;
+            border: 1.5px solid #D1D1D6 !important;
+            border-radius: 14px;
+            background-color: #FFFFFF;
+            outline: none;
+            font-size: 16px;
+            transition: all 0.2s ease;
+            display: block;
         }
-        .btn-primary {
-            @apply w-full bg-brand text-white py-5 rounded-[2rem] font-black text-xl shadow-lg active:scale-95 hover:brightness-105 transition-all;
+        .input-apple:focus { border-color: var(--primary) !important; box-shadow: 0 0 0 4px rgba(46, 73, 130, 0.08); }
+
+        .label-apple {
+            display: block;
+            font-size: 11px;
+            font-weight: 700;
+            color: #86868B;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+            margin-left: 4px;
+            letter-spacing: 0.08em;
         }
+        
+        .btn-premium {
+            background-color: #2E4982;
+            color: #FFFFFF;
+            width: 100%;
+            padding: 18px !important;
+            border-radius: 16px;
+            font-weight: 700;
+            font-size: 14px;
+            letter-spacing: 0.05em;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            border: none;
+            box-shadow: 0 4px 12px rgba(46, 73, 130, 0.15);
+        }
+        .btn-premium:hover { brightness: 1.1; box-shadow: 0 6px 16px rgba(46, 73, 130, 0.25); }
+        .btn-premium:active { transform: scale(0.97); }
+
+        .fade-in { animation: fadeIn 0.5s ease; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
     </style>
 </head>
-<body class="text-slate-900">
+<body class="antialiased selection:bg-[#2E4982]/10 selection:text-[#2E4982]">
 
-    <div id="loading-screen" class="fixed inset-0 bg-white z-[100] flex flex-col items-center justify-center">
-        <div class="animate-spin h-14 w-14 border-4 border-emerald-500 border-t-transparent rounded-full mb-4"></div>
-        <p class="font-black text-emerald-700 italic text-2xl tracking-tighter">IMNUFIT</p>
+    <!-- Notificación Toast -->
+    <div id="notification-toast" class="hidden">
+        <span id="notification-content"></span>
     </div>
 
-    <!-- VISTA: LOGIN (Diseño Mejorado) -->
-    <section id="login-view" class="min-h-screen flex items-center justify-center p-4">
-        <div class="max-w-md w-full">
-            <div class="text-center mb-10">
-                <img src="" alt="Logo" class="logo-render mx-auto mb-6 max-h-24">
-                <h2 class="text-[11px] font-black uppercase tracking-[0.3em] text-slate-400">Portal de Consulta Online</h2>
+    <!-- Pantalla de Carga -->
+    <div id="loading-screen" class="fixed inset-0 bg-white z-[100] flex items-center justify-center">
+        <div class="h-8 w-8 border-3 border-[#2E4982] border-t-transparent rounded-full animate-spin"></div>
+    </div>
+
+    <!-- VISTA: LOGIN -->
+    <section id="login-view" class="min-h-screen flex flex-col items-center justify-center p-8 hidden fade-in">
+        <div class="max-w-[350px] w-full space-y-12">
+            <div class="text-center">
+                <img src="https://imnufit.com/wp-content/uploads/2025/05/cropped-logo-y-nombre-AZUL.png" alt="IMNUFIT" class="mx-auto h-12 object-contain">
             </div>
-            <div class="bg-white rounded-[3rem] shadow-2xl p-10 border border-white">
-                <form onsubmit="window.handleLogin(event)" class="space-y-6 text-left">
-                    <div class="space-y-2">
-                        <label class="text-[10px] font-black uppercase text-slate-400 ml-4 tracking-widest">Correo de Usuario</label>
-                        <input type="email" name="email" placeholder="ejemplo@correo.com" required class="input-style">
+
+            <div class="space-y-3 text-center">
+                <h1 class="text-2xl font-bold tracking-tight text-[#1D1D1F]">Portal de Paciente</h1>
+                <p class="text-sm text-[#86868B]">Inicie sesión para acceder a su expediente clínico.</p>
+            </div>
+            
+            <form onsubmit="window.handleLogin(event)" class="space-y-8">
+                <div class="space-y-5 text-left">
+                    <div>
+                        <label class="label-apple">Correo Electrónico</label>
+                        <input type="email" name="email" required placeholder="correo@ejemplo.com" class="input-apple">
                     </div>
-                    <div class="space-y-2">
-                        <label class="text-[10px] font-black uppercase text-slate-400 ml-4 tracking-widest">Tu Contraseña</label>
-                        <input type="password" name="pass" placeholder="••••••••" required class="input-style">
+                    <div>
+                        <label class="label-apple">Contraseña</label>
+                        <input type="password" name="pass" required placeholder="••••••••" class="input-apple">
                     </div>
-                    <button type="submit" class="btn-primary">INICIAR SESIÓN</button>
-                </form>
-                <div class="mt-8 pt-8 border-t border-slate-50 text-center">
-                    <p class="text-sm text-slate-400 font-medium">¿Nuevo paciente?</p>
-                    <button onclick="window.toggleView('signup-view')" class="text-brand font-black uppercase tracking-widest mt-2">Crea tu cuenta aquí</button>
                 </div>
+                <button type="submit" class="btn-premium">Ingresar al Sistema</button>
+            </form>
+
+            <div class="flex flex-col items-center gap-6 text-xs">
+                <div class="text-[#86868B]">
+                    ¿No tiene una ficha? <button onclick="window.toggleView('signup-view')" class="text-[#0066CC] font-bold hover:underline">Crear ahora</button>
+                </div>
+                <button onclick="window.toggleView('forgot-view')" class="text-[#86868B] font-semibold uppercase tracking-widest text-[10px] hover:text-[#1D1D1F]">Olvidé mi contraseña</button>
             </div>
         </div>
+        
+        <footer class="mt-20 text-[10px] text-[#A1A1A6] uppercase tracking-[0.3em] font-bold text-center">
+            © 2024 IMNUFIT • Clinical Intelligence
+        </footer>
     </section>
 
     <!-- VISTA: REGISTRO -->
-    <section id="signup-view" class="min-h-screen flex items-center justify-center p-4 hidden">
-        <div class="max-w-md w-full bg-white rounded-[3rem] shadow-2xl p-10 border">
-            <h2 class="text-3xl font-black text-slate-800 mb-2 italic">Registro</h2>
-            <p class="text-slate-400 mb-8 font-medium">Crea tu ficha para empezar tu plan.</p>
-            <form onsubmit="window.handleSignup(event)" class="space-y-4">
+    <section id="signup-view" class="min-h-screen flex flex-col items-center justify-center p-8 hidden fade-in">
+        <div class="max-w-[420px] w-full space-y-10">
+            <div class="text-center">
+                <h2 class="text-xl font-bold text-[#1D1D1F] uppercase tracking-tight">Registro de Paciente</h2>
+                <p class="text-sm text-[#86868B] mt-1">Sus datos serán protegidos bajo confidencialidad médica.</p>
+            </div>
+            <form onsubmit="window.handleSignup(event)" class="space-y-5 text-left">
                 <div class="grid grid-cols-2 gap-4">
-                    <input type="text" name="nombre" placeholder="Nombre" required class="input-style">
-                    <input type="text" name="apellido" placeholder="Apellido" required class="input-style">
+                    <div>
+                        <label class="label-apple">Nombre</label>
+                        <input type="text" name="nombre" required class="input-apple">
+                    </div>
+                    <div>
+                        <label class="label-apple">Apellido</label>
+                        <input type="text" name="apellido" required class="input-apple">
+                    </div>
                 </div>
-                <input type="email" name="email" placeholder="Email" required class="input-style">
-                <input type="tel" name="telef" placeholder="Teléfono" required class="input-style">
-                <input type="password" name="pass" placeholder="Contraseña (mín. 6)" required minlength="6" class="input-style">
-                <button type="submit" class="btn-primary">REGISTRARME</button>
-                <button type="button" onclick="window.toggleView('login-view')" class="w-full text-xs font-bold text-slate-300 uppercase mt-4">Volver al inicio</button>
+                <div>
+                    <label class="label-apple">Correo Electrónico</label>
+                    <input type="email" name="email" required class="input-apple">
+                </div>
+                <div>
+                    <label class="label-apple">Teléfono / WhatsApp</label>
+                    <input type="tel" name="telef" required class="input-apple">
+                </div>
+                <div>
+                    <label class="label-apple">Contraseña de acceso</label>
+                    <input type="password" name="pass" required minlength="6" class="input-apple">
+                </div>
+                <button type="submit" class="btn-premium mt-4">Completar Registro</button>
+                <button type="button" onclick="window.toggleView('login-view')" class="w-full text-xs font-bold text-[#0066CC] mt-8 text-center uppercase tracking-widest">Regresar al portal</button>
             </form>
         </div>
     </section>
 
-    <!-- VISTA: PANEL ADMIN (BAC) -->
-    <section id="admin-view" class="min-h-screen hidden">
-        <header class="bg-white/80 backdrop-blur-md border-b px-6 py-4 flex justify-between items-center sticky top-0 z-40">
-            <div class="flex items-center space-x-3">
-                <img src="" class="logo-render h-8">
-                <span class="bg-emerald-100 text-[9px] font-black px-2 py-1 rounded-md text-emerald-700 uppercase">ESPECIALISTA</span>
-            </div>
-            <button onclick="window.cerrarSesion()" class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Cerrar Sesión</button>
-        </header>
-        <main class="max-w-4xl mx-auto p-6">
-            <nav class="flex space-x-2 mb-8 bg-slate-200/50 p-1.5 rounded-2xl">
-                <button onclick="window.toggleAdminTab('pacientes')" class="flex-1 py-3 rounded-xl font-bold text-sm bg-white shadow-sm transition-all">Pacientes</button>
-                <button onclick="window.toggleAdminTab('branding')" class="flex-1 py-3 rounded-xl font-bold text-sm text-slate-500 transition-all">Marca</button>
-            </nav>
-            <div id="admin-tab-pacientes" class="space-y-4">
-                <h3 class="text-2xl font-black text-slate-800 italic mb-6">Directorio Activo</h3>
-                <div id="lista-pacientes"><!-- Dinámico --></div>
-            </div>
-            <div id="admin-tab-branding" class="hidden">
-                <div class="bg-white p-10 rounded-[3rem] shadow-sm border border-slate-100">
-                    <h3 class="text-xl font-black text-slate-800 mb-8">Personalizar Marca</h3>
-                    <form onsubmit="window.guardarConfigBranding(event)" class="space-y-6">
-                        <div class="space-y-2">
-                            <label class="text-[10px] font-black uppercase text-slate-400 block ml-4">URL del Logo</label>
-                            <input type="text" name="logo_url" placeholder="https://..." class="input-style border">
-                        </div>
-                        <div class="space-y-2">
-                            <label class="text-[10px] font-black uppercase text-slate-400 block ml-4">Color Principal</label>
-                            <input type="color" name="primary_color" class="w-full h-16 rounded-2xl cursor-pointer">
-                        </div>
-                        <button type="submit" class="btn-primary !py-4">GUARDAR CAMBIOS</button>
-                    </form>
+    <!-- VISTA: OLVIDO CONTRASEÑA -->
+    <section id="forgot-view" class="min-h-screen flex flex-col items-center justify-center p-8 hidden fade-in">
+        <div class="max-w-[380px] w-full text-center space-y-10">
+            <h2 class="text-xl font-bold uppercase tracking-tight">Recuperar Acceso</h2>
+            <p class="text-sm text-[#86868B]">Enviaremos las instrucciones de restablecimiento a su email registrado.</p>
+            <form onsubmit="window.handleForgot(event)" class="space-y-6 text-left">
+                <div>
+                    <label class="label-apple">Email del Usuario</label>
+                    <input type="email" name="email" required class="input-apple">
                 </div>
+                <button type="submit" class="btn-premium">Enviar Instrucciones</button>
+                <button type="button" onclick="window.toggleView('login-view')" class="w-full text-xs font-bold text-[#0066CC] mt-6 text-center uppercase tracking-widest">Cancelar</button>
+            </form>
+        </div>
+    </section>
+
+    <!-- VISTA: ADMIN -->
+    <section id="admin-view" class="min-h-screen hidden bg-[#FBFBFC]">
+        <nav class="border-b border-[#D2D2D7] bg-white h-16 flex items-center px-10 justify-between sticky top-0 z-40">
+            <img src="https://imnufit.com/wp-content/uploads/2025/05/cropped-logo-y-nombre-AZUL.png" class="h-6">
+            <div class="flex items-center gap-6">
+                <span class="text-[10px] font-bold text-[#86868B] uppercase tracking-widest border border-[#D2D2D7] px-3 py-1 rounded-md">Especialista</span>
+                <button onclick="window.cerrarSesion()" class="text-[10px] font-bold text-red-500 hover:text-red-700 uppercase transition-colors">Salir</button>
+            </div>
+        </nav>
+        <main class="max-w-5xl mx-auto p-12">
+            <div class="mb-12">
+                <h2 class="text-3xl font-bold tracking-tight text-[#1D1D1F]">Gestión Médica</h2>
+                <p class="text-sm text-[#86868B] mt-1">Directorio activo de pacientes registrados en IMNUFIT.</p>
+            </div>
+            <div class="bg-white border border-[#D2D2D7] rounded-3xl overflow-hidden shadow-sm">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="bg-[#F5F5F7] text-[10px] uppercase font-bold text-[#86868B] tracking-widest border-b border-[#D2D2D7]">
+                            <th class="px-8 py-5">Nombre Completo</th>
+                            <th class="px-8 py-5">Identificador</th>
+                            <th class="px-8 py-5 text-right">Ficha Clínica</th>
+                        </tr>
+                    </thead>
+                    <tbody id="lista-pacientes-body" class="divide-y divide-[#D2D2D7]"></tbody>
+                </table>
             </div>
         </main>
     </section>
 
-    <!-- VISTA: PORTAL PACIENTE -->
-    <section id="patient-view" class="min-h-screen hidden pb-10">
-        <header class="bg-white/80 backdrop-blur-md px-6 py-4 border-b flex justify-between items-center sticky top-0 z-40">
-            <img src="" class="logo-render h-8">
-            <button onclick="window.cerrarSesion()" class="text-[9px] font-black text-slate-400 uppercase border px-3 py-1 rounded-xl">Salir</button>
+    <!-- VISTA: PACIENTE -->
+    <section id="patient-view" class="min-h-screen hidden bg-[#F5F5F7]">
+        <header class="bg-white/80 backdrop-blur-md border-b border-[#D2D2D7] h-16 flex items-center px-10 justify-between sticky top-0 z-40">
+            <img src="https://imnufit.com/wp-content/uploads/2025/05/cropped-logo-y-nombre-AZUL.png" class="h-6">
+            <button onclick="window.cerrarSesion()" class="text-[10px] font-bold text-[#86868B] uppercase tracking-widest hover:text-[#1D1D1F]">Cerrar Sesión</button>
         </header>
-        <main class="max-w-2xl mx-auto p-6 space-y-6">
-            <div class="bg-brand rounded-[3rem] p-12 text-white shadow-2xl relative overflow-hidden">
-                <div class="relative z-10">
-                    <h2 class="text-4xl lg:text-5xl font-black tracking-tight mb-2">¡Hola, <span id="display-nombre">...</span>!</h2>
-                    <p class="text-white/80 font-medium text-lg italic">Tu plan nutricional actualizado.</p>
+        <main class="max-w-4xl mx-auto py-16 px-6 lg:px-12 space-y-12">
+            <div class="bg-white border border-[#D2D2D7] rounded-[2.5rem] p-12 shadow-sm space-y-12 fade-in">
+                <div class="flex flex-col md:flex-row justify-between items-start border-b border-[#F5F5F7] pb-12 gap-6">
+                    <div class="text-left">
+                        <p class="text-[10px] font-bold text-[#2E4982] uppercase tracking-[0.4em] mb-4">Expediente Médico Digital</p>
+                        <h2 class="text-4xl font-bold tracking-tight text-[#1D1D1F] leading-none"><span id="display-nombre">...</span></h2>
+                    </div>
+                    <div class="bg-emerald-50 text-emerald-700 px-4 py-2 rounded-xl border border-emerald-100 flex items-center gap-2">
+                        <span class="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></span>
+                        <span class="text-[10px] font-bold uppercase tracking-widest">Tratamiento Activo</span>
+                    </div>
                 </div>
-                <div class="absolute -right-20 -top-20 w-80 h-80 bg-white/10 rounded-full blur-3xl"></div>
+
+                <div class="grid grid-cols-1 gap-14 text-left">
+                    <div>
+                        <h3 class="text-[11px] font-bold text-[#1D1D1F] uppercase tracking-[0.3em] mb-8 border-l-4 border-[#2E4982] pl-6">Plan Nutricional de la Consulta</h3>
+                        <div id="display-dieta" class="text-[#1D1D1F] leading-relaxed text-xl font-normal whitespace-pre-line bg-[#FAFAFA] p-10 rounded-[2.5rem] border border-[#F0F0F0]">
+                            Sincronizando información...
+                        </div>
+                    </div>
+                    <div class="bg-[#F5F5F7] p-10 rounded-[2.5rem] border border-[#D2D2D7]">
+                        <h4 class="text-[10px] font-bold text-[#86868B] uppercase tracking-[0.3em] mb-6">Recomendaciones del Especialista</h4>
+                        <p id="display-nota" class="text-[#1D1D1F] italic text-lg font-light leading-relaxed">...</p>
+                    </div>
+                </div>
+
+                <div class="pt-10 border-t border-[#F5F5F7] text-center">
+                    <a href="https://wa.me/tu_numero" target="_blank" class="inline-flex items-center gap-3 text-xs font-bold text-[#0066CC] uppercase tracking-widest hover:underline transition-all">
+                        Solicitar cita o resolver dudas vía WhatsApp
+                    </a>
+                </div>
             </div>
-            <div class="bg-white rounded-[3rem] p-10 shadow-sm border border-slate-100">
-                <h3 class="text-2xl font-black text-slate-800 mb-8 flex items-center italic">🥗 MI DIETA</h3>
-                <div id="display-dieta" class="text-slate-600 text-xl leading-relaxed font-medium">Cargando...</div>
-            </div>
-            <div class="bg-slate-900 rounded-[2.5rem] p-10 text-white shadow-2xl border-l-[12px] border-brand">
-                <h4 class="text-brand font-black text-[10px] uppercase tracking-[0.3em] mb-4">Nota del Especialista</h4>
-                <p id="display-nota" class="text-2xl font-light italic leading-snug">...</p>
-            </div>
-            <a href="https://wa.me/tu_numero" target="_blank" class="block w-full bg-white border-2 border-slate-100 text-brand p-8 rounded-[3rem] text-center font-black text-2xl shadow-xl hover:border-brand transition-all">
-                CHAT WHATSAPP 💬
-            </a>
         </main>
     </section>
 
