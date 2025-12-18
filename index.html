@@ -99,6 +99,83 @@
             window.scrollTo(0,0);
         }
 
+        // Función reutilizable para actualizar la UI del Dashboard
+        function updateDashboardUI(airtableData) {
+            document.getElementById('display-nombre').textContent = airtableData["Nombre + Edad"] || airtableData["Nombre"] || "Paciente";
+            document.getElementById('display-greeting').textContent = getGreeting();
+            
+            const status = airtableData["Estatus"] || "Activo";
+            const statusEl = document.getElementById('display-estatus');
+            statusEl.textContent = status;
+            statusEl.className = `px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest border inline-block mt-2 ${getStatusClass(status)}`;
+
+            // Links
+            const linkCalendar = airtableData["Link Calendar"] || CALENDAR_LINK_DEFAULT;
+            const linkConsultas = airtableData["Link Consultas"] || "#";
+            
+            // CONFIGURACIÓN DE BOTONES CON VISOR INTERNO
+            const btnCalendar = document.getElementById('btn-calendar-action');
+            btnCalendar.onclick = (e) => {
+                e.preventDefault();
+                openWebView(linkCalendar, "Calendario de Citas");
+            };
+
+            const btnConsultas = document.getElementById('btn-consultas-action');
+            
+            if(linkConsultas === "#" || !linkConsultas) {
+                btnConsultas.style.opacity = "0.5";
+                btnConsultas.style.cursor = "not-allowed";
+                btnConsultas.onclick = (e) => { e.preventDefault(); notify("Aún no tienes consultas registradas."); };
+            } else {
+                btnConsultas.style.opacity = "1";
+                btnConsultas.style.cursor = "pointer";
+                btnConsultas.onclick = (e) => {
+                    e.preventDefault();
+                    openWebView(linkConsultas, "Historial de Consultas");
+                };
+            }
+
+            const randomFrase = frasesCreyentes[Math.floor(Math.random() * frasesCreyentes.length)];
+            document.getElementById('display-frase').textContent = randomFrase;
+        }
+
+        // --- FUNCIÓN DEL VISOR INTERNO (WEBVIEW) ---
+        window.openWebView = (url, title) => {
+            const modal = document.getElementById('webview-modal');
+            const iframe = document.getElementById('webview-iframe');
+            const titleEl = document.getElementById('webview-title');
+            const externalBtn = document.getElementById('webview-external-btn');
+
+            titleEl.textContent = title;
+            iframe.src = url;
+            externalBtn.onclick = () => window.open(url, '_blank');
+            
+            modal.classList.remove('hidden');
+        };
+
+        window.closeWebView = () => {
+            const modal = document.getElementById('webview-modal');
+            const iframe = document.getElementById('webview-iframe');
+            modal.classList.add('hidden');
+            iframe.src = ""; // Limpiar para detener carga
+        };
+
+        // Función para el botón de refrescar
+        window.refreshData = async () => {
+            const user = auth.currentUser;
+            if(user) {
+                document.getElementById('loading-screen').classList.remove('hidden');
+                const airtableData = await fetchAirtableData(user.email);
+                if (airtableData) {
+                    updateDashboardUI(airtableData);
+                    notify("Datos actualizados correctamente.", "success");
+                } else {
+                    notify("No se pudieron obtener los datos actualizados.");
+                }
+                document.getElementById('loading-screen').classList.add('hidden');
+            }
+        };
+
         onAuthStateChanged(auth, async (user) => {
             if (user) {
                 document.getElementById('loading-screen').classList.remove('hidden');
@@ -106,35 +183,7 @@
                 const airtableData = await fetchAirtableData(user.email);
                 
                 if (airtableData) {
-                    document.getElementById('display-nombre').textContent = airtableData["Nombre + Edad"] || airtableData["Nombre"] || "Paciente";
-                    document.getElementById('display-greeting').textContent = getGreeting();
-                    
-                    const status = airtableData["Estatus"] || "Activo";
-                    const statusEl = document.getElementById('display-estatus');
-                    statusEl.textContent = status;
-                    statusEl.className = `px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest border inline-block mt-2 ${getStatusClass(status)}`;
-
-                    const linkCalendar = airtableData["Link Calendar"] || CALENDAR_LINK_DEFAULT;
-                    const linkConsultas = airtableData["Link Consultas"] || "#";
-                    
-                    document.getElementById('btn-calendar-action').href = linkCalendar;
-                    const btnConsultas = document.getElementById('btn-consultas-action');
-                    btnConsultas.href = linkConsultas;
-                    
-                    if(linkConsultas === "#" || !linkConsultas) {
-                       btnConsultas.style.opacity = "0.5";
-                       btnConsultas.style.cursor = "not-allowed";
-                       btnConsultas.onclick = (e) => { e.preventDefault(); notify("Aún no tienes consultas registradas."); };
-                    } else {
-                        btnConsultas.onclick = null;
-                        btnConsultas.target = "_blank";
-                        btnConsultas.style.opacity = "1";
-                        btnConsultas.style.cursor = "pointer";
-                    }
-
-                    const randomFrase = frasesCreyentes[Math.floor(Math.random() * frasesCreyentes.length)];
-                    document.getElementById('display-frase').textContent = randomFrase;
-
+                    updateDashboardUI(airtableData);
                     showView('patient-view');
                 } else {
                     notify("Tu expediente no está sincronizado en Airtable aún.", "error");
@@ -220,6 +269,17 @@
 
         .fade-in { animation: fadeIn 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* ESTILOS DEL VISOR INTERNO */
+        #webview-modal {
+            backdrop-filter: blur(10px);
+        }
+        .webview-container {
+            width: 95%;
+            height: 90%;
+            max-width: 1000px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+        }
     </style>
 </head>
 <body class="selection:bg-[#DEE9FA] selection:text-[#2E4982]">
@@ -229,6 +289,26 @@
     
     <div id="loading-screen" class="fixed inset-0 bg-white z-[100] flex items-center justify-center">
         <div class="h-8 w-8 border-[3px] border-[#2E4982] border-t-transparent rounded-full animate-spin"></div>
+    </div>
+
+    <!-- VISOR WEB INTERNO (MODAL) -->
+    <div id="webview-modal" class="fixed inset-0 z-[150] bg-black/40 hidden flex items-center justify-center">
+        <div class="webview-container bg-white rounded-[32px] flex flex-col overflow-hidden relative animate-fade-in-up">
+            <!-- Barra superior del visor -->
+            <div class="h-16 bg-[#F9FAFB] border-b border-gray-200 flex items-center justify-between px-6 shrink-0">
+                <span id="webview-title" class="text-sm font-bold text-slate-700 uppercase tracking-wider">Navegador</span>
+                <div class="flex items-center gap-3">
+                    <button id="webview-external-btn" class="text-xs font-bold text-[#2E4982] bg-[#DEE9FA] px-3 py-1.5 rounded-lg hover:bg-[#d0e0f5] transition-colors" title="Abrir en navegador externo">
+                        Abrir Externo ↗
+                    </button>
+                    <button onclick="window.closeWebView()" class="w-8 h-8 rounded-full bg-slate-200 text-slate-500 flex items-center justify-center hover:bg-slate-300 transition-colors font-bold">
+                        ✕
+                    </button>
+                </div>
+            </div>
+            <!-- Iframe -->
+            <iframe id="webview-iframe" class="flex-1 w-full bg-white" frameborder="0"></iframe>
+        </div>
     </div>
 
     <!-- VISTA 1: LOGIN -->
@@ -271,7 +351,13 @@
     <section id="patient-view" class="min-h-screen hidden">
         <header class="bg-white/40 backdrop-blur-xl border-b border-white/60 h-16 flex items-center px-8 justify-between sticky top-0 z-40">
             <img src="https://imnufit.com/wp-content/uploads/2025/05/cropped-logo-y-nombre-AZUL.png" class="h-6">
-            <button onclick="window.cerrarSesion()" class="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest hover:text-red-500 transition-colors">Salir</button>
+            <div class="flex items-center gap-4">
+                <!-- BOTÓN ACTUALIZAR -->
+                <button onclick="window.refreshData()" class="text-slate-400 hover:text-[#2E4982] transition-colors p-2 rounded-full hover:bg-white/50" title="Actualizar datos">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                </button>
+                <button onclick="window.cerrarSesion()" class="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest hover:text-red-500 transition-colors">Salir</button>
+            </div>
         </header>
 
         <main class="max-w-5xl mx-auto py-12 px-6 space-y-12">
@@ -312,7 +398,7 @@
                         <p class="text-[14px] text-slate-500 mt-2">Reserva tu espacio con el especialista.</p>
                     </div>
                     <div class="mt-8">
-                        <a id="btn-calendar-action" target="_blank" class="btn-ghost-sm w-full md:w-auto">Ir al Calendario</a>
+                        <a id="btn-calendar-action" href="#" class="btn-ghost-sm w-full md:w-auto">Ir al Calendario</a>
                     </div>
                 </section>
 
@@ -330,7 +416,7 @@
                     </div>
                     <div class="mt-8">
                         <!-- Botón Abrir Ajustado -->
-                        <a id="btn-consultas-action" target="_blank" class="btn-ghost-sm w-full md:w-auto">Abrir</a>
+                        <a id="btn-consultas-action" href="#" class="btn-ghost-sm w-full md:w-auto">Abrir</a>
                     </div>
                 </section>
 
