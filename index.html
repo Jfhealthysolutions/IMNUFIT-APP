@@ -5,10 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>IMNUFIT - Portal del Paciente</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut, setPersistence, browserLocalPersistence, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut, setPersistence, browserLocalPersistence, sendPasswordResetEmail, updatePassword } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // --- CONFIGURACIÓN DE FIREBASE ---
@@ -31,6 +31,7 @@
         const db = getFirestore(app);
 
         const CALENDAR_LINK_DEFAULT = "https://calendar.app.google/CE4KjKxPeFiV93GV7";
+        const STRIPE_PORTAL_LINK = "https://billing.stripe.com/p/login/bIY9CF3un99T2XefYY";
 
         const frasesCreyentes = [
             "Todo lo puedo en Cristo que me fortalece. — Filipenses 4:13",
@@ -38,7 +39,7 @@
             "El Señor es mi pastor; nada me falta. — Salmo 23:1",
             "No te canses de hacer el bien, porque a su debido tiempo cosecharás. — Gálatas 6:9",
             "Confía en el Señor de todo corazón. — Proverbios 3:5",
-            "¡Sé fuerte y valiente! No tengas miedo ni te desanimes. — Josué 1:9",
+            "¡Sé fuerte y valiente! No tengas miedo ni te desanimimes. — Josué 1:9",
             "Su amor es constante y nuevo cada mañana. — Lamentaciones 3:22"
         ];
 
@@ -60,18 +61,15 @@
             return "bg-[#DEE9FA] text-[#2E4982] border-[#DEE9FA]"; 
         }
 
-        // Procesador de Texto Enriquecido
-        function parseRichText(text) {
-            if (!text) return "No hay información disponible.";
-            let formatted = String(text);
-            formatted = formatted.replace(/\*\*([^*]+)\*\*/g, '<strong class="font-bold text-[#1D1D1F]">$1</strong>');
-            formatted = formatted.replace(/__([^_]+)__/g, '<em class="italic opacity-90">$1</em>');
-            formatted = formatted.replace(/(?<!_|\w)_([^_]+)_(?!_|\w)/g, '<em class="italic opacity-90">$1</em>');
-            formatted = formatted.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" class="text-[#2E4982] underline font-bold hover:text-blue-700">$1</a>');
-            const urlRegex = /(?<!href=")(https?:\/\/[^\s<]+)/g;
-            formatted = formatted.replace(urlRegex, '<a href="$1" target="_blank" class="text-[#2E4982] underline font-bold hover:text-blue-700">$1</a>');
-            formatted = formatted.replace(/\n/g, '<br>');
-            return formatted;
+        // Formateador de Fecha a mm/dd/yyyy
+        function formatDateMDY(dateString) {
+            if (!dateString) return "--";
+            const date = new Date(dateString);
+            if (isNaN(date.getTime())) return dateString; 
+            const mm = String(date.getUTCMonth() + 1).padStart(2, '0');
+            const dd = String(date.getUTCDate()).padStart(2, '0');
+            const yyyy = date.getUTCFullYear();
+            return `${mm}/${dd}/${yyyy}`;
         }
 
         window.notify = (message, type = 'error') => {
@@ -79,7 +77,7 @@
             const content = document.getElementById('notification-content');
             if(toast && content) {
                 content.textContent = message;
-                toast.className = `fixed top-8 left-1/2 -translate-x-1/2 z-[300] px-8 py-4 rounded-full shadow-2xl text-[13px] font-semibold transition-all duration-500 scale-100 opacity-100 backdrop-blur-xl ${
+                toast.className = `fixed top-8 left-1/2 -translate-x-1/2 z-[400] px-8 py-4 rounded-full shadow-2xl text-[13px] font-semibold transition-all duration-500 scale-100 opacity-100 backdrop-blur-xl ${
                     type === 'success' ? 'bg-[#D0F0E0] text-[#2E4982] border border-white' : 'bg-white/90 text-red-600 border border-red-100'
                 }`;
                 toast.classList.remove('hidden');
@@ -90,22 +88,14 @@
             }
         };
 
-        window.openWebView = (url, title) => {
-            const modal = document.getElementById('webview-modal');
-            const iframe = document.getElementById('webview-iframe');
-            const titleEl = document.getElementById('webview-title');
-            titleEl.textContent = title;
-            iframe.src = url;
-            modal.classList.remove('hidden');
-            document.body.style.overflow = 'hidden'; 
-        };
-
-        window.closeWebView = () => {
-            const modal = document.getElementById('webview-modal');
-            const iframe = document.getElementById('webview-iframe');
-            modal.classList.add('hidden');
-            iframe.src = ""; 
-            document.body.style.overflow = '';
+        // --- MANEJO DE VISTAS ---
+        window.showView = (viewId) => {
+            const views = ['login-view', 'signup-view', 'patient-view', 'loading-screen', 'forgot-password-view', 'membership-view'];
+            views.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.classList.toggle('hidden', id !== viewId);
+            });
+            window.scrollTo(0,0);
         };
 
         async function fetchAirtableData(email) {
@@ -123,17 +113,11 @@
             }
         }
 
-        function showView(viewId) {
-            const views = ['login-view', 'signup-view', 'patient-view', 'loading-screen', 'forgot-password-view'];
-            views.forEach(id => {
-                const el = document.getElementById(id);
-                if (el) el.classList.toggle('hidden', id !== viewId);
-            });
-            window.scrollTo(0,0);
-        }
-
+        // --- ACTUALIZACIÓN DE INTERFAZ ---
         function updateDashboardUI(airtableData) {
-            document.getElementById('display-nombre').textContent = airtableData["Nombre + Edad"] || airtableData["Nombre"] || "Paciente";
+            const infoPaciente = airtableData["Nombre + Edad"] || "Usuario IMNUFIT";
+            
+            document.getElementById('display-nombre').textContent = infoPaciente;
             document.getElementById('display-greeting').textContent = getGreeting();
             
             const status = airtableData["Estatus"] || "Activo";
@@ -143,7 +127,6 @@
 
             const linkCalendar = airtableData["Link Calendar"] || CALENDAR_LINK_DEFAULT;
             const linkConsultas = airtableData["Link Consultas"] || "#";
-            
             document.getElementById('btn-calendar-action').href = linkCalendar;
             const btnConsultas = document.getElementById('btn-consultas-action');
             btnConsultas.href = linkConsultas;
@@ -151,10 +134,29 @@
             if(linkConsultas === "#" || !linkConsultas) {
                 btnConsultas.style.opacity = "0.5";
                 btnConsultas.style.cursor = "not-allowed";
-                btnConsultas.onclick = (e) => { e.preventDefault(); notify("No hay registros disponibles."); };
             } else {
-                btnConsultas.onclick = null;
                 btnConsultas.style.opacity = "1";
+                btnConsultas.style.cursor = "pointer";
+            }
+
+            // --- LLENAR PERFIL ---
+            document.getElementById('acc-nombre').textContent = infoPaciente;
+            document.getElementById('acc-nacimiento').textContent = formatDateMDY(airtableData["Fecha de Nacimiento"]);
+            document.getElementById('acc-pais').textContent = airtableData["País"] || "--";
+            document.getElementById('acc-telefono').textContent = airtableData["Telefono"] || "--";
+            document.getElementById('acc-email').textContent = airtableData["Email"] || auth.currentUser.email;
+
+            const genero = String(airtableData["Género"] || "Sin definir");
+            const generoEl = document.getElementById('acc-genero');
+            generoEl.textContent = genero;
+            
+            // Colores dinámicos para el género manteniendo el estilo de cápsula
+            if (genero.toLowerCase().includes("masculino")) {
+                generoEl.className = "px-3 py-0.5 rounded-md text-[12px] font-bold bg-sky-100 text-sky-700 ml-2 inline-block uppercase tracking-wider shadow-sm";
+            } else if (genero.toLowerCase().includes("femenino")) {
+                generoEl.className = "px-3 py-0.5 rounded-md text-[12px] font-bold bg-rose-100 text-rose-700 ml-2 inline-block uppercase tracking-wider shadow-sm";
+            } else {
+                generoEl.className = "px-3 py-0.5 rounded-md text-[12px] font-bold bg-slate-100 text-slate-600 ml-2 inline-block uppercase tracking-wider shadow-sm";
             }
 
             const randomFrase = frasesCreyentes[Math.floor(Math.random() * frasesCreyentes.length)];
@@ -182,8 +184,8 @@
                     updateDashboardUI(airtableData);
                     showView('patient-view');
                 } else {
-                    notify("Email no encontrado en Airtable.", "error");
-                    document.getElementById('display-nombre').textContent = user.email.split('@')[0];
+                    notify("No se encontró registro vinculado.", "error");
+                    document.getElementById('display-nombre').textContent = "Usuario IMNUFIT";
                     showView('patient-view');
                 }
             } else {
@@ -210,8 +212,8 @@
             try {
                 document.getElementById('loading-screen').classList.remove('hidden');
                 await createUserWithEmailAndPassword(auth, email.value, pass.value);
-                notify("Cuenta creada con éxito.", "success");
-            } catch (err) { notify("Error al crear cuenta."); document.getElementById('loading-screen').classList.add('hidden'); }
+                notify("Acceso activado.", "success");
+            } catch (err) { notify("Error en registro."); document.getElementById('loading-screen').classList.add('hidden'); }
         };
 
         window.handlePasswordReset = async (e) => {
@@ -220,13 +222,24 @@
             try {
                 document.getElementById('loading-screen').classList.remove('hidden');
                 await sendPasswordResetEmail(auth, email);
-                notify("Correo de recuperación enviado. Revisa tu bandeja de entrada.", "success");
+                notify("Revisa tu correo.", "success");
                 showView('login-view');
-            } catch (err) {
-                notify("No se pudo enviar el correo. Verifica que el email sea correcto.");
-            } finally {
-                document.getElementById('loading-screen').classList.add('hidden');
-            }
+            } catch (err) { notify("Error al solicitar."); }
+            finally { document.getElementById('loading-screen').classList.add('hidden'); }
+        };
+
+        window.updateAppPassword = async (e) => {
+            e.preventDefault();
+            const newPass = e.target.newPassword.value;
+            const user = auth.currentUser;
+            if(!user) return;
+            try {
+                document.getElementById('loading-screen').classList.remove('hidden');
+                await updatePassword(user, newPass);
+                notify("Contraseña actualizada.", "success");
+                e.target.reset();
+            } catch (err) { notify("Inicia sesión de nuevo para cambiar seguridad."); }
+            finally { document.getElementById('loading-screen').classList.add('hidden'); }
         };
 
         window.cerrarSesion = () => signOut(auth);
@@ -238,7 +251,7 @@
             --primary: #2E4982; 
             --text-main: #494949;
             --apple-bg: #FBFBFC; 
-            --card-shadow: 0 20px 40px -5px rgba(46, 73, 130, 0.08); 
+            --card-shadow: 0 15px 35px -5px rgba(46, 73, 130, 0.1); 
         }
         body { font-family: 'Inter', sans-serif; background-color: var(--apple-bg); color: var(--text-main); -webkit-font-smoothing: antialiased; overflow-x: hidden; }
         
@@ -260,7 +273,6 @@
             font-weight: 600; font-size: 15px; letter-spacing: 0.02em; border: none; transition: all 0.4s ease;
             box-shadow: 0 10px 20px -5px rgba(46, 73, 130, 0.25); cursor: pointer;
         }
-        .btn-ingresar:hover { transform: translateY(-2px); box-shadow: 0 15px 30px -5px rgba(46, 73, 130, 0.35); }
 
         .bento-card {
             @apply bg-white/90 backdrop-blur-xl border border-white transition-all duration-500 flex flex-col justify-between;
@@ -268,32 +280,30 @@
             padding: 36px 32px !important; 
             box-shadow: var(--card-shadow);
         }
-        .bento-card:hover { transform: translateY(-4px); box-shadow: 0 30px 60px -10px rgba(46, 73, 130, 0.12); }
+        .bento-card:hover { transform: translateY(-4px); box-shadow: 0 30px 60px -10px rgba(46, 73, 130, 0.15); }
 
         .btn-ghost-sm {
-            background-color: transparent; 
-            color: var(--primary); 
-            border: 1.5px solid var(--primary);
-            padding: 14px 48px !important; 
-            border-radius: 100px; 
-            font-size: 11px; 
-            font-weight: 700;
-            text-transform: uppercase; 
-            letter-spacing: 0.12em; 
-            transition: all 0.3s ease;
-            display: inline-block; 
-            text-align: center; 
-            cursor: pointer; 
-            text-decoration: none;
-            width: 100%;
+            @apply bg-transparent border-[1.5px] border-[#2E4982] text-[#2E4982] py-3.5 px-12 rounded-full text-[11px] font-bold uppercase tracking-widest transition-all text-center cursor-pointer no-underline w-full md:w-auto inline-block;
         }
-        @media (min-width: 768px) { .btn-ghost-sm { width: auto; } }
-        .btn-ghost-sm:hover { background-color: #DEE9FA; color: var(--primary); border-color: #DEE9FA; }
+        .btn-ghost-sm:hover { @apply bg-[#DEE9FA] border-[#DEE9FA]; }
 
         .fade-in { animation: fadeIn 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
 
-        .webview-container { width: 95%; height: 90%; max-width: 1200px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); }
+        .btn-secure-portal {
+            background-color: #2E4982; color: white; width: 100%; padding: 18px !important; border-radius: 14px;
+            font-weight: 600; font-size: 14px; display: flex; items-center justify-center gap-2 transition: all 0.3s ease;
+            box-shadow: 0 10px 20px -5px rgba(46, 73, 130, 0.2);
+        }
+        .btn-secure-portal:hover { transform: translateY(-1px); box-shadow: 0 15px 30px -5px rgba(46, 73, 130, 0.3); background-color: #1e325c; }
+
+        /* --- ESTILOS DE PERFIL UNIFICADOS CON MEMBRESÍA --- */
+        .profile-list { @apply space-y-2; }
+        .profile-item { @apply flex flex-row items-center border-b border-slate-50 py-5 last:border-0; }
+        /* Label con fuente negrita Slate-500 */
+        .profile-label { @apply text-[11px] font-extrabold text-slate-500 uppercase tracking-widest min-w-[130px]; }
+        /* Value con fuente Slate-500 para coherencia con la descripción de membresía */
+        .profile-value { @apply text-[15px] text-slate-500 font-semibold ml-1; }
     </style>
 </head>
 <body class="selection:bg-[#DEE9FA] selection:text-[#2E4982]">
@@ -343,51 +353,18 @@
         <footer class="mt-20 text-[9px] text-slate-400 uppercase tracking-[0.4em] font-bold text-center">© 2025 IMNUFIT</footer>
     </section>
 
-    <!-- VISTA: RECUPERAR CONTRASEÑA -->
-    <section id="forgot-password-view" class="min-h-screen flex flex-col items-center justify-center p-8 hidden">
-        <div class="max-w-[340px] w-full space-y-10 fade-in text-center">
-            <div class="space-y-2">
-                <h2 class="text-xl font-bold text-[#494949]">Recuperar Acceso</h2>
-                <p class="text-[13px] text-slate-500">Te enviaremos un enlace para restablecer tu contraseña.</p>
-            </div>
-            <form onsubmit="window.handlePasswordReset(event)" class="space-y-6">
-                <input type="email" name="resetEmail" required placeholder="Tu correo electrónico" class="input-apple">
-                <div>
-                    <button type="submit" class="btn-ingresar">Enviar enlace</button>
-                    <p class="mt-4 text-[11px] text-slate-400 leading-relaxed italic">
-                        Si no recibes el correo en 2 minutos, revisa tu carpeta de <strong>Spam</strong> y marca el remitente como seguro.
-                    </p>
-                </div>
-                <button type="button" onclick="window.toggleView('login-view')" class="w-full text-xs font-bold text-slate-400 uppercase mt-4 tracking-widest hover:text-[#2E4982]">Volver al inicio</button>
-            </form>
-        </div>
-    </section>
-
-    <!-- VISTA 2: SIGNUP -->
-    <section id="signup-view" class="min-h-screen flex flex-col items-center justify-center p-8 hidden">
-        <div class="max-w-[360px] w-full space-y-10 fade-in text-center">
-            <div class="space-y-2">
-                <h2 class="text-xl font-bold text-[#494949]">Activar Acceso</h2>
-                <p class="text-[13px] text-slate-500">Usa el mismo correo que diste en consulta.</p>
-            </div>
-            <form onsubmit="window.handleSignup(event)" class="space-y-4 text-left">
-                <input type="email" name="email" placeholder="Correo electrónico" required class="input-apple">
-                <input type="password" name="pass" placeholder="Crear contraseña" required minlength="6" class="input-apple">
-                <button type="submit" class="btn-ingresar mt-4">Crear cuenta</button>
-                <button type="button" onclick="window.toggleView('login-view')" class="w-full text-xs font-bold text-slate-400 uppercase text-center mt-6">Volver</button>
-            </form>
-        </div>
-    </section>
-
     <!-- VISTA 3: DASHBOARD -->
     <section id="patient-view" class="min-h-screen hidden">
-        <header class="bg-white/40 backdrop-blur-xl border-b border-white/60 h-16 flex items-center px-8 justify-between sticky top-0 z-40">
+        <header class="bg-white/40 backdrop-blur-xl border-b border-white/60 h-20 flex items-center px-8 justify-between sticky top-0 z-40">
             <img src="https://imnufit.com/wp-content/uploads/2025/05/cropped-logo-y-nombre-AZUL.png" class="h-6">
-            <div class="flex items-center gap-4">
-                <button onclick="window.refreshData()" class="text-slate-400 hover:text-[#2E4982] transition-colors p-2 rounded-full hover:bg-white/50" title="Actualizar datos">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+            <div class="flex items-center gap-3">
+                <button onclick="window.refreshData()" class="text-slate-400 hover:text-[#2E4982] transition-colors p-2 rounded-full hover:bg-white/50" title="Actualizar">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
                 </button>
-                <button onclick="window.cerrarSesion()" class="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest hover:text-red-500 transition-colors">Salir</button>
+                <button onclick="window.showView('membership-view')" class="w-10 h-10 rounded-full bg-[#DEE9FA] flex items-center justify-center text-[#2E4982] hover:bg-[#2E4982] hover:text-white transition-all shadow-sm" title="Mi Cuenta">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
+                </button>
+                <button onclick="window.cerrarSesion()" class="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest hover:text-red-500 transition-colors ml-2">Salir</button>
             </div>
         </header>
 
@@ -402,52 +379,15 @@
                         </div>
                     </div>
                 </div>
-
                 <div class="bg-white/60 p-6 rounded-[2rem] border border-white/60 shadow-sm backdrop-blur-md max-w-3xl">
                     <p id="display-frase" class="text-[#2E4982] italic text-[15px] leading-relaxed font-medium">...</p>
                 </div>
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-8 fade-in" style="animation-delay: 0.1s;">
-                
-                <!-- Tarjeta 1: Agendar Cita -->
                 <section class="bento-card min-h-[300px]">
                     <div class="flex justify-between items-start mb-6 shrink-0">
-                        <div class="w-14 h-14 bg-[#D0F0E0] rounded-2xl flex items-center justify-center text-[#2E4982]">
-                            <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
-                        </div>
-                    </div>
-                    <div>
-                        <h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-1">Nueva Cita</h4>
-                        <p class="text-2xl font-bold text-[#494949]">Agendar Consulta</p>
-                        <p class="text-[14px] text-slate-500 mt-2">Reserva tu espacio con el especialista.</p>
-                    </div>
-                    <div class="mt-8">
-                        <a id="btn-calendar-action" href="#" target="_blank" class="btn-ghost-sm w-full md:w-auto">Ir al Calendario</a>
-                    </div>
-                </section>
-
-                <!-- Tarjeta 2: Consultas Recientes -->
-                <section class="bento-card min-h-[300px]">
-                    <div class="flex justify-between items-start mb-6 shrink-0">
-                        <div class="w-14 h-14 bg-[#E7E3FB] rounded-2xl flex items-center justify-center text-[#2E4982]">
-                            <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-                        </div>
-                    </div>
-                    <div>
-                        <h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-1">Registro</h4>
-                        <h3 class="text-2xl font-bold text-[#494949]">Consultas Recientes</h3>
-                        <p class="text-[14px] text-slate-500 mt-2">Detalle de evaluaciones anteriores.</p>
-                    </div>
-                    <div class="mt-8">
-                        <a id="btn-consultas-action" href="#" target="_blank" class="btn-ghost-sm w-full md:w-auto">Abrir Historial</a>
-                    </div>
-                </section>
-
-                <!-- Tarjeta 3: Entrenaconfren+ -->
-                <section class="bento-card min-h-[300px]">
-                    <div class="flex justify-between items-start mb-6 shrink-0">
-                        <div class="w-14 h-14 bg-[#DEE9FA] rounded-2xl flex items-center justify-center overflow-hidden">
+                        <div class="w-14 h-14 bg-[#DEE9FA] rounded-2xl flex items-center justify-center overflow-hidden shadow-sm">
                             <img src="https://imnufit.com/wp-content/uploads/2022/01/iuiuo.png" class="w-11 h-11 object-contain" alt="Entrenamientos">
                         </div>
                     </div>
@@ -457,15 +397,14 @@
                         <p class="text-[14px] text-slate-500 mt-2">Accede a tus rutinas y guías de ejercicio.</p>
                     </div>
                     <div class="mt-8">
-                        <button onclick="window.openWebView('https://imnufit.com/entrenaconfrenplus/', 'Entrenaconfren+')" class="btn-ghost-sm w-full md:w-auto">Ir a Entrenar</button>
+                        <a href="https://imnufit.com/entrenaconfrenplus/" target="_blank" rel="noopener noreferrer" class="btn-ghost-sm">Ir a Entrenar</a>
                     </div>
                 </section>
 
-                <!-- Tarjeta 4: Reporte Mensual -->
                 <section class="bento-card min-h-[300px]">
                     <div class="flex justify-between items-start mb-6 shrink-0">
-                        <div class="w-14 h-14 bg-[#FFEDD5] rounded-2xl flex items-center justify-center text-[#2E4982]">
-                            <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+                        <div class="w-14 h-14 bg-[#FFEDD5] rounded-2xl flex items-center justify-center text-[#2E4982] shadow-sm">
+                            <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
                         </div>
                     </div>
                     <div>
@@ -474,31 +413,162 @@
                         <p class="text-[14px] text-slate-500 mt-2">Registra tus medidas y progreso del mes.</p>
                     </div>
                     <div class="mt-8">
-                        <a href="https://airtable.com/appCHcm7XPzeoyBCs/pagh79fwniuSPmusB/form" target="_blank" class="btn-ghost-sm w-full md:w-auto">Llenar Reporte</a>
+                        <a href="https://airtable.com/appCHcm7XPzeoyBCs/pagh79fwniuSPmusB/form" target="_blank" class="btn-ghost-sm">Llenar Reporte</a>
                     </div>
                 </section>
 
-                <!-- Tarjeta Soporte -->
-                <section class="bento-card bg-[#2E4982] text-white border-0 shadow-xl shadow-[#2E4982]/20 md:col-span-2">
+                <section class="bento-card min-h-[300px]">
+                    <div class="flex justify-between items-start mb-6 shrink-0">
+                        <div class="w-14 h-14 bg-[#D0F0E0] rounded-2xl flex items-center justify-center text-[#2E4982] shadow-sm">
+                            <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                        </div>
+                    </div>
+                    <div>
+                        <h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-1">Citas</h4>
+                        <p class="text-2xl font-bold text-[#494949]">Reservar Consulta</p>
+                        <p class="text-[14px] text-slate-500 mt-2">Reserva tu espacio con el especialista.</p>
+                    </div>
+                    <div class="mt-8">
+                        <a id="btn-calendar-action" href="#" target="_blank" class="btn-ghost-sm">Ir al Calendario</a>
+                    </div>
+                </section>
+
+                <section class="bento-card min-h-[300px]">
+                    <div class="flex justify-between items-start mb-6 shrink-0">
+                        <div class="w-14 h-14 bg-[#E7E3FB] rounded-2xl flex items-center justify-center text-[#2E4982] shadow-sm">
+                            <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                        </div>
+                    </div>
+                    <div>
+                        <h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-1">Registro</h4>
+                        <h3 class="text-2xl font-bold text-[#494949]">Consultas Recientes</h3>
+                        <p class="text-[14px] text-slate-500 mt-2">Detalle de evaluaciones anteriores.</p>
+                    </div>
+                    <div class="mt-8">
+                        <a id="btn-consultas-action" href="#" target="_blank" class="btn-ghost-sm">Abrir Historial</a>
+                    </div>
+                </section>
+
+                <section class="bento-card bg-[#2E4982] text-white border-0 shadow-2xl md:col-span-2">
                     <div class="flex flex-row items-center justify-between gap-6">
                         <div class="flex items-center gap-6">
                             <div class="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center">
-                                <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
+                                <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
                             </div>
                             <div>
                                 <h3 class="text-xl font-bold tracking-tight">¿Dudas con tu tratamiento?</h3>
                                 <p class="text-white/60 text-[12px] font-medium mt-1">Estamos disponibles para asistirte.</p>
                             </div>
                         </div>
-                        <a href="https://wa.me/tu_numero" target="_blank" class="hidden md:flex btn-ghost-sm !text-white !border-white/40 hover:!bg-white/10 w-auto">Soporte WhatsApp</a>
+                        <a href="https://wa.me/tu_numero" target="_blank" class="hidden md:flex btn-ghost-sm !text-white !border-white/40 hover:!bg-white/10">Soporte WhatsApp</a>
                     </div>
                     <a href="https://wa.me/tu_numero" target="_blank" class="md:hidden mt-6 btn-ghost-sm !text-white !border-white/40 hover:!bg-white/10">Soporte WhatsApp</a>
                 </section>
             </div>
+        </main>
+    </section>
 
-            <footer class="mt-20 pt-10 border-t border-slate-200 text-center">
-                <p class="text-[9px] text-slate-400 uppercase tracking-[0.4em] font-bold">IMNUFIT • Sincronizado con Airtable</p>
-            </footer>
+    <!-- VISTA 4: GESTIÓN DE CUENTA -->
+    <section id="membership-view" class="min-h-screen hidden bg-slate-50/50 pb-20">
+        <header class="bg-white/40 backdrop-blur-xl border-b h-20 flex items-center px-8 justify-between sticky top-0 z-40">
+            <button onclick="window.showView('patient-view')" class="flex items-center gap-2 text-slate-400 hover:text-[#2E4982] transition-colors font-bold text-xs uppercase tracking-widest group">
+                <svg class="w-4 h-4 transform group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path d="M15 19l-7-7 7-7"></path></svg>
+                Volver
+            </button>
+            <h2 class="text-sm font-bold text-[#494949] uppercase tracking-[0.2em] text-center">Mi Cuenta</h2>
+            <div class="w-10"></div>
+        </header>
+
+        <main class="max-w-2xl mx-auto py-12 px-6 space-y-10">
+            
+            <!-- 1. PERFIL PERSONAL (ACTUALIZADO CON COLORES DE MEMBRESÍA) -->
+            <section class="bg-white rounded-[2.5rem] p-10 shadow-xl border border-white fade-in">
+                <div class="flex items-center gap-4 mb-10">
+                    <div class="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center text-[#2E4982]">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
+                    </div>
+                    <div>
+                        <h3 class="text-xl font-bold text-[#494949]">Perfil Personal</h3>
+                        <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Tus datos en consulta</p>
+                    </div>
+                </div>
+
+                <div class="profile-list">
+                    <div class="profile-item">
+                        <span class="profile-label">Paciente:</span>
+                        <span id="acc-nombre" class="profile-value">Cargando...</span>
+                    </div>
+                    
+                    <div class="profile-item">
+                        <span class="profile-label">Género:</span>
+                        <span id="acc-genero">--</span>
+                    </div>
+
+                    <div class="profile-item">
+                        <span class="profile-label">Nacimiento:</span>
+                        <span id="acc-nacimiento" class="profile-value">--</span>
+                    </div>
+
+                    <div class="profile-item">
+                        <span class="profile-label">País:</span>
+                        <span id="acc-pais" class="profile-value">--</span>
+                    </div>
+
+                    <div class="profile-item border-0">
+                        <span class="profile-label">Teléfono:</span>
+                        <span id="acc-telefono" class="profile-value">--</span>
+                    </div>
+
+                    <div class="mt-6 pt-10 border-t border-slate-50 flex items-center justify-between">
+                        <div class="space-y-1">
+                            <span class="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest">Email de acceso</span>
+                            <span id="acc-email" class="block text-sm font-semibold text-slate-500">--</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 2. SEGURIDAD -->
+            <section class="bg-white rounded-[2.5rem] p-10 shadow-xl border border-white fade-in" style="animation-delay: 0.1s;">
+                <div class="flex items-center gap-4 mb-8">
+                    <div class="w-12 h-12 bg-slate-100 rounded-2xl flex items-center justify-center text-slate-500">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                    </div>
+                    <div>
+                        <h3 class="text-xl font-bold text-[#494949]">Seguridad</h3>
+                        <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Cambio de Acceso</p>
+                    </div>
+                </div>
+                <form onsubmit="window.updateAppPassword(event)" class="space-y-6">
+                    <div class="space-y-2">
+                        <label class="text-[11px] font-bold text-slate-400 uppercase tracking-widest ml-1">Nueva Contraseña</label>
+                        <input type="password" name="newPassword" required minlength="6" placeholder="Mínimo 6 caracteres" class="input-apple">
+                    </div>
+                    <button type="submit" class="btn-ingresar !bg-slate-800">Actualizar Contraseña</button>
+                </form>
+            </section>
+
+            <!-- 3. MEMBRESÍA -->
+            <section class="bg-white rounded-[2.5rem] p-10 shadow-xl border border-white fade-in" style="animation-delay: 0.2s;">
+                <div class="flex items-center gap-4 mb-8">
+                    <div class="w-12 h-12 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-600 shadow-sm">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
+                    </div>
+                    <div>
+                        <h3 class="text-xl font-bold text-[#494949]">Membresía</h3>
+                        <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Información de Suscripción</p>
+                    </div>
+                </div>
+                <p class="text-[14px] text-slate-500 mb-8 leading-relaxed">
+                    Utilizamos una plataforma segura y certificada para gestionar tus suscripciones. Desde aquí podrás actualizar tu tarjeta, descargar recibos o <strong>cancelar tu membresía en cualquier momento</strong>.
+                </p>
+                <a href="https://billing.stripe.com/p/login/bIY9CF3un99T2XefYY" target="_blank" class="btn-secure-portal">
+                    Gestionar Membresía y Pagos
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
+                </a>
+            </section>
+
+            <button onclick="window.cerrarSesion()" class="w-full py-4 text-xs font-bold text-red-400 uppercase tracking-widest hover:text-red-600 transition-colors">Cerrar Sesión</button>
         </main>
     </section>
 
