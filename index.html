@@ -8,8 +8,8 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut, setPersistence, browserLocalPersistence, sendPasswordResetEmail, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, getDoc, onSnapshot, collection, getDocs, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut, setPersistence, browserLocalPersistence, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // --- CONFIGURACIÓN DE FIREBASE ---
         const firebaseConfig = {
@@ -29,10 +29,6 @@
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
-        const appId = "imnufit-web";
-
-        // MODO DISEÑO: Pon en 'true' para saltar login (Solo para pruebas)
-        const DEV_MODE = false; 
 
         const CALENDAR_LINK_DEFAULT = "https://calendar.app.google/CE4KjKxPeFiV93GV7";
 
@@ -48,6 +44,7 @@
 
         setPersistence(auth, browserLocalPersistence);
 
+        // --- UTILIDADES ---
         function getGreeting() {
             const hour = new Date().getHours();
             if (hour < 12) return "Buenos días";
@@ -57,10 +54,24 @@
 
         function getStatusClass(status) {
             if (!status) return "bg-slate-100 text-slate-500 border-slate-200";
-            const s = status.toLowerCase();
-            if (s.includes("inactivo")) return "bg-red-50 text-red-700 border-red-200";
+            const s = String(status).toLowerCase();
+            if (s.includes("inactivo")) return "bg-rose-50 text-rose-600 border-rose-100";
             if (s.includes("activo") || s.includes("actívo")) return "bg-[#D0F0E0] text-[#2E4982] border-[#D0F0E0]"; 
             return "bg-[#DEE9FA] text-[#2E4982] border-[#DEE9FA]"; 
+        }
+
+        // Procesador de Texto Enriquecido
+        function parseRichText(text) {
+            if (!text) return "No hay información disponible.";
+            let formatted = String(text);
+            formatted = formatted.replace(/\*\*([^*]+)\*\*/g, '<strong class="font-bold text-[#1D1D1F]">$1</strong>');
+            formatted = formatted.replace(/__([^_]+)__/g, '<em class="italic opacity-90">$1</em>');
+            formatted = formatted.replace(/(?<!_|\w)_([^_]+)_(?!_|\w)/g, '<em class="italic opacity-90">$1</em>');
+            formatted = formatted.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" class="text-[#2E4982] underline font-bold hover:text-blue-700">$1</a>');
+            const urlRegex = /(?<!href=")(https?:\/\/[^\s<]+)/g;
+            formatted = formatted.replace(urlRegex, '<a href="$1" target="_blank" class="text-[#2E4982] underline font-bold hover:text-blue-700">$1</a>');
+            formatted = formatted.replace(/\n/g, '<br>');
+            return formatted;
         }
 
         window.notify = (message, type = 'error') => {
@@ -68,7 +79,7 @@
             const content = document.getElementById('notification-content');
             if(toast && content) {
                 content.textContent = message;
-                toast.className = `fixed top-8 left-1/2 -translate-x-1/2 z-[200] px-8 py-4 rounded-full shadow-2xl text-[13px] font-semibold transition-all duration-500 scale-100 opacity-100 backdrop-blur-xl ${
+                toast.className = `fixed top-8 left-1/2 -translate-x-1/2 z-[300] px-8 py-4 rounded-full shadow-2xl text-[13px] font-semibold transition-all duration-500 scale-100 opacity-100 backdrop-blur-xl ${
                     type === 'success' ? 'bg-[#D0F0E0] text-[#2E4982] border border-white' : 'bg-white/90 text-red-600 border border-red-100'
                 }`;
                 toast.classList.remove('hidden');
@@ -79,14 +90,31 @@
             }
         };
 
+        window.openWebView = (url, title) => {
+            const modal = document.getElementById('webview-modal');
+            const iframe = document.getElementById('webview-iframe');
+            const titleEl = document.getElementById('webview-title');
+            titleEl.textContent = title;
+            iframe.src = url;
+            modal.classList.remove('hidden');
+            document.body.style.overflow = 'hidden'; 
+        };
+
+        window.closeWebView = () => {
+            const modal = document.getElementById('webview-modal');
+            const iframe = document.getElementById('webview-iframe');
+            modal.classList.add('hidden');
+            iframe.src = ""; 
+            document.body.style.overflow = '';
+        };
+
         async function fetchAirtableData(email) {
             if (!AIRTABLE_PAT || !AIRTABLE_BASE_ID) return null;
             const formula = encodeURIComponent(`({Email}='${email}')`);
             const url = `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${AIRTABLE_TABLE_NAME}?filterByFormula=${formula}`;
-            
             try {
                 const response = await fetch(url, { headers: { Authorization: `Bearer ${AIRTABLE_PAT}` } });
-                if (!response.ok) throw new Error("Error de conexión con Airtable");
+                if (!response.ok) throw new Error("Error Airtable");
                 const data = await response.json();
                 return data.records.length > 0 ? data.records[0].fields : null;
             } catch (error) {
@@ -96,7 +124,7 @@
         }
 
         function showView(viewId) {
-            const views = ['login-view', 'signup-view', 'patient-view', 'loading-screen', 'consultas-view'];
+            const views = ['login-view', 'signup-view', 'patient-view', 'loading-screen', 'forgot-password-view'];
             views.forEach(id => {
                 const el = document.getElementById(id);
                 if (el) el.classList.toggle('hidden', id !== viewId);
@@ -104,9 +132,7 @@
             window.scrollTo(0,0);
         }
 
-        // Función reutilizable para actualizar la UI del Dashboard
         function updateDashboardUI(airtableData) {
-            // Nombre: Busca "Nombre + Edad", luego "Nombre"
             document.getElementById('display-nombre').textContent = airtableData["Nombre + Edad"] || airtableData["Nombre"] || "Paciente";
             document.getElementById('display-greeting').textContent = getGreeting();
             
@@ -115,62 +141,25 @@
             statusEl.textContent = status;
             statusEl.className = `px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest border inline-block mt-2 ${getStatusClass(status)}`;
 
-            // Links
             const linkCalendar = airtableData["Link Calendar"] || CALENDAR_LINK_DEFAULT;
+            const linkConsultas = airtableData["Link Consultas"] || "#";
             
-            // INTELIGENCIA: Busca "Link Consultas" O "Link Historial" para asegurar compatibilidad
-            const linkConsultas = airtableData["Link Consultas"] || airtableData["Link Historial"] || "#";
-            
-            // CONFIGURACIÓN DE BOTONES
-            
-            // 1. Calendario (Usa Visor Interno si es posible)
-            const btnCalendar = document.getElementById('btn-calendar-action');
-            btnCalendar.onclick = (e) => {
-                e.preventDefault();
-                openWebView(linkCalendar, "Calendario de Citas");
-            };
-
-            // 2. Consultas Recientes (Abre en Pestaña Nueva para evitar bloqueo de Airtable)
+            document.getElementById('btn-calendar-action').href = linkCalendar;
             const btnConsultas = document.getElementById('btn-consultas-action');
+            btnConsultas.href = linkConsultas;
             
             if(linkConsultas === "#" || !linkConsultas) {
                 btnConsultas.style.opacity = "0.5";
                 btnConsultas.style.cursor = "not-allowed";
-                btnConsultas.onclick = (e) => { e.preventDefault(); notify("Aún no tienes consultas registradas."); };
+                btnConsultas.onclick = (e) => { e.preventDefault(); notify("No hay registros disponibles."); };
             } else {
+                btnConsultas.onclick = null;
                 btnConsultas.style.opacity = "1";
-                btnConsultas.style.cursor = "pointer";
-                btnConsultas.onclick = (e) => {
-                    e.preventDefault();
-                    // Usamos window.open para Airtable porque sus políticas de seguridad bloquean iframes
-                    window.open(linkConsultas, '_blank');
-                };
             }
 
             const randomFrase = frasesCreyentes[Math.floor(Math.random() * frasesCreyentes.length)];
             document.getElementById('display-frase').textContent = randomFrase;
         }
-
-        // --- FUNCIÓN DEL VISOR INTERNO (WEBVIEW) ---
-        window.openWebView = (url, title) => {
-            const modal = document.getElementById('webview-modal');
-            const iframe = document.getElementById('webview-iframe');
-            const titleEl = document.getElementById('webview-title');
-            const externalBtn = document.getElementById('webview-external-btn');
-
-            titleEl.textContent = title;
-            iframe.src = url;
-            externalBtn.onclick = () => window.open(url, '_blank');
-            
-            modal.classList.remove('hidden');
-        };
-
-        window.closeWebView = () => {
-            const modal = document.getElementById('webview-modal');
-            const iframe = document.getElementById('webview-iframe');
-            modal.classList.add('hidden');
-            iframe.src = ""; // Limpiar para detener carga
-        };
 
         window.refreshData = async () => {
             const user = auth.currentUser;
@@ -179,51 +168,29 @@
                 const airtableData = await fetchAirtableData(user.email);
                 if (airtableData) {
                     updateDashboardUI(airtableData);
-                    notify("Datos actualizados correctamente.", "success");
-                } else {
-                    notify("No se pudieron obtener los datos actualizados.");
+                    notify("Información sincronizada.", "success");
                 }
                 document.getElementById('loading-screen').classList.add('hidden');
             }
         };
 
-        // --- INICIALIZACIÓN ---
-        if (DEV_MODE) {
-            console.log("Modo Diseño Activado");
-            const mockData = {
-                "Nombre + Edad": "Juan Pérez, 35",
-                "Estatus": "Activo",
-                "Link Calendar": CALENDAR_LINK_DEFAULT,
-                "Link Consultas": "https://airtable.com/..."
-            };
-            // Simulamos carga
-            setTimeout(() => {
-                renderDashboard(mockData); // Nota: renderDashboard no existe, usaremos updateDashboardUI en modo dev
-                // Para modo dev rápido, inyectamos la función mockeada
-                updateDashboardUI(mockData);
-                showView('patient-view');
-                document.getElementById('loading-screen').classList.add('hidden');
-            }, 500);
-        } else {
-            onAuthStateChanged(auth, async (user) => {
-                if (user) {
-                    document.getElementById('loading-screen').classList.remove('hidden');
-                    const airtableData = await fetchAirtableData(user.email);
-                    if (airtableData) {
-                        updateDashboardUI(airtableData);
-                        showView('patient-view');
-                    } else {
-                        notify("Tu expediente no está sincronizado en Airtable aún.", "error");
-                        // Fallback
-                        updateDashboardUI({ "Nombre": user.email.split('@')[0] });
-                        showView('patient-view');
-                    }
+        onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                document.getElementById('loading-screen').classList.remove('hidden');
+                const airtableData = await fetchAirtableData(user.email);
+                if (airtableData) {
+                    updateDashboardUI(airtableData);
+                    showView('patient-view');
                 } else {
-                    showView('login-view');
+                    notify("Email no encontrado en Airtable.", "error");
+                    document.getElementById('display-nombre').textContent = user.email.split('@')[0];
+                    showView('patient-view');
                 }
-                document.getElementById('loading-screen').classList.add('hidden');
-            });
-        }
+            } else {
+                showView('login-view');
+            }
+            document.getElementById('loading-screen').classList.add('hidden');
+        });
 
         window.handleLogin = async (e) => {
             e.preventDefault();
@@ -243,14 +210,26 @@
             try {
                 document.getElementById('loading-screen').classList.remove('hidden');
                 await createUserWithEmailAndPassword(auth, email.value, pass.value);
-                notify("Cuenta de acceso creada. Esperando datos clínicos...", "success");
+                notify("Cuenta creada con éxito.", "success");
             } catch (err) { notify("Error al crear cuenta."); document.getElementById('loading-screen').classList.add('hidden'); }
         };
 
-        window.cerrarSesion = () => {
-             if(DEV_MODE) location.reload();
-             else signOut(auth);
+        window.handlePasswordReset = async (e) => {
+            e.preventDefault();
+            const email = e.target.resetEmail.value;
+            try {
+                document.getElementById('loading-screen').classList.remove('hidden');
+                await sendPasswordResetEmail(auth, email);
+                notify("Correo de recuperación enviado. Revisa tu bandeja de entrada.", "success");
+                showView('login-view');
+            } catch (err) {
+                notify("No se pudo enviar el correo. Verifica que el email sea correcto.");
+            } finally {
+                document.getElementById('loading-screen').classList.add('hidden');
+            }
         };
+
+        window.cerrarSesion = () => signOut(auth);
         window.toggleView = (id) => showView(id);
 
     </script>
@@ -292,26 +271,29 @@
         .bento-card:hover { transform: translateY(-4px); box-shadow: 0 30px 60px -10px rgba(46, 73, 130, 0.12); }
 
         .btn-ghost-sm {
-            background-color: transparent; color: var(--primary); border: 1.5px solid var(--primary);
-            padding: 14px 48px !important; border-radius: 100px; font-size: 11px; font-weight: 700;
-            text-transform: uppercase; letter-spacing: 0.12em; transition: all 0.3s ease;
-            display: inline-block; text-align: center; cursor: pointer; text-decoration: none;
+            background-color: transparent; 
+            color: var(--primary); 
+            border: 1.5px solid var(--primary);
+            padding: 14px 48px !important; 
+            border-radius: 100px; 
+            font-size: 11px; 
+            font-weight: 700;
+            text-transform: uppercase; 
+            letter-spacing: 0.12em; 
+            transition: all 0.3s ease;
+            display: inline-block; 
+            text-align: center; 
+            cursor: pointer; 
+            text-decoration: none;
+            width: 100%;
         }
+        @media (min-width: 768px) { .btn-ghost-sm { width: auto; } }
         .btn-ghost-sm:hover { background-color: #DEE9FA; color: var(--primary); border-color: #DEE9FA; }
 
         .fade-in { animation: fadeIn 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
 
-        /* ESTILOS DEL VISOR INTERNO */
-        #webview-modal {
-            backdrop-filter: blur(10px);
-        }
-        .webview-container {
-            width: 95%;
-            height: 90%;
-            max-width: 1000px;
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
-        }
+        .webview-container { width: 95%; height: 90%; max-width: 1200px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); }
     </style>
 </head>
 <body class="selection:bg-[#DEE9FA] selection:text-[#2E4982]">
@@ -323,16 +305,13 @@
         <div class="h-8 w-8 border-[3px] border-[#2E4982] border-t-transparent rounded-full animate-spin"></div>
     </div>
 
-    <!-- VISOR WEB INTERNO (MODAL) -->
-    <div id="webview-modal" class="fixed inset-0 z-[150] bg-black/40 hidden flex items-center justify-center">
-        <div class="webview-container bg-white rounded-[32px] flex flex-col overflow-hidden relative animate-fade-in-up">
-            <div class="h-16 bg-[#F9FAFB] border-b border-gray-200 flex items-center justify-between px-6 shrink-0">
-                <span id="webview-title" class="text-sm font-bold text-slate-700 uppercase tracking-wider">Navegador</span>
-                <div class="flex items-center gap-3">
-                    <button id="webview-external-btn" class="text-xs font-bold text-[#2E4982] bg-[#DEE9FA] px-3 py-1.5 rounded-lg hover:bg-[#d0e0f5] transition-colors" title="Abrir en navegador externo">
-                        Abrir Externo ↗
-                    </button>
-                    <button onclick="window.closeWebView()" class="w-8 h-8 rounded-full bg-slate-200 text-slate-500 flex items-center justify-center hover:bg-slate-300 transition-colors font-bold">✕</button>
+    <!-- VISOR WEB (POPUP) -->
+    <div id="webview-modal" class="fixed inset-0 z-[250] bg-black/40 backdrop-blur-sm hidden flex items-center justify-center p-4">
+        <div class="webview-container bg-white rounded-[2.5rem] flex flex-col overflow-hidden relative">
+            <div class="h-16 bg-[#F8F9FB] border-b border-gray-100 flex items-center justify-between px-8 shrink-0">
+                <span id="webview-title" class="text-xs font-bold text-slate-400 uppercase tracking-widest">Navegación</span>
+                <div class="flex items-center gap-4">
+                    <button onclick="window.closeWebView()" class="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200 transition-colors font-bold text-lg">✕</button>
                 </div>
             </div>
             <iframe id="webview-iframe" class="flex-1 w-full bg-white" frameborder="0"></iframe>
@@ -344,19 +323,44 @@
         <div class="max-w-[340px] w-full space-y-12 fade-in text-center">
             <img src="https://imnufit.com/wp-content/uploads/2025/05/cropped-logo-y-nombre-AZUL.png" class="mx-auto h-11 object-contain">
             <div class="space-y-2">
-                <h1 class="text-2xl font-bold tracking-tight text-[#494949]">Acceso Pacientes</h1>
-                <p class="text-[14px] text-slate-500">Inicia sesión para acceder a tu cuenta.</p>
+                <h1 class="text-2xl font-bold tracking-tight text-[#494949]">Portal del Paciente</h1>
+                <p class="text-[14px] text-slate-500">Inicia sesión para continuar</p>
             </div>
             <form onsubmit="window.handleLogin(event)" class="space-y-8">
                 <div class="space-y-4">
                     <input type="email" name="email" required placeholder="Correo electrónico" class="input-apple">
-                    <input type="password" name="pass" required placeholder="Contraseña" class="input-apple">
+                    <div class="space-y-2">
+                        <input type="password" name="pass" required placeholder="Contraseña" class="input-apple">
+                        <div class="text-right">
+                            <button type="button" onclick="window.toggleView('forgot-password-view')" class="text-[12px] text-[#2E4982] font-semibold hover:underline">¿Olvidaste tu contraseña?</button>
+                        </div>
+                    </div>
                 </div>
                 <button type="submit" class="btn-ingresar">Entrar al portal</button>
             </form>
             <button onclick="window.toggleView('signup-view')" class="text-[13px] text-[#2E4982] font-semibold hover:underline">Registrar mi acceso</button>
         </div>
-        <footer class="mt-20 text-[9px] text-slate-400 uppercase tracking-[0.4em] font-bold text-center">© 2025 IMNUFIT • Immuno Nutrition & Fitness</footer>
+        <footer class="mt-20 text-[9px] text-slate-400 uppercase tracking-[0.4em] font-bold text-center">© 2025 IMNUFIT</footer>
+    </section>
+
+    <!-- VISTA: RECUPERAR CONTRASEÑA -->
+    <section id="forgot-password-view" class="min-h-screen flex flex-col items-center justify-center p-8 hidden">
+        <div class="max-w-[340px] w-full space-y-10 fade-in text-center">
+            <div class="space-y-2">
+                <h2 class="text-xl font-bold text-[#494949]">Recuperar Acceso</h2>
+                <p class="text-[13px] text-slate-500">Te enviaremos un enlace para restablecer tu contraseña.</p>
+            </div>
+            <form onsubmit="window.handlePasswordReset(event)" class="space-y-6">
+                <input type="email" name="resetEmail" required placeholder="Tu correo electrónico" class="input-apple">
+                <div>
+                    <button type="submit" class="btn-ingresar">Enviar enlace</button>
+                    <p class="mt-4 text-[11px] text-slate-400 leading-relaxed italic">
+                        Si no recibes el correo en 2 minutos, revisa tu carpeta de <strong>Spam</strong> y marca el remitente como seguro.
+                    </p>
+                </div>
+                <button type="button" onclick="window.toggleView('login-view')" class="w-full text-xs font-bold text-slate-400 uppercase mt-4 tracking-widest hover:text-[#2E4982]">Volver al inicio</button>
+            </form>
+        </div>
     </section>
 
     <!-- VISTA 2: SIGNUP -->
@@ -369,56 +373,49 @@
             <form onsubmit="window.handleSignup(event)" class="space-y-4 text-left">
                 <input type="email" name="email" placeholder="Correo electrónico" required class="input-apple">
                 <input type="password" name="pass" placeholder="Crear contraseña" required minlength="6" class="input-apple">
-                <button type="submit" class="btn-ingresar mt-4">Crear contraseña</button>
+                <button type="submit" class="btn-ingresar mt-4">Crear cuenta</button>
                 <button type="button" onclick="window.toggleView('login-view')" class="w-full text-xs font-bold text-slate-400 uppercase text-center mt-6">Volver</button>
             </form>
         </div>
     </section>
 
-    <!-- VISTA 3: DASHBOARD (Reflejo de Airtable) -->
+    <!-- VISTA 3: DASHBOARD -->
     <section id="patient-view" class="min-h-screen hidden">
         <header class="bg-white/40 backdrop-blur-xl border-b border-white/60 h-16 flex items-center px-8 justify-between sticky top-0 z-40">
             <img src="https://imnufit.com/wp-content/uploads/2025/05/cropped-logo-y-nombre-AZUL.png" class="h-6">
             <div class="flex items-center gap-4">
-                <!-- BOTÓN ACTUALIZAR -->
                 <button onclick="window.refreshData()" class="text-slate-400 hover:text-[#2E4982] transition-colors p-2 rounded-full hover:bg-white/50" title="Actualizar datos">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
                 </button>
                 <button onclick="window.cerrarSesion()" class="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest hover:text-red-500 transition-colors">Salir</button>
             </div>
         </header>
 
         <main class="max-w-5xl mx-auto py-12 px-6 space-y-12">
-            <!-- Header Saludo & Estatus -->
             <div class="flex flex-col gap-6 fade-in">
-                <!-- Fila Superior: Saludo y Estatus -->
                 <div class="flex flex-col md:flex-row md:items-end justify-between gap-4">
                     <div class="space-y-1">
                         <p id="display-greeting" class="text-[10px] font-bold text-[#2E4982] uppercase tracking-[0.5em] mb-1">Bienvenido</p>
                         <h2 class="text-3xl font-bold tracking-tight text-[#494949] leading-tight"><span id="display-nombre">...</span></h2>
-                        <!-- Estatus debajo del nombre -->
                         <div class="pt-2">
                             <span id="display-estatus" class="px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest border inline-block">Cargando...</span>
                         </div>
                     </div>
                 </div>
 
-                <!-- Frase -->
                 <div class="bg-white/60 p-6 rounded-[2rem] border border-white/60 shadow-sm backdrop-blur-md max-w-3xl">
                     <p id="display-frase" class="text-[#2E4982] italic text-[15px] leading-relaxed font-medium">...</p>
                 </div>
             </div>
 
-            <!-- Bento Grid: DASHBOARD DE CONSULTAS -->
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 fade-in" style="animation-delay: 0.1s;">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8 fade-in" style="animation-delay: 0.1s;">
                 
                 <!-- Tarjeta 1: Agendar Cita -->
-                <section class="bento-card lg:col-span-2 min-h-[300px]">
-                    <div class="flex justify-between items-start mb-6">
+                <section class="bento-card min-h-[300px]">
+                    <div class="flex justify-between items-start mb-6 shrink-0">
                         <div class="w-14 h-14 bg-[#D0F0E0] rounded-2xl flex items-center justify-center text-[#2E4982]">
-                            <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                            <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
                         </div>
-                        <span class="text-[9px] font-extrabold bg-[#D0F0E0] text-[#2E4982] px-3 py-1 rounded-full uppercase tracking-widest">Calendario</span>
                     </div>
                     <div>
                         <h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-1">Nueva Cita</h4>
@@ -426,15 +423,15 @@
                         <p class="text-[14px] text-slate-500 mt-2">Reserva tu espacio con el especialista.</p>
                     </div>
                     <div class="mt-8">
-                        <a id="btn-calendar-action" href="#" class="btn-ghost-sm w-full md:w-auto">Ir al Calendario</a>
+                        <a id="btn-calendar-action" href="#" target="_blank" class="btn-ghost-sm w-full md:w-auto">Ir al Calendario</a>
                     </div>
                 </section>
 
                 <!-- Tarjeta 2: Consultas Recientes -->
                 <section class="bento-card min-h-[300px]">
-                    <div class="flex justify-between items-start mb-6">
+                    <div class="flex justify-between items-start mb-6 shrink-0">
                         <div class="w-14 h-14 bg-[#E7E3FB] rounded-2xl flex items-center justify-center text-[#2E4982]">
-                            <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                            <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
                         </div>
                     </div>
                     <div>
@@ -443,30 +440,64 @@
                         <p class="text-[14px] text-slate-500 mt-2">Detalle de evaluaciones anteriores.</p>
                     </div>
                     <div class="mt-8">
-                        <a id="btn-consultas-action" href="#" class="btn-ghost-sm w-full md:w-auto">Abrir</a>
+                        <a id="btn-consultas-action" href="#" target="_blank" class="btn-ghost-sm w-full md:w-auto">Abrir Historial</a>
                     </div>
                 </section>
 
-                <!-- Tarjeta 3: Soporte -->
-                <section class="bento-card bg-[#2E4982] text-white border-0 shadow-xl shadow-[#2E4982]/20 md:col-span-3">
+                <!-- Tarjeta 3: Entrenaconfren+ -->
+                <section class="bento-card min-h-[300px]">
+                    <div class="flex justify-between items-start mb-6 shrink-0">
+                        <div class="w-14 h-14 bg-[#DEE9FA] rounded-2xl flex items-center justify-center overflow-hidden">
+                            <img src="https://imnufit.com/wp-content/uploads/2022/01/iuiuo.png" class="w-11 h-11 object-contain" alt="Entrenamientos">
+                        </div>
+                    </div>
+                    <div>
+                        <h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-1">Entrenaconfren+</h4>
+                        <h3 class="text-2xl font-bold text-[#494949]">Entrenamientos</h3>
+                        <p class="text-[14px] text-slate-500 mt-2">Accede a tus rutinas y guías de ejercicio.</p>
+                    </div>
+                    <div class="mt-8">
+                        <button onclick="window.openWebView('https://imnufit.com/entrenaconfrenplus/', 'Entrenaconfren+')" class="btn-ghost-sm w-full md:w-auto">Ir a Entrenar</button>
+                    </div>
+                </section>
+
+                <!-- Tarjeta 4: Reporte Mensual -->
+                <section class="bento-card min-h-[300px]">
+                    <div class="flex justify-between items-start mb-6 shrink-0">
+                        <div class="w-14 h-14 bg-[#FFEDD5] rounded-2xl flex items-center justify-center text-[#2E4982]">
+                            <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+                        </div>
+                    </div>
+                    <div>
+                        <h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-1">Seguimiento</h4>
+                        <h3 class="text-2xl font-bold text-[#494949]">Reporte Mensual</h3>
+                        <p class="text-[14px] text-slate-500 mt-2">Registra tus medidas y progreso del mes.</p>
+                    </div>
+                    <div class="mt-8">
+                        <a href="https://airtable.com/appCHcm7XPzeoyBCs/pagh79fwniuSPmusB/form" target="_blank" class="btn-ghost-sm w-full md:w-auto">Llenar Reporte</a>
+                    </div>
+                </section>
+
+                <!-- Tarjeta Soporte -->
+                <section class="bento-card bg-[#2E4982] text-white border-0 shadow-xl shadow-[#2E4982]/20 md:col-span-2">
                     <div class="flex flex-row items-center justify-between gap-6">
                         <div class="flex items-center gap-6">
                             <div class="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center">
-                                <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
+                                <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
                             </div>
                             <div>
                                 <h3 class="text-xl font-bold tracking-tight">¿Dudas con tu tratamiento?</h3>
                                 <p class="text-white/60 text-[12px] font-medium mt-1">Estamos disponibles para asistirte.</p>
                             </div>
                         </div>
-                        <a href="https://wa.me/tu_numero" target="_blank" class="hidden md:flex text-[11px] font-bold uppercase tracking-widest text-white/90 hover:text-white items-center gap-2 border border-white/20 px-6 py-3 rounded-full hover:bg-white/10 transition-all">Contactar Soporte →</a>
+                        <a href="https://wa.me/tu_numero" target="_blank" class="hidden md:flex btn-ghost-sm !text-white !border-white/40 hover:!bg-white/10 w-auto">Soporte WhatsApp</a>
                     </div>
-                    <a href="https://wa.me/tu_numero" target="_blank" class="md:hidden mt-6 text-[11px] font-bold uppercase tracking-widest text-white/90 hover:text-white flex items-center justify-center gap-2 border border-white/20 px-6 py-3 rounded-full">Contactar →</a>
+                    <a href="https://wa.me/tu_numero" target="_blank" class="md:hidden mt-6 btn-ghost-sm !text-white !border-white/40 hover:!bg-white/10">Soporte WhatsApp</a>
                 </section>
             </div>
 
-            <footer class="pt-10 border-t border-slate-200 text-center">
-                <p class="text-[9px] text-slate-400 uppercase tracking-[0.4em] font-bold">IMNUFIT • powered by Airtable</p>
+            <footer class="mt-20 pt-10 border-t border-slate-200 text-center">
+                <p class="text-[9px] text-slate-400 uppercase tracking-[0.4em] font-bold">IMNUFIT • Sincronizado con Airtable</p>
             </footer>
         </main>
     </section>
