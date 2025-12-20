@@ -8,7 +8,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut, setPersistence, browserLocalPersistence, sendPasswordResetEmail, updatePassword } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut, setPersistence, browserLocalPersistence, updatePassword, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // --- CONFIGURACIÓN DE FIREBASE ---
@@ -21,7 +21,6 @@
             appId: "1:65610345018:web:eac15a30c72084faac6303"
         };
 
-        // --- CONFIGURACIÓN DE AIRTABLE ---
         const AIRTABLE_PAT = "patZ9QUQVyldn9zKC.afb4fc362eb2f79b1aa10faf3fb3268ea6bca3f57a1362b83f6cc8459a50f0d3"; 
         const AIRTABLE_BASE_ID = "appCHcm7XPzeoyBCs"; 
         const AIRTABLE_TABLE_NAME = "Pacientes"; 
@@ -31,38 +30,46 @@
         const db = getFirestore(app);
 
         const CALENDAR_LINK_DEFAULT = "https://calendar.app.google/CE4KjKxPeFiV93GV7";
-        const STRIPE_PORTAL_LINK = "https://billing.stripe.com/p/login/bIY9CF3un99T2XefYY";
+
+        // --- CONFIGURACIÓN DE PROGRAMAS ---
+        const PROGRAMAS_INFO = {
+            "Adiós Diabetes 2": {
+                img: "https://imnufit.com/wp-content/uploads/2024/04/Imagen-de-WhatsApp-2024-04-30-a-las-18.35.48_16bb1ed2.jpg",
+                imgWidth: "w-44 md:w-52",
+                guias: [
+                    { label: "Guía Mes 1", desc: "Fase de desintoxicación inicial", url: "https://drive.google.com/file/d/1AB2c8uHrk2aHIM93GnHjRQz-WBSESeZe/view?usp=drive_link", type: "PDF" },
+                    { label: "Guía Mes 2", desc: "Control glucémico avanzado", url: "https://drive.google.com/file/d/1HA1bFkr9krZWUUqqdYMg0lFNE2EtSxlV/view?usp=drive_link", type: "PDF" },
+                    { label: "Guía Mes 3", desc: "Estabilización y mantenimiento", url: "https://drive.google.com/file/d/1iDCxh316fhcSWDrJZdstEROPMMDE4Mg-/view?usp=drive_link", type: "PDF" }
+                ],
+                directLink: false
+            },
+            "Quema Grasa": {
+                img: "https://imnufit.com/wp-content/uploads/2022/04/qg.png",
+                url: "https://imnufit.com/quema-grasa/",
+                directLink: true
+            },
+            "SANO": { 
+                img: "https://imnufit.com/wp-content/uploads/2023/11/Sano-logo-1-e1755541161822.png", 
+                imgWidth: "w-32 md:w-36",
+                guias: [
+                    { label: "Guía del Mes 1", desc: "Plan alimentario consciente", url: "https://imnufit.com/wp-content/uploads/2023/12/SANO-MES-1.pdf", type: "PDF" },
+                    { label: "Guía del Mes 2", desc: "Consolidación de nuevos hábitos", url: "https://imnufit.com/wp-content/uploads/2024/02/SANO-Mes-2.pdf", type: "PDF" },
+                    { label: "Playlist de Videos", desc: "Acompañamiento y tutoriales", url: "https://www.youtube.com/watch?v=eEMmieVpG-U&list=PLYjLMUD2ZGJd9qcLx7vXRVtcWkLtg5oAc&index=1", type: "VIDEO" }
+                ], 
+                directLink: false 
+            }
+        };
 
         const frasesCreyentes = [
             "Todo lo puedo en Cristo que me fortalece. — Filipenses 4:13",
-            "Pon en manos del Señor todas tus obras, y tus proyectos se cumplirán. — Proverbios 16:3",
-            "El Señor es mi pastor; nada me falta. — Salmo 23:1",
-            "No te canses de hacer el bien, porque a su debido tiempo cosecharás. — Gálatas 6:9",
             "Confía en el Señor de todo corazón. — Proverbios 3:5",
-            "¡Sé fuerte y valiente! No tengas miedo ni te desanimimes. — Josué 1:9",
             "Su amor es constante y nuevo cada mañana. — Lamentaciones 3:22"
         ];
 
         setPersistence(auth, browserLocalPersistence);
 
         // --- UTILIDADES ---
-        function getGreeting() {
-            const hour = new Date().getHours();
-            if (hour < 12) return "Buenos días";
-            if (hour < 18) return "Buenas tardes";
-            return "Buenas noches";
-        }
-
-        function getStatusClass(status) {
-            if (!status) return "bg-slate-100 text-slate-500 border-slate-200";
-            const s = String(status).toLowerCase();
-            if (s.includes("inactivo")) return "bg-rose-50 text-rose-600 border-rose-100";
-            if (s.includes("activo") || s.includes("actívo")) return "bg-[#D0F0E0] text-[#2E4982] border-[#D0F0E0]"; 
-            return "bg-[#DEE9FA] text-[#2E4982] border-[#DEE9FA]"; 
-        }
-
-        // Formateador de Fecha a mm/dd/yyyy
-        function formatDateMDY(dateString) {
+        window.formatDateMDY = (dateString) => {
             if (!dateString) return "--";
             const date = new Date(dateString);
             if (isNaN(date.getTime())) return dateString; 
@@ -70,15 +77,32 @@
             const dd = String(date.getUTCDate()).padStart(2, '0');
             const yyyy = date.getUTCFullYear();
             return `${mm}/${dd}/${yyyy}`;
+        };
+
+        function getGreeting() {
+            const hour = new Date().getHours();
+            if (hour >= 6 && hour < 12) return { text: "Buenos días", icon: "☀️" };
+            if (hour >= 12 && hour < 18) return { text: "Buenas tardes", icon: "☀️" };
+            return { text: "Buenas noches", icon: "🌙" };
         }
+
+        // --- FUNCIONES GLOBALES ---
+        window.showView = (viewId) => {
+            const views = ['login-view', 'signup-view', 'patient-view', 'loading-screen', 'membership-view', 'program-detail-view', 'forgot-password-view'];
+            views.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.classList.toggle('hidden', id !== viewId);
+            });
+            window.scrollTo(0,0);
+        };
 
         window.notify = (message, type = 'error') => {
             const toast = document.getElementById('notification-toast');
             const content = document.getElementById('notification-content');
             if(toast && content) {
                 content.textContent = message;
-                toast.className = `fixed top-8 left-1/2 -translate-x-1/2 z-[400] px-8 py-4 rounded-full shadow-2xl text-[13px] font-semibold transition-all duration-500 scale-100 opacity-100 backdrop-blur-xl ${
-                    type === 'success' ? 'bg-[#D0F0E0] text-[#2E4982] border border-white' : 'bg-white/90 text-red-600 border border-red-100'
+                toast.className = `fixed top-8 left-1/2 -translate-x-1/2 z-[800] px-8 py-4 rounded-full shadow-2xl text-[13px] font-semibold transition-all duration-500 scale-100 opacity-100 backdrop-blur-xl ${
+                    type === 'success' ? 'bg-[#D0F0E0] text-[#2E4982] border border-white' : 'bg-white text-red-600 border border-red-50'
                 }`;
                 toast.classList.remove('hidden');
                 setTimeout(() => {
@@ -88,79 +112,85 @@
             }
         };
 
-        // --- MANEJO DE VISTAS ---
-        window.showView = (viewId) => {
-            const views = ['login-view', 'signup-view', 'patient-view', 'loading-screen', 'forgot-password-view', 'membership-view'];
-            views.forEach(id => {
-                const el = document.getElementById(id);
-                if (el) el.classList.toggle('hidden', id !== viewId);
-            });
-            window.scrollTo(0,0);
-        };
-
         async function fetchAirtableData(email) {
             if (!AIRTABLE_PAT || !AIRTABLE_BASE_ID) return null;
             const formula = encodeURIComponent(`({Email}='${email}')`);
             const url = `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${AIRTABLE_TABLE_NAME}?filterByFormula=${formula}`;
             try {
                 const response = await fetch(url, { headers: { Authorization: `Bearer ${AIRTABLE_PAT}` } });
-                if (!response.ok) throw new Error("Error Airtable");
                 const data = await response.json();
-                return data.records.length > 0 ? data.records[0].fields : null;
-            } catch (error) {
-                console.error(error);
-                return null;
-            }
+                return data.records && data.records.length > 0 ? data.records[0].fields : null;
+            } catch (error) { return null; }
         }
 
-        // --- ACTUALIZACIÓN DE INTERFAZ ---
         function updateDashboardUI(airtableData) {
             const infoPaciente = airtableData["Nombre + Edad"] || "Usuario IMNUFIT";
-            
             document.getElementById('display-nombre').textContent = infoPaciente;
-            document.getElementById('display-greeting').textContent = getGreeting();
+            const g = getGreeting();
+            document.getElementById('display-greeting').innerHTML = `<span class="text-xl mr-2">${g.icon}</span> ${g.text}`;
             
             const status = airtableData["Estatus"] || "Activo";
             const statusEl = document.getElementById('display-estatus');
             statusEl.textContent = status;
-            statusEl.className = `px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest border inline-block mt-2 ${getStatusClass(status)}`;
+            const sClass = String(status).toLowerCase().includes("inactivo") ? "bg-rose-50 text-rose-600 border-rose-100" : "bg-[#D0F0E0] text-[#2E4982] border-[#D0F0E0]";
+            statusEl.className = `px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest border inline-block mt-2 ${sClass}`;
 
-            const linkCalendar = airtableData["Link Calendar"] || CALENDAR_LINK_DEFAULT;
-            const linkConsultas = airtableData["Link Consultas"] || "#";
-            document.getElementById('btn-calendar-action').href = linkCalendar;
-            const btnConsultas = document.getElementById('btn-consultas-action');
-            btnConsultas.href = linkConsultas;
+            const planAsignado = airtableData["Plan asignado"];
+            const bannerPlan = document.getElementById('featured-plan-banner');
             
-            if(linkConsultas === "#" || !linkConsultas) {
-                btnConsultas.style.opacity = "0.5";
-                btnConsultas.style.cursor = "not-allowed";
-            } else {
-                btnConsultas.style.opacity = "1";
-                btnConsultas.style.cursor = "pointer";
-            }
+            if (planAsignado && PROGRAMAS_INFO[planAsignado]) {
+                bannerPlan.classList.remove('hidden');
+                document.getElementById('plan-banner-title').textContent = planAsignado;
+                window.viewProgramResources = () => {
+                    const data = PROGRAMAS_INFO[planAsignado];
+                    if (data.directLink) {
+                        window.open(data.url, '_blank');
+                    } else {
+                        document.getElementById('program-img-main').src = data.img;
+                        document.getElementById('program-img-container').className = `bg-transparent mb-10 transition-transform hover:scale-105 duration-500 ${data.imgWidth || 'w-32'}`;
+                        const container = document.getElementById('program-guias-list');
+                        container.innerHTML = "";
+                        
+                        data.guias.forEach(guia => {
+                            const isVideo = guia.type === "VIDEO";
+                            const card = document.createElement('a');
+                            card.href = guia.url; card.target = "_blank";
+                            card.className = "group flex items-center justify-between p-6 rounded-[2rem] bg-white border border-slate-50 hover:bg-slate-50 transition-all text-left shadow-sm hover:shadow-md";
+                            card.innerHTML = `
+                                <div class="flex items-center gap-5">
+                                    <div class="w-12 h-12 rounded-2xl ${isVideo ? 'bg-rose-50 text-rose-500' : 'bg-blue-50 text-[#2E4982]'} flex items-center justify-center shrink-0">
+                                        ${isVideo ? '<svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M10 15.5l6-3.5-6-3.5v7zM22 12c0 5.523-4.477 10-10 10S2 17.523 2 12 6.477 2 12 2s10 4.477 10 10z"/></svg>' : '<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>'}
+                                    </div>
+                                    <div><h4 class="text-[14px] font-bold text-slate-700">${guia.label}</h4><p class="text-[11px] text-slate-400 font-medium">${guia.desc || 'Recurso oficial'}</p></div>
+                                </div>
+                                <svg class="w-4 h-4 text-slate-200 group-hover:text-[#2E4982] transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3"><path d="M9 5l7 7-7 7"/></svg>
+                            `;
+                            container.appendChild(card);
+                        });
+                        window.showView('program-detail-view');
+                    }
+                };
+            } else { bannerPlan.classList.add('hidden'); }
 
-            // --- LLENAR PERFIL ---
+            document.getElementById('btn-calendar-action').href = airtableData["Link Calendar"] || CALENDAR_LINK_DEFAULT;
+            const btnConsultas = document.getElementById('btn-consultas-action');
+            btnConsultas.href = airtableData["Link Consultas"] || "#";
+            btnConsultas.style.opacity = btnConsultas.href.includes("#") ? "0.4" : "1";
+
             document.getElementById('acc-nombre').textContent = infoPaciente;
-            document.getElementById('acc-nacimiento').textContent = formatDateMDY(airtableData["Fecha de Nacimiento"]);
+            document.getElementById('acc-nacimiento').textContent = window.formatDateMDY(airtableData["Fecha de Nacimiento"]);
             document.getElementById('acc-pais').textContent = airtableData["País"] || "--";
             document.getElementById('acc-telefono').textContent = airtableData["Telefono"] || "--";
-            document.getElementById('acc-email').textContent = airtableData["Email"] || auth.currentUser.email;
+            document.getElementById('acc-email').textContent = auth.currentUser ? auth.currentUser.email : "--";
 
-            const genero = String(airtableData["Género"] || "Sin definir");
+            const genero = String(airtableData["Género"] || "");
             const generoEl = document.getElementById('acc-genero');
             generoEl.textContent = genero;
-            
-            // Colores dinámicos para el género manteniendo el estilo de cápsula
-            if (genero.toLowerCase().includes("masculino")) {
-                generoEl.className = "px-3 py-0.5 rounded-md text-[12px] font-bold bg-sky-100 text-sky-700 ml-2 inline-block uppercase tracking-wider shadow-sm";
-            } else if (genero.toLowerCase().includes("femenino")) {
-                generoEl.className = "px-3 py-0.5 rounded-md text-[12px] font-bold bg-rose-100 text-rose-700 ml-2 inline-block uppercase tracking-wider shadow-sm";
-            } else {
-                generoEl.className = "px-3 py-0.5 rounded-md text-[12px] font-bold bg-slate-100 text-slate-600 ml-2 inline-block uppercase tracking-wider shadow-sm";
-            }
+            if (genero.toLowerCase().includes("masculino")) generoEl.className = "px-4 py-1.5 rounded-full text-[10px] font-extrabold bg-sky-50 text-sky-600 border border-sky-100 uppercase tracking-widest shadow-sm inline-block";
+            else if (genero.toLowerCase().includes("femenino")) generoEl.className = "px-4 py-1.5 rounded-full text-[10px] font-extrabold bg-rose-50 text-rose-600 border border-rose-100 uppercase tracking-widest shadow-sm inline-block";
+            else generoEl.className = "hidden";
 
-            const randomFrase = frasesCreyentes[Math.floor(Math.random() * frasesCreyentes.length)];
-            document.getElementById('display-frase').textContent = randomFrase;
+            document.getElementById('display-frase').textContent = frasesCreyentes[Math.floor(Math.random() * frasesCreyentes.length)];
         }
 
         window.refreshData = async () => {
@@ -168,11 +198,9 @@
             if(user) {
                 document.getElementById('loading-screen').classList.remove('hidden');
                 const airtableData = await fetchAirtableData(user.email);
-                if (airtableData) {
-                    updateDashboardUI(airtableData);
-                    notify("Información sincronizada.", "success");
-                }
+                if (airtableData) updateDashboardUI(airtableData);
                 document.getElementById('loading-screen').classList.add('hidden');
+                window.notify("Datos actualizados", "success");
             }
         };
 
@@ -180,396 +208,213 @@
             if (user) {
                 document.getElementById('loading-screen').classList.remove('hidden');
                 const airtableData = await fetchAirtableData(user.email);
-                if (airtableData) {
-                    updateDashboardUI(airtableData);
-                    showView('patient-view');
-                } else {
-                    notify("No se encontró registro vinculado.", "error");
-                    document.getElementById('display-nombre').textContent = "Usuario IMNUFIT";
-                    showView('patient-view');
-                }
-            } else {
-                showView('login-view');
-            }
+                if (airtableData) updateDashboardUI(airtableData);
+                window.showView('patient-view');
+            } else { window.showView('login-view'); }
             document.getElementById('loading-screen').classList.add('hidden');
         });
 
-        window.handleLogin = async (e) => {
-            e.preventDefault();
-            const { email, pass } = e.target;
-            try {
-                document.getElementById('loading-screen').classList.remove('hidden');
-                await signInWithEmailAndPassword(auth, email.value, pass.value);
-            } catch (err) {
-                notify("Credenciales incorrectas.");
-                document.getElementById('loading-screen').classList.add('hidden');
-            }
-        };
-
-        window.handleSignup = async (e) => {
-            e.preventDefault();
-            const { email, pass } = e.target;
-            try {
-                document.getElementById('loading-screen').classList.remove('hidden');
-                await createUserWithEmailAndPassword(auth, email.value, pass.value);
-                notify("Acceso activado.", "success");
-            } catch (err) { notify("Error en registro."); document.getElementById('loading-screen').classList.add('hidden'); }
-        };
-
-        window.handlePasswordReset = async (e) => {
-            e.preventDefault();
-            const email = e.target.resetEmail.value;
-            try {
-                document.getElementById('loading-screen').classList.remove('hidden');
-                await sendPasswordResetEmail(auth, email);
-                notify("Revisa tu correo.", "success");
-                showView('login-view');
-            } catch (err) { notify("Error al solicitar."); }
-            finally { document.getElementById('loading-screen').classList.add('hidden'); }
-        };
-
-        window.updateAppPassword = async (e) => {
-            e.preventDefault();
-            const newPass = e.target.newPassword.value;
-            const user = auth.currentUser;
-            if(!user) return;
-            try {
-                document.getElementById('loading-screen').classList.remove('hidden');
-                await updatePassword(user, newPass);
-                notify("Contraseña actualizada.", "success");
-                e.target.reset();
-            } catch (err) { notify("Inicia sesión de nuevo para cambiar seguridad."); }
-            finally { document.getElementById('loading-screen').classList.add('hidden'); }
-        };
-
+        window.handleLogin = async (e) => { e.preventDefault(); const { email, pass } = e.target; try { document.getElementById('loading-screen').classList.remove('hidden'); await signInWithEmailAndPassword(auth, email.value, pass.value); } catch (err) { window.notify("Credenciales incorrectas"); document.getElementById('loading-screen').classList.add('hidden'); } };
+        window.handleSignup = async (e) => { e.preventDefault(); const { email, pass, confirmPass } = e.target; if (pass.value !== confirmPass.value) { window.notify("Las contraseñas no coinciden"); return; } try { document.getElementById('loading-screen').classList.remove('hidden'); await createUserWithEmailAndPassword(auth, email.value, pass.value); window.notify("Cuenta creada", "success"); } catch (err) { window.notify("Error al registrar"); } finally { document.getElementById('loading-screen').classList.add('hidden'); } };
+        window.handlePasswordReset = async (e) => { e.preventDefault(); const email = e.target.resetEmail.value; try { document.getElementById('loading-screen').classList.remove('hidden'); await sendPasswordResetEmail(auth, email); window.notify("Correo enviado", "success"); window.showView('login-view'); } catch (err) { window.notify("Error de envío"); } finally { document.getElementById('loading-screen').classList.add('hidden'); } };
+        window.updateAppPassword = async (e) => { e.preventDefault(); const newPass = e.target.newPassword.value; const user = auth.currentUser; if(!user) return; try { document.getElementById('loading-screen').classList.remove('hidden'); await updatePassword(user, newPass); window.notify("Clave actualizada", "success"); e.target.reset(); } catch (err) { window.notify("Inicia sesión de nuevo"); } finally { document.getElementById('loading-screen').classList.add('hidden'); } };
         window.cerrarSesion = () => signOut(auth);
-        window.toggleView = (id) => showView(id);
 
     </script>
     <style>
-        :root { 
-            --primary: #2E4982; 
-            --text-main: #494949;
-            --apple-bg: #FBFBFC; 
-            --card-shadow: 0 15px 35px -5px rgba(46, 73, 130, 0.1); 
-        }
-        body { font-family: 'Inter', sans-serif; background-color: var(--apple-bg); color: var(--text-main); -webkit-font-smoothing: antialiased; overflow-x: hidden; }
-        
-        .bg-mesh {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1;
-            background: radial-gradient(circle at 80% 20%, #DEE9FA 0%, transparent 40%),
-                        radial-gradient(circle at 20% 80%, #E7E3FB 0%, transparent 40%);
-            opacity: 0.4;
-        }
-
-        .input-apple { 
-            width: 100%; padding: 18px 22px !important; border: 1.5px solid #E5E7EB !important; border-radius: 18px;
-            background-color: #FFFFFF; outline: none; font-size: 15px; transition: all 0.3s ease;
-        }
+        :root { --primary: #2E4982; --slate-500: #64748b; --apple-bg: #FBFBFC; }
+        body { font-family: 'Inter', sans-serif; background-color: var(--apple-bg); color: #494949; -webkit-font-smoothing: antialiased; overflow-x: hidden; }
+        .bg-mesh { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; background: radial-gradient(circle at 80% 20%, #DEE9FA 0%, transparent 40%), radial-gradient(circle at 20% 80%, #E7E3FB 0%, transparent 40%); opacity: 0.4; }
+        .btn-ingresar { background-color: var(--primary); color: #FFFFFF; width: 100%; padding: 20px !important; border-radius: 100px; font-weight: 600; font-size: 15px; border: none; transition: all 0.4s ease; box-shadow: 0 10px 20px -5px rgba(46, 73, 130, 0.25); cursor: pointer; }
+        .bento-card { @apply bg-white/90 backdrop-blur-xl border border-white transition-all duration-500 flex flex-col justify-between; border-radius: 40px; padding: 36px 32px !important; box-shadow: 0 10px 30px -5px rgba(46, 73, 130, 0.05); }
+        .bento-card:hover { transform: translateY(-4px); box-shadow: 0 25px 50px -10px rgba(46, 73, 130, 0.12); }
+        .btn-ghost-sm { background-color: transparent; color: var(--primary); border: 1.5px solid var(--primary); padding: 14px 48px !important; border-radius: 100px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.12em; transition: all 0.3s ease; display: inline-block; text-align: center; cursor: pointer; text-decoration: none; width: 100%; }
+        .btn-ghost-sm:hover { background-color: #DEE9FA; border-color: #DEE9FA; }
+        .btn-secure-portal { background-color: #2E4982; color: white; width: 100%; padding: 18px !important; border-radius: 14px; font-weight: 600; font-size: 14px; display: flex; items-center justify-center gap-2 transition: all 0.3s ease; box-shadow: 0 10px 20px -5px rgba(46, 73, 130, 0.2); }
+        .profile-line { @apply border-b border-slate-50 py-7 last:border-0; }
+        .profile-label-text { @apply text-[10px] font-extrabold text-slate-400 uppercase tracking-[0.3em] block mb-2; }
+        .profile-value-text { @apply text-[14px] text-slate-500 font-medium leading-relaxed; }
+        .input-apple { width: 100%; padding: 18px 22px !important; border: 1.5px solid #E5E7EB !important; border-radius: 18px; background-color: #FFFFFF; outline: none; font-size: 15px; transition: all 0.3s ease; }
         .input-apple:focus { border-color: var(--primary) !important; box-shadow: 0 0 0 4px #DEE9FA; }
-
-        .btn-ingresar {
-            background-color: var(--primary); color: #FFFFFF; width: 100%; padding: 20px !important; border-radius: 100px;
-            font-weight: 600; font-size: 15px; letter-spacing: 0.02em; border: none; transition: all 0.4s ease;
-            box-shadow: 0 10px 20px -5px rgba(46, 73, 130, 0.25); cursor: pointer;
-        }
-
-        .bento-card {
-            @apply bg-white/90 backdrop-blur-xl border border-white transition-all duration-500 flex flex-col justify-between;
-            border-radius: 40px;
-            padding: 36px 32px !important; 
-            box-shadow: var(--card-shadow);
-        }
-        .bento-card:hover { transform: translateY(-4px); box-shadow: 0 30px 60px -10px rgba(46, 73, 130, 0.15); }
-
-        .btn-ghost-sm {
-            @apply bg-transparent border-[1.5px] border-[#2E4982] text-[#2E4982] py-3.5 px-12 rounded-full text-[11px] font-bold uppercase tracking-widest transition-all text-center cursor-pointer no-underline w-full md:w-auto inline-block;
-        }
-        .btn-ghost-sm:hover { @apply bg-[#DEE9FA] border-[#DEE9FA]; }
-
         .fade-in { animation: fadeIn 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
-
-        .btn-secure-portal {
-            background-color: #2E4982; color: white; width: 100%; padding: 18px !important; border-radius: 14px;
-            font-weight: 600; font-size: 14px; display: flex; items-center justify-center gap-2 transition: all 0.3s ease;
-            box-shadow: 0 10px 20px -5px rgba(46, 73, 130, 0.2);
-        }
-        .btn-secure-portal:hover { transform: translateY(-1px); box-shadow: 0 15px 30px -5px rgba(46, 73, 130, 0.3); background-color: #1e325c; }
-
-        /* --- ESTILOS DE PERFIL UNIFICADOS CON MEMBRESÍA --- */
-        .profile-list { @apply space-y-2; }
-        .profile-item { @apply flex flex-row items-center border-b border-slate-50 py-5 last:border-0; }
-        /* Label con fuente negrita Slate-500 */
-        .profile-label { @apply text-[11px] font-extrabold text-slate-500 uppercase tracking-widest min-w-[130px]; }
-        /* Value con fuente Slate-500 para coherencia con la descripción de membresía */
-        .profile-value { @apply text-[15px] text-slate-500 font-semibold ml-1; }
     </style>
 </head>
 <body class="selection:bg-[#DEE9FA] selection:text-[#2E4982]">
 
     <div class="bg-mesh"></div>
-    <div id="notification-toast" class="hidden"><span id="notification-content"></span></div>
+    <div id="notification-toast" class="hidden fixed top-8 left-1/2 -translate-x-1/2 z-[800]"><span id="notification-content"></span></div>
     
     <div id="loading-screen" class="fixed inset-0 bg-white z-[100] flex items-center justify-center">
         <div class="h-8 w-8 border-[3px] border-[#2E4982] border-t-transparent rounded-full animate-spin"></div>
     </div>
 
-    <!-- VISOR WEB (POPUP) -->
-    <div id="webview-modal" class="fixed inset-0 z-[250] bg-black/40 backdrop-blur-sm hidden flex items-center justify-center p-4">
-        <div class="webview-container bg-white rounded-[2.5rem] flex flex-col overflow-hidden relative">
-            <div class="h-16 bg-[#F8F9FB] border-b border-gray-100 flex items-center justify-between px-8 shrink-0">
-                <span id="webview-title" class="text-xs font-bold text-slate-400 uppercase tracking-widest">Navegación</span>
-                <div class="flex items-center gap-4">
-                    <button onclick="window.closeWebView()" class="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200 transition-colors font-bold text-lg">✕</button>
-                </div>
-            </div>
-            <iframe id="webview-iframe" class="flex-1 w-full bg-white" frameborder="0"></iframe>
-        </div>
-    </div>
-
-    <!-- VISTA 1: LOGIN -->
-    <section id="login-view" class="min-h-screen flex flex-col items-center justify-center p-8 hidden">
-        <div class="max-w-[340px] w-full space-y-12 fade-in text-center">
-            <img src="https://imnufit.com/wp-content/uploads/2025/05/cropped-logo-y-nombre-AZUL.png" class="mx-auto h-11 object-contain">
-            <div class="space-y-2">
-                <h1 class="text-2xl font-bold tracking-tight text-[#494949]">Portal del Paciente</h1>
-                <p class="text-[14px] text-slate-500">Inicia sesión para continuar</p>
-            </div>
-            <form onsubmit="window.handleLogin(event)" class="space-y-8">
-                <div class="space-y-4">
-                    <input type="email" name="email" required placeholder="Correo electrónico" class="input-apple">
-                    <div class="space-y-2">
-                        <input type="password" name="pass" required placeholder="Contraseña" class="input-apple">
-                        <div class="text-right">
-                            <button type="button" onclick="window.toggleView('forgot-password-view')" class="text-[12px] text-[#2E4982] font-semibold hover:underline">¿Olvidaste tu contraseña?</button>
-                        </div>
-                    </div>
-                </div>
-                <button type="submit" class="btn-ingresar">Entrar al portal</button>
-            </form>
-            <button onclick="window.toggleView('signup-view')" class="text-[13px] text-[#2E4982] font-semibold hover:underline">Registrar mi acceso</button>
-        </div>
-        <footer class="mt-20 text-[9px] text-slate-400 uppercase tracking-[0.4em] font-bold text-center">© 2025 IMNUFIT</footer>
-    </section>
-
-    <!-- VISTA 3: DASHBOARD -->
-    <section id="patient-view" class="min-h-screen hidden">
-        <header class="bg-white/40 backdrop-blur-xl border-b border-white/60 h-20 flex items-center px-8 justify-between sticky top-0 z-40">
-            <img src="https://imnufit.com/wp-content/uploads/2025/05/cropped-logo-y-nombre-AZUL.png" class="h-6">
+    <!-- DASHBOARD -->
+    <section id="patient-view" class="min-h-screen hidden text-left">
+        <header class="bg-white/40 backdrop-blur-xl border-b border-white/60 h-24 flex items-center px-8 justify-between sticky top-0 z-40">
+            <a href="https://imnufit.com" target="_blank" class="hover:opacity-80 transition-opacity">
+                <img src="https://imnufit.com/wp-content/uploads/2025/05/cropped-logo-y-nombre-AZUL.png" class="h-10 object-contain">
+            </a>
             <div class="flex items-center gap-3">
-                <button onclick="window.refreshData()" class="text-slate-400 hover:text-[#2E4982] transition-colors p-2 rounded-full hover:bg-white/50" title="Actualizar">
+                <a href="https://imnufit.com" target="_blank" class="text-slate-400 hover:text-[#2E4982] p-2 transition-colors group" title="Ir a la Web Principal">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                        <path d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"></path>
+                    </svg>
+                </a>
+                <button onclick="window.refreshData()" class="text-slate-600 hover:text-[#2E4982] p-2 transition-colors group" title="Actualizar">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
                 </button>
-                <button onclick="window.showView('membership-view')" class="w-10 h-10 rounded-full bg-[#DEE9FA] flex items-center justify-center text-[#2E4982] hover:bg-[#2E4982] hover:text-white transition-all shadow-sm" title="Mi Cuenta">
+                <button onclick="window.showView('membership-view')" class="w-10 h-10 rounded-full bg-[#DEE9FA] flex items-center justify-center text-[#2E4982] hover:bg-[#2E4982] hover:text-white transition-all shadow-sm">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
                 </button>
-                <button onclick="window.cerrarSesion()" class="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest hover:text-red-500 transition-colors ml-2">Salir</button>
+                <button onclick="window.cerrarSesion()" class="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest hover:text-red-500 ml-2">Salir</button>
             </div>
         </header>
 
         <main class="max-w-5xl mx-auto py-12 px-6 space-y-12">
-            <div class="flex flex-col gap-6 fade-in">
-                <div class="flex flex-col md:flex-row md:items-end justify-between gap-4">
-                    <div class="space-y-1">
-                        <p id="display-greeting" class="text-[10px] font-bold text-[#2E4982] uppercase tracking-[0.5em] mb-1">Bienvenido</p>
-                        <h2 class="text-3xl font-bold tracking-tight text-[#494949] leading-tight"><span id="display-nombre">...</span></h2>
-                        <div class="pt-2">
-                            <span id="display-estatus" class="px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest border inline-block">Cargando...</span>
+            <div class="space-y-6 text-left">
+                <div>
+                    <p id="display-greeting" class="text-[10px] font-bold text-[#2E4982] uppercase tracking-[0.5em] mb-1 flex items-center"></p>
+                    <h2 class="text-3xl font-bold tracking-tight text-[#494949] leading-tight text-left"><span id="display-nombre">...</span></h2>
+                    <div class="pt-2"><span id="display-estatus" class="px-3 py-1 rounded-full text-[10px] font-bold uppercase border inline-block">Cargando...</span></div>
+                </div>
+
+                <!-- 1. VERSÍCULO -->
+                <div class="bg-white/60 p-6 rounded-[2rem] border border-white/60 shadow-sm backdrop-blur-md max-w-3xl text-left text-slate-600">
+                    <p id="display-frase" class="italic text-[15px] leading-relaxed font-medium">...</p>
+                </div>
+                
+                <!-- 2. BANNER PROGRAMA -->
+                <div id="featured-plan-banner" class="hidden fade-in">
+                    <div class="bg-[#2E4982] rounded-[2.5rem] p-8 md:p-12 text-white shadow-2xl relative overflow-hidden group cursor-pointer" onclick="window.viewProgramResources()">
+                        <div class="absolute -right-16 -top-16 w-64 h-64 bg-white/10 rounded-full blur-3xl"></div>
+                        <div class="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-8 text-left">
+                            <div class="space-y-3">
+                                <span class="text-[10px] font-bold uppercase tracking-[0.4em] opacity-60">Tu Programa Asignado</span>
+                                <h3 id="plan-banner-title" class="text-3xl md:text-4xl font-extrabold tracking-tight">...</h3>
+                                <p class="text-white/50 text-sm max-w-sm italic font-medium leading-relaxed text-left">Accede a tus guías, recursos y materiales exclusivos.</p>
+                            </div>
+                            <button class="bg-white text-[#2E4982] px-8 py-4 rounded-full text-[11px] font-extrabold uppercase tracking-widest shadow-xl group-hover:scale-105 transition-transform shrink-0">Ver Recursos</button>
                         </div>
                     </div>
-                </div>
-                <div class="bg-white/60 p-6 rounded-[2rem] border border-white/60 shadow-sm backdrop-blur-md max-w-3xl">
-                    <p id="display-frase" class="text-[#2E4982] italic text-[15px] leading-relaxed font-medium">...</p>
                 </div>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-8 fade-in" style="animation-delay: 0.1s;">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8 text-left">
                 <section class="bento-card min-h-[300px]">
-                    <div class="flex justify-between items-start mb-6 shrink-0">
-                        <div class="w-14 h-14 bg-[#DEE9FA] rounded-2xl flex items-center justify-center overflow-hidden shadow-sm">
-                            <img src="https://imnufit.com/wp-content/uploads/2022/01/iuiuo.png" class="w-11 h-11 object-contain" alt="Entrenamientos">
-                        </div>
-                    </div>
-                    <div>
-                        <h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-1">Entrenaconfren+</h4>
-                        <h3 class="text-2xl font-bold text-[#494949]">Entrenamientos</h3>
-                        <p class="text-[14px] text-slate-500 mt-2">Accede a tus rutinas y guías de ejercicio.</p>
-                    </div>
-                    <div class="mt-8">
-                        <a href="https://imnufit.com/entrenaconfrenplus/" target="_blank" rel="noopener noreferrer" class="btn-ghost-sm">Ir a Entrenar</a>
-                    </div>
+                    <div class="w-14 h-14 bg-[#DEE9FA] rounded-2xl flex items-center justify-center mb-6 shrink-0"><img src="https://imnufit.com/wp-content/uploads/2022/01/iuiuo.png" class="w-11 h-11 object-contain"></div>
+                    <div><h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-1">Entrenaconfren+</h4><h3 class="text-2xl font-bold text-[#494949]">Entrenamientos</h3><p class="text-[14px] text-slate-500 mt-2 leading-relaxed text-left">Accede a tus rutinas y guías de ejercicio.</p></div>
+                    <div class="mt-8 text-left"><a href="https://imnufit.com/entrenaconfrenplus/" target="_blank" class="btn-ghost-sm">Ir a Entrenar</a></div>
                 </section>
-
                 <section class="bento-card min-h-[300px]">
-                    <div class="flex justify-between items-start mb-6 shrink-0">
-                        <div class="w-14 h-14 bg-[#FFEDD5] rounded-2xl flex items-center justify-center text-[#2E4982] shadow-sm">
-                            <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
-                        </div>
-                    </div>
-                    <div>
-                        <h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-1">Seguimiento</h4>
-                        <h3 class="text-2xl font-bold text-[#494949]">Reporte Mensual</h3>
-                        <p class="text-[14px] text-slate-500 mt-2">Registra tus medidas y progreso del mes.</p>
-                    </div>
-                    <div class="mt-8">
-                        <a href="https://airtable.com/appCHcm7XPzeoyBCs/pagh79fwniuSPmusB/form" target="_blank" class="btn-ghost-sm">Llenar Reporte</a>
-                    </div>
+                    <div class="w-14 h-14 bg-[#FFEDD5] rounded-2xl flex items-center justify-center mb-6 text-[#2E4982] shrink-0"><svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg></div>
+                    <div><h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-1">Seguimiento</h4><h3 class="text-2xl font-bold text-[#494949]">Reporte Mensual</h3><p class="text-[14px] text-slate-500 mt-2 leading-relaxed text-left">Registra tus medidas y progreso del mes.</p></div>
+                    <div class="mt-8 text-left"><a href="https://airtable.com/appCHcm7XPzeoyBCs/pagh79fwniuSPmusB/form" target="_blank" class="btn-ghost-sm">Llenar Reporte</a></div>
                 </section>
-
                 <section class="bento-card min-h-[300px]">
-                    <div class="flex justify-between items-start mb-6 shrink-0">
-                        <div class="w-14 h-14 bg-[#D0F0E0] rounded-2xl flex items-center justify-center text-[#2E4982] shadow-sm">
-                            <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
-                        </div>
-                    </div>
-                    <div>
-                        <h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-1">Citas</h4>
-                        <p class="text-2xl font-bold text-[#494949]">Reservar Consulta</p>
-                        <p class="text-[14px] text-slate-500 mt-2">Reserva tu espacio con el especialista.</p>
-                    </div>
-                    <div class="mt-8">
-                        <a id="btn-calendar-action" href="#" target="_blank" class="btn-ghost-sm">Ir al Calendario</a>
-                    </div>
+                    <div class="w-14 h-14 bg-[#D0F0E0] rounded-2xl flex items-center justify-center mb-6 text-[#2E4982] shrink-0"><svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg></div>
+                    <div><h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-1">Citas</h4><h3 class="text-2xl font-bold text-[#494949]">Reservar Consulta</h3><p class="text-[14px] text-slate-500 mt-2 leading-relaxed text-left">Reserva tu espacio con el especialista.</p></div>
+                    <div class="mt-8 text-left"><a id="btn-calendar-action" href="#" target="_blank" class="btn-ghost-sm">Ir al Calendario</a></div>
                 </section>
-
                 <section class="bento-card min-h-[300px]">
-                    <div class="flex justify-between items-start mb-6 shrink-0">
-                        <div class="w-14 h-14 bg-[#E7E3FB] rounded-2xl flex items-center justify-center text-[#2E4982] shadow-sm">
-                            <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-                        </div>
-                    </div>
-                    <div>
-                        <h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-1">Registro</h4>
-                        <h3 class="text-2xl font-bold text-[#494949]">Consultas Recientes</h3>
-                        <p class="text-[14px] text-slate-500 mt-2">Detalle de evaluaciones anteriores.</p>
-                    </div>
-                    <div class="mt-8">
-                        <a id="btn-consultas-action" href="#" target="_blank" class="btn-ghost-sm">Abrir Historial</a>
-                    </div>
-                </section>
-
-                <section class="bento-card bg-[#2E4982] text-white border-0 shadow-2xl md:col-span-2">
-                    <div class="flex flex-row items-center justify-between gap-6">
-                        <div class="flex items-center gap-6">
-                            <div class="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center">
-                                <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
-                            </div>
-                            <div>
-                                <h3 class="text-xl font-bold tracking-tight">¿Dudas con tu tratamiento?</h3>
-                                <p class="text-white/60 text-[12px] font-medium mt-1">Estamos disponibles para asistirte.</p>
-                            </div>
-                        </div>
-                        <a href="https://wa.me/tu_numero" target="_blank" class="hidden md:flex btn-ghost-sm !text-white !border-white/40 hover:!bg-white/10">Soporte WhatsApp</a>
-                    </div>
-                    <a href="https://wa.me/tu_numero" target="_blank" class="md:hidden mt-6 btn-ghost-sm !text-white !border-white/40 hover:!bg-white/10">Soporte WhatsApp</a>
+                    <div class="w-14 h-14 bg-[#E7E3FB] rounded-2xl flex items-center justify-center mb-6 text-[#2E4982] shrink-0"><svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg></div>
+                    <div><h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-1">Registro</h4><h3 class="text-2xl font-bold text-[#494949]">Consultas Recientes</h3><p class="text-[14px] text-slate-500 mt-2 leading-relaxed text-left">Detalle de evaluaciones anteriores.</p></div>
+                    <div class="mt-8 text-left"><a id="btn-consultas-action" href="#" target="_blank" class="btn-ghost-sm">Abrir Historial</a></div>
                 </section>
             </div>
         </main>
     </section>
 
-    <!-- VISTA 4: GESTIÓN DE CUENTA -->
-    <section id="membership-view" class="min-h-screen hidden bg-slate-50/50 pb-20">
-        <header class="bg-white/40 backdrop-blur-xl border-b h-20 flex items-center px-8 justify-between sticky top-0 z-40">
+    <!-- PROGRAM DETAIL VIEW (TÍTULO RESTAURADO Y DISEÑO MODERNO) -->
+    <section id="program-detail-view" class="min-h-screen hidden bg-white">
+        <header class="h-24 flex items-center px-8 border-b border-slate-50 justify-between sticky top-0 bg-white z-50">
             <button onclick="window.showView('patient-view')" class="flex items-center gap-2 text-slate-400 hover:text-[#2E4982] transition-colors font-bold text-xs uppercase tracking-widest group">
-                <svg class="w-4 h-4 transform group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path d="M15 19l-7-7 7-7"></path></svg>
-                Volver
+                <svg class="w-4 h-4 transform group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path d="M15 19l-7-7 7-7"></path></svg> Volver
             </button>
-            <h2 class="text-sm font-bold text-[#494949] uppercase tracking-[0.2em] text-center">Mi Cuenta</h2>
+            <span class="text-sm font-bold text-[#494949] uppercase tracking-[0.2em]">Programa Asignado</span>
             <div class="w-10"></div>
         </header>
-
-        <main class="max-w-2xl mx-auto py-12 px-6 space-y-10">
+        <main class="max-w-xl mx-auto py-16 px-6 fade-in space-y-12 flex flex-col items-center">
+            <!-- LOGO INTEGRADO SIN SOMBRA -->
+            <div id="program-img-container"><img id="program-img-main" src="" class="w-full h-auto object-contain grayscale-[0.2] opacity-90 transition-opacity"></div>
             
-            <!-- 1. PERFIL PERSONAL (ACTUALIZADO CON COLORES DE MEMBRESÍA) -->
-            <section class="bg-white rounded-[2.5rem] p-10 shadow-xl border border-white fade-in">
-                <div class="flex items-center gap-4 mb-10">
-                    <div class="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center text-[#2E4982]">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
-                    </div>
-                    <div>
-                        <h3 class="text-xl font-bold text-[#494949]">Perfil Personal</h3>
-                        <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Tus datos en consulta</p>
-                    </div>
+            <div class="w-full space-y-8">
+                <div class="space-y-2 text-center">
+                    <p class="text-slate-300 text-[9px] font-extrabold uppercase tracking-[0.4em]">Contenido Oficial</p>
+                    <h3 class="text-2xl font-bold text-slate-800">Recursos de tu Tratamiento</h3>
                 </div>
-
-                <div class="profile-list">
-                    <div class="profile-item">
-                        <span class="profile-label">Paciente:</span>
-                        <span id="acc-nombre" class="profile-value">Cargando...</span>
-                    </div>
-                    
-                    <div class="profile-item">
-                        <span class="profile-label">Género:</span>
-                        <span id="acc-genero">--</span>
-                    </div>
-
-                    <div class="profile-item">
-                        <span class="profile-label">Nacimiento:</span>
-                        <span id="acc-nacimiento" class="profile-value">--</span>
-                    </div>
-
-                    <div class="profile-item">
-                        <span class="profile-label">País:</span>
-                        <span id="acc-pais" class="profile-value">--</span>
-                    </div>
-
-                    <div class="profile-item border-0">
-                        <span class="profile-label">Teléfono:</span>
-                        <span id="acc-telefono" class="profile-value">--</span>
-                    </div>
-
-                    <div class="mt-6 pt-10 border-t border-slate-50 flex items-center justify-between">
-                        <div class="space-y-1">
-                            <span class="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest">Email de acceso</span>
-                            <span id="acc-email" class="block text-sm font-semibold text-slate-500">--</span>
-                        </div>
-                    </div>
+                <div id="program-guias-list" class="grid gap-4 w-full">
+                    <!-- Tarjetas Modernas inyectadas aquí -->
                 </div>
-            </section>
-
-            <!-- 2. SEGURIDAD -->
-            <section class="bg-white rounded-[2.5rem] p-10 shadow-xl border border-white fade-in" style="animation-delay: 0.1s;">
-                <div class="flex items-center gap-4 mb-8">
-                    <div class="w-12 h-12 bg-slate-100 rounded-2xl flex items-center justify-center text-slate-500">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
-                    </div>
-                    <div>
-                        <h3 class="text-xl font-bold text-[#494949]">Seguridad</h3>
-                        <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Cambio de Acceso</p>
-                    </div>
-                </div>
-                <form onsubmit="window.updateAppPassword(event)" class="space-y-6">
-                    <div class="space-y-2">
-                        <label class="text-[11px] font-bold text-slate-400 uppercase tracking-widest ml-1">Nueva Contraseña</label>
-                        <input type="password" name="newPassword" required minlength="6" placeholder="Mínimo 6 caracteres" class="input-apple">
-                    </div>
-                    <button type="submit" class="btn-ingresar !bg-slate-800">Actualizar Contraseña</button>
-                </form>
-            </section>
-
-            <!-- 3. MEMBRESÍA -->
-            <section class="bg-white rounded-[2.5rem] p-10 shadow-xl border border-white fade-in" style="animation-delay: 0.2s;">
-                <div class="flex items-center gap-4 mb-8">
-                    <div class="w-12 h-12 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-600 shadow-sm">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
-                    </div>
-                    <div>
-                        <h3 class="text-xl font-bold text-[#494949]">Membresía</h3>
-                        <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Información de Suscripción</p>
-                    </div>
-                </div>
-                <p class="text-[14px] text-slate-500 mb-8 leading-relaxed">
-                    Utilizamos una plataforma segura y certificada para gestionar tus suscripciones. Desde aquí podrás actualizar tu tarjeta, descargar recibos o <strong>cancelar tu membresía en cualquier momento</strong>.
-                </p>
-                <a href="https://billing.stripe.com/p/login/bIY9CF3un99T2XefYY" target="_blank" class="btn-secure-portal">
-                    Gestionar Membresía y Pagos
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
-                </a>
-            </section>
-
-            <button onclick="window.cerrarSesion()" class="w-full py-4 text-xs font-bold text-red-400 uppercase tracking-widest hover:text-red-600 transition-colors">Cerrar Sesión</button>
+            </div>
+            <p class="text-slate-200 text-[9px] font-medium uppercase tracking-[0.5em] text-center italic">© IMNUFIT — Nutrición con Propósito</p>
         </main>
+    </section>
+
+    <!-- MI CUENTA -->
+    <section id="membership-view" class="min-h-screen hidden bg-slate-50/50 pb-20 text-left">
+        <header class="bg-white/40 backdrop-blur-xl border-b h-24 flex items-center px-8 justify-between sticky top-0 z-40">
+            <button onclick="window.showView('patient-view')" class="flex items-center gap-2 text-slate-400 hover:text-[#2E4982] transition-colors font-bold text-xs uppercase tracking-widest group">
+                <svg class="w-4 h-4 transform group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path d="M15 19l-7-7 7-7"></path></svg> Volver
+            </button>
+            <a href="https://imnufit.com" target="_blank"><img src="https://imnufit.com/wp-content/uploads/2025/05/cropped-logo-y-nombre-AZUL.png" class="h-9 object-contain hidden md:block"></a>
+            <h2 class="text-sm font-bold text-[#494949] uppercase tracking-[0.2em]">Mi Cuenta</h2><div class="w-10 md:hidden"></div>
+        </header>
+        <main class="max-w-2xl mx-auto py-12 px-6 space-y-10 text-left">
+            <section class="bg-white rounded-[2.5rem] p-10 shadow-sm border border-slate-50">
+                <div class="flex items-center gap-4 mb-12 text-left">
+                    <div class="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center text-[#2E4982] shadow-sm"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg></div>
+                    <div class="text-left"><h3 class="text-xl font-bold text-[#494949]">Perfil Personal</h3><p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Identidad en Consulta</p></div>
+                </div>
+                <div class="space-y-0 text-left">
+                    <div class="profile-line text-left"><span class="profile-label-text">Paciente:</span><span id="acc-nombre" class="profile-value-text text-slate-500 text-left">...</span></div>
+                    <div class="profile-line flex items-center justify-start !py-6 text-left"><span id="acc-genero">--</span></div>
+                    <div class="profile-line text-left"><span class="profile-label-text">Nacimiento:</span><span id="acc-nacimiento" class="profile-value-text text-slate-500 text-left">--</span></div>
+                    <div class="profile-line text-left"><span class="profile-label-text">País:</span><span id="acc-pais" class="profile-value-text text-slate-500 text-left">--</span></div>
+                    <div class="profile-line border-0 text-left"><span class="profile-label-text">Teléfono:</span><span id="acc-telefono" class="profile-value-text text-slate-500 text-left">--</span></div>
+                    <div class="mt-4 pt-10 border-t border-slate-50 text-left">
+                        <span class="profile-label-text !mb-1">Email de acceso</span>
+                        <span id="acc-email" class="text-[14px] font-medium text-slate-500">--</span>
+                    </div>
+                </div>
+            </section>
+            <section class="bg-white rounded-[2.5rem] p-10 shadow-sm border border-slate-50" style="animation-delay: 0.1s;"><div class="flex items-center gap-4 mb-8 text-left"><div class="w-12 h-12 bg-slate-50 rounded-2xl flex items-center justify-center text-slate-500"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg></div><div class="text-left"><h3 class="text-xl font-bold text-[#494949]">Seguridad</h3><p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Cambio de Acceso</p></div></div><form onsubmit="window.updateAppPassword(event)" class="space-y-6 text-left"><div><label class="text-[11px] font-bold text-slate-400 uppercase tracking-widest ml-1 text-left">Nueva Contraseña</label><input type="password" name="newPassword" required minlength="6" placeholder="Mínimo 6 caracteres" class="input-apple mt-2"></div><button type="submit" class="btn-ingresar !bg-slate-800">Actualizar Contraseña</button></form></section>
+            <section class="bg-white rounded-[2.5rem] p-10 shadow-sm border border-slate-50" style="animation-delay: 0.2s;"><div class="flex items-center gap-4 mb-8 text-left"><div class="w-12 h-12 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-600 shadow-sm"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg></div><div class="text-left"><h3 class="text-xl font-bold text-[#494949]">Membresía</h3><p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Gestión de Suscripción</p></div></div><p class="text-[14px] text-slate-500 mb-8 leading-relaxed text-left">Utilizamos una plataforma segura para tus suscripciones. Desde aquí podrás actualizar tu tarjeta o <strong>cancelar tu membresía</strong>.</p><a href="https://billing.stripe.com/p/login/bIY9CF3un99T2XefYY" target="_blank" class="btn-secure-portal">Gestionar Membresía y Pagos <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg></a></section>
+            <button onclick="window.cerrarSesion()" class="w-full py-4 text-xs font-bold text-red-400 uppercase tracking-widest hover:text-red-600 transition-colors text-center">Cerrar Sesión</button>
+        </main>
+    </section>
+
+    <!-- FORGOT PASSWORD -->
+    <section id="forgot-password-view" class="min-h-screen flex flex-col items-center justify-center p-8 hidden text-center">
+        <div class="max-w-[340px] w-full space-y-10 fade-in"><img src="https://imnufit.com/wp-content/uploads/2025/05/cropped-logo-y-nombre-AZUL.png" class="mx-auto h-11 object-contain"><div class="space-y-2 text-center"><h1 class="text-2xl font-bold tracking-tight text-[#494949]">Recuperar Acceso</h1><p class="text-[14px] text-slate-500">Te enviaremos un enlace a tu correo</p></div><form onsubmit="window.handlePasswordReset(event)" class="space-y-6 text-left"><input type="email" name="resetEmail" required placeholder="Correo de acceso" class="input-apple"><button type="submit" class="btn-ingresar">Enviar enlace</button><p class="text-[11px] text-slate-300 text-center font-medium">💡 Si no recibes el correo, revisa tu carpeta de <span class="font-bold">Spam</span>.</p></form><button onclick="window.showView('login-view')" class="text-[12px] font-bold text-[#2E4982] uppercase tracking-widest text-center w-full">Volver al inicio</button></div>
+    </section>
+
+    <!-- SIGNUP VIEW -->
+    <section id="signup-view" class="min-h-screen flex flex-col items-center justify-center p-8 hidden text-center">
+        <div class="max-w-[340px] w-full space-y-12 fade-in"><img src="https://imnufit.com/wp-content/uploads/2025/05/cropped-logo-y-nombre-AZUL.png" class="mx-auto h-11 object-contain"><div class="space-y-2 text-center"><h1 class="text-2xl font-bold tracking-tight text-[#494949]">Crear tu cuenta</h1><p class="text-[14px] text-slate-500 text-center">Usa el correo que registraste en consulta</p></div><form onsubmit="window.handleSignup(event)" class="space-y-6 text-left"><input type="email" name="email" required placeholder="Correo electrónico" class="input-apple"><input type="password" name="pass" required minlength="6" placeholder="Crear contraseña" class="input-apple"><input type="password" name="confirmPass" required minlength="6" placeholder="Confirmar contraseña" class="input-apple"><button type="submit" class="btn-ingresar mt-4">Registrarme</button></form><button onclick="window.showView('login-view')" class="text-[11px] font-bold text-[#2E4982] uppercase tracking-widest hover:underline">¿Ya tienes cuenta? Inicia sesión</button></div>
+    </section>
+
+    <!-- LOGIN -->
+    <section id="login-view" class="min-h-screen flex flex-col items-center justify-center p-8 hidden text-center text-left">
+        <div class="max-w-[340px] w-full space-y-12 fade-in">
+            <img src="https://imnufit.com/wp-content/uploads/2025/05/cropped-logo-y-nombre-AZUL.png" class="mx-auto h-11 object-contain">
+            <div class="space-y-2 text-center"><h1 class="text-2xl font-bold tracking-tight text-[#494949]">Portal del Paciente</h1><p class="text-[14px] text-slate-500 text-center">Inicia sesión para continuar</p></div>
+            <form onsubmit="window.handleLogin(event)" class="space-y-6 text-left">
+                <input type="email" name="email" required placeholder="Correo electrónico" class="input-apple">
+                <div class="space-y-3">
+                    <input type="password" name="pass" required placeholder="Contraseña" class="input-apple">
+                    <div class="text-right px-2"><button type="button" onclick="window.showView('forgot-password-view')" class="text-[11px] font-bold text-[#2E4982] uppercase tracking-widest hover:underline">¿Olvidaste tu contraseña?</button></div>
+                </div>
+                <div class="space-y-5">
+                    <button type="submit" class="btn-ingresar">Entrar al portal</button>
+                    <div class="text-center">
+                        <button type="button" onclick="window.showView('signup-view')" class="text-[12px] font-extrabold text-[#2E4982] uppercase tracking-tight transition-opacity hover:opacity-70">
+                            ¿Eres nuevo? <span class="border-b border-[#2E4982]/30 pb-0.5">Crea tu cuenta aquí</span>
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
     </section>
 
 </body>
