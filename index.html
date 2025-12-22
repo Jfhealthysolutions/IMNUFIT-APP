@@ -31,7 +31,6 @@
 
         const CALENDAR_LINK_DEFAULT = "https://calendar.app.google/CE4KjKxPeFiV93GV7";
 
-        // --- CONFIGURACIÓN DE PROGRAMAS ---
         const PROGRAMAS_INFO = {
             "Adiós Diabetes 2": {
                 img: "https://imnufit.com/wp-content/uploads/2024/04/Imagen-de-WhatsApp-2024-04-30-a-las-18.35.48_16bb1ed2.jpg",
@@ -68,6 +67,7 @@
 
         setPersistence(auth, browserLocalPersistence);
 
+        // --- UTILIDADES ---
         window.formatDateMDY = (dateString) => {
             if (!dateString) return "--";
             const date = new Date(dateString);
@@ -93,14 +93,31 @@
             return "bg-amber-50 text-amber-600 border-amber-100";
         }
 
-        window.showView = (viewId) => {
-            const views = ['login-view', 'signup-view', 'patient-view', 'loading-screen', 'membership-view', 'program-detail-view', 'forgot-password-view', 'contact-view'];
+        // --- NAVEGACIÓN INTELIGENTE (BACK GESTURE) ---
+        window.showView = (viewId, saveHistory = true) => {
+            const views = ['login-view', 'signup-view', 'patient-view', 'membership-view', 'program-detail-view', 'forgot-password-view', 'contact-view'];
             views.forEach(id => {
                 const el = document.getElementById(id);
                 if (el) el.classList.toggle('hidden', id !== viewId);
             });
             window.scrollTo(0,0);
+
+            // Manejo del historial para gestos móviles
+            if (saveHistory) {
+                history.pushState({ viewId }, "", "");
+            }
         };
+
+        // Escuchar cuando el usuario desliza atrás o pulsa atrás
+        window.addEventListener('popstate', (event) => {
+            if (event.state && event.state.viewId) {
+                window.showView(event.state.viewId, false);
+            } else {
+                // Si no hay estado previo definido, volver a Home o Login según sesión
+                const user = auth.currentUser;
+                window.showView(user ? 'patient-view' : 'login-view', false);
+            }
+        });
 
         window.notify = (message, type = 'error') => {
             const toast = document.getElementById('notification-toast');
@@ -134,7 +151,6 @@
             document.getElementById('display-nombre').textContent = infoPaciente;
             const g = getGreeting();
             document.getElementById('display-greeting').innerHTML = `<span class="text-xl mr-2">${g.icon}</span> ${g.text}`;
-            
             const status = airtableData["Estatus"] || "Activo";
             const statusEl = document.getElementById('display-estatus');
             statusEl.textContent = status;
@@ -155,7 +171,6 @@
                         document.getElementById('program-img-container').className = `bg-transparent mb-10 transition-transform hover:scale-105 duration-500 ${data.imgWidth || 'w-32'}`;
                         const container = document.getElementById('program-guias-list');
                         container.innerHTML = "";
-                        
                         data.guias.forEach(guia => {
                             const isVideo = guia.type === "VIDEO";
                             const card = document.createElement('a');
@@ -205,7 +220,7 @@
                 const airtableData = await fetchAirtableData(user.email);
                 if (airtableData) updateDashboardUI(airtableData);
                 document.getElementById('loading-screen').classList.add('hidden');
-                window.notify("Página actualizada", "success");
+                window.notify("Datos actualizados", "success");
             }
         };
 
@@ -214,15 +229,17 @@
                 document.getElementById('loading-screen').classList.remove('hidden');
                 const airtableData = await fetchAirtableData(user.email);
                 if (airtableData) updateDashboardUI(airtableData);
-                window.showView('patient-view');
-            } else { window.showView('login-view'); }
+                window.showView('patient-view', false); // No guardar estado inicial del login
+            } else { 
+                window.showView('login-view', false); 
+            }
             document.getElementById('loading-screen').classList.add('hidden');
         });
 
         window.handleLogin = async (e) => { e.preventDefault(); const { email, pass } = e.target; try { document.getElementById('loading-screen').classList.remove('hidden'); await signInWithEmailAndPassword(auth, email.value, pass.value); } catch (err) { window.notify("Credenciales incorrectas"); document.getElementById('loading-screen').classList.add('hidden'); } };
-        window.handleSignup = async (e) => { e.preventDefault(); const { email, pass, confirmPass } = e.target; if (pass.value !== confirmPass.value) { window.notify("Contraseñas no coinciden"); return; } try { document.getElementById('loading-screen').classList.remove('hidden'); await createUserWithEmailAndPassword(auth, email.value, pass.value); window.notify("Cuenta creada", "success"); } catch (err) { window.notify("Error al registrar"); } finally { document.getElementById('loading-screen').classList.add('hidden'); } };
+        window.handleSignup = async (e) => { e.preventDefault(); const { email, pass, confirmPass } = e.target; if (pass.value !== confirmPass.value) { window.notify("Las contraseñas no coinciden"); return; } try { document.getElementById('loading-screen').classList.remove('hidden'); await createUserWithEmailAndPassword(auth, email.value, pass.value); window.notify("Cuenta creada", "success"); } catch (err) { window.notify("Error al registrar"); } finally { document.getElementById('loading-screen').classList.add('hidden'); } };
         window.handlePasswordReset = async (e) => { e.preventDefault(); const email = e.target.resetEmail.value; try { document.getElementById('loading-screen').classList.remove('hidden'); await sendPasswordResetEmail(auth, email); window.notify("Correo enviado", "success"); window.showView('login-view'); } catch (err) { window.notify("Error de envío"); } finally { document.getElementById('loading-screen').classList.add('hidden'); } };
-        window.updateAppPassword = async (e) => { e.preventDefault(); const newPass = e.target.newPassword.value; const user = auth.currentUser; if(!user) return; try { document.getElementById('loading-screen').classList.remove('hidden'); await updatePassword(user, newPass); window.notify("Clave actualizada", "success"); e.target.reset(); } catch (err) { window.notify("Sesión expirada"); } finally { document.getElementById('loading-screen').classList.add('hidden'); } };
+        window.updateAppPassword = async (e) => { e.preventDefault(); const newPass = e.target.newPassword.value; const user = auth.currentUser; if(!user) return; try { document.getElementById('loading-screen').classList.remove('hidden'); await updatePassword(user, newPass); window.notify("Contraseña actualizada", "success"); e.target.reset(); } catch (err) { window.notify("Debes iniciar sesión de nuevo"); } finally { document.getElementById('loading-screen').classList.add('hidden'); } };
         window.cerrarSesion = () => signOut(auth);
 
     </script>
@@ -230,7 +247,7 @@
         :root { --primary: #2E4982; --slate-500: #64748b; --apple-bg: #FBFBFC; }
         body { font-family: 'Inter', sans-serif; background-color: var(--apple-bg); color: #494949; -webkit-font-smoothing: antialiased; overflow-x: hidden; }
         .bg-mesh { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; background: radial-gradient(circle at 80% 20%, #DEE9FA 0%, transparent 40%), radial-gradient(circle at 20% 80%, #E7E3FB 0%, transparent 40%); opacity: 0.4; }
-        .btn-ingresar { background-color: var(--primary); color: #FFFFFF; width: 100%; padding: 20px !important; border-radius: 100px; font-weight: 600; font-size: 15px; border: none; transition: all 0.4s ease; box-shadow: 0 10px 20px -5px rgba(46, 73, 130, 0.25); cursor: pointer; text-align: center; }
+        .btn-ingresar { background-color: var(--primary); color: #FFFFFF; width: 100%; padding: 20px !important; border-radius: 100px; font-weight: 600; font-size: 15px; border: none; transition: all 0.4s ease; box-shadow: 0 10px 20px -5px rgba(46, 73, 130, 0.25); cursor: pointer; }
         .bento-card { @apply bg-white/90 backdrop-blur-xl border border-white transition-all duration-500 flex flex-col justify-between; border-radius: 40px; padding: 36px 32px !important; box-shadow: 0 10px 30px -5px rgba(46, 73, 130, 0.05); }
         .bento-card:hover { transform: translateY(-4px); box-shadow: 0 25px 50px -10px rgba(46, 73, 130, 0.12); }
         .btn-ghost-sm { background-color: transparent; color: var(--primary); border: 1.5px solid var(--primary); padding: 14px 48px !important; border-radius: 100px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.12em; transition: all 0.3s ease; display: inline-block; text-align: center; cursor: pointer; text-decoration: none; width: 100%; }
@@ -257,31 +274,28 @@
             <a href="https://imnufit.com" target="_blank" class="hover:opacity-80 transition-opacity"><img src="https://imnufit.com/wp-content/uploads/2025/05/cropped-logo-y-nombre-AZUL.png" class="h-10 object-contain"></a>
             <div class="flex items-center gap-3">
                 <a href="https://imnufit.com" target="_blank" class="text-slate-400 hover:text-[#2E4982] p-2 transition-colors group" title="Web"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"></path></svg></a>
-                <button onclick="window.refreshData()" class="text-slate-600 hover:text-[#2E4982] p-2 transition-colors group" title="Actualizar"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg></button>
-                <!-- BOTÓN CONTACTO CABECERA -->
-                <button onclick="window.showView('contact-view')" class="text-slate-400 hover:text-[#2E4982] p-2 transition-colors group" title="Contacto">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path></svg>
-                </button>
+                <button onclick="window.refreshData()" class="text-slate-600 hover:text-[#2E4982] p-2 transition-colors group" title="Actualizar"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg></button>
+                <button onclick="window.showView('contact-view')" class="text-slate-400 hover:text-[#2E4982] p-2 transition-colors group" title="Contacto"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path></svg></button>
                 <button onclick="window.showView('membership-view')" class="w-10 h-10 rounded-full bg-[#DEE9FA] flex items-center justify-center text-[#2E4982] hover:bg-[#2E4982] hover:text-white transition-all shadow-sm"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg></button>
                 <button onclick="window.cerrarSesion()" class="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest hover:text-red-500 ml-2">Salir</button>
             </div>
         </header>
-        <main class="max-w-5xl mx-auto py-12 px-6 space-y-12 text-left">
-            <div class="space-y-6">
+        <main class="max-w-5xl mx-auto py-12 px-6 space-y-12">
+            <div class="space-y-6 text-left">
                 <div>
                     <p id="display-greeting" class="text-[10px] font-bold text-[#2E4982] uppercase tracking-[0.5em] mb-1 flex items-center"></p>
                     <h2 class="text-2xl font-bold tracking-tight text-[#494949] leading-tight text-left"><span id="display-nombre">...</span></h2>
-                    <div class="pt-2 text-left"><span id="display-estatus" class="px-3 py-1 rounded-full text-[10px] font-bold uppercase border inline-block">Cargando...</span></div>
+                    <div class="pt-2 text-left"><span id="display-estatus" class="px-3 py-1 rounded-full text-[10px] font-bold uppercase border inline-block text-left">Cargando...</span></div>
                 </div>
-                <div class="bg-white/60 p-6 rounded-[2rem] border border-white/60 shadow-sm backdrop-blur-md max-w-3xl text-left text-slate-600"><p id="display-frase" class="italic text-[15px] leading-relaxed font-medium text-left">...</p></div>
+                <div class="bg-white/60 p-6 rounded-[2rem] border border-white/60 shadow-sm backdrop-blur-md max-w-3xl text-left text-slate-600"><p id="display-frase" class="italic text-[15px] leading-relaxed">...</p></div>
                 <div id="featured-plan-banner" class="hidden fade-in text-left">
                     <div class="bg-[#2E4982] rounded-[2.5rem] p-8 md:p-12 text-white shadow-2xl relative overflow-hidden group cursor-pointer" onclick="window.viewProgramResources()">
                         <div class="absolute -right-16 -top-16 w-64 h-64 bg-white/10 rounded-full blur-3xl"></div>
                         <div class="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-8 text-left">
-                            <div class="space-y-3 text-left">
-                                <span class="text-[10px] font-bold uppercase tracking-[0.4em] opacity-60 text-left">Tu Programa Asignado</span>
-                                <h3 id="plan-banner-title" class="text-3xl md:text-4xl font-extrabold tracking-tight text-left text-left text-left">...</h3>
-                                <p class="text-white/50 text-sm max-w-sm italic font-medium leading-relaxed text-left text-left text-left">Accede a tus guías, recursos y materiales exclusivos.</p>
+                            <div class="space-y-3">
+                                <span class="text-[10px] font-bold uppercase tracking-[0.4em] opacity-60">Tu Programa Asignado</span>
+                                <h3 id="plan-banner-title" class="text-3xl md:text-4xl font-extrabold tracking-tight">...</h3>
+                                <p class="text-white/50 text-sm max-w-sm italic font-medium leading-relaxed">Accede a tus guías, recursos y materiales exclusivos.</p>
                             </div>
                             <button class="bg-white text-[#2E4982] px-8 py-4 rounded-full text-[11px] font-extrabold uppercase tracking-widest shadow-xl group-hover:scale-105 transition-transform shrink-0">Ver Recursos</button>
                         </div>
@@ -289,25 +303,25 @@
                 </div>
             </div>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-8 text-left">
-                <section class="bento-card min-h-[300px] text-left">
+                <section class="bento-card min-h-[300px]">
                     <div class="w-14 h-14 bg-[#DEE9FA] rounded-2xl flex items-center justify-center mb-6 shrink-0"><img src="https://imnufit.com/wp-content/uploads/2022/01/iuiuo.png" class="w-11 h-11 object-contain"></div>
-                    <div class="text-left"><h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-1 text-left text-left">Entrenaconfren+</h4><h3 class="text-2xl font-bold text-[#494949] text-left">Entrenamientos</h3><p class="text-[14px] text-slate-500 mt-2 leading-relaxed text-left text-left text-left">Accede a tus rutinas y guías de ejercicio.</p></div>
-                    <div class="mt-8 text-left text-left text-left"><a href="https://imnufit.com/entrenaconfrenplus/" target="_blank" class="btn-ghost-sm">Ir a Entrenar</a></div>
+                    <div><h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-1">Entrenaconfren+</h4><h3 class="text-2xl font-bold text-[#494949]">Entrenamientos</h3><p class="text-[14px] text-slate-500 mt-2 leading-relaxed">Accede a tus rutinas y guías de ejercicio.</p></div>
+                    <div class="mt-8 text-left"><a href="https://imnufit.com/entrenaconfrenplus/" target="_blank" class="btn-ghost-sm">Ir a Entrenar</a></div>
                 </section>
-                <section class="bento-card min-h-[300px] text-left">
+                <section class="bento-card min-h-[300px]">
                     <div class="w-14 h-14 bg-[#FFEDD5] rounded-2xl flex items-center justify-center mb-6 text-[#2E4982] shrink-0"><svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg></div>
-                    <div class="text-left"><h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-1 text-left text-left">Seguimiento</h4><h3 class="text-2xl font-bold text-[#494949] text-left text-left">Reporte Mensual</h3><p class="text-[14px] text-slate-500 mt-2 leading-relaxed text-left text-left text-left text-left">Registra tus medidas y progreso del mes.</p></div>
-                    <div class="mt-8 text-left text-left text-left text-left"><a href="https://airtable.com/appCHcm7XPzeoyBCs/pagh79fwniuSPmusB/form" target="_blank" class="btn-ghost-sm">Llenar Reporte</a></div>
+                    <div><h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-1">Seguimiento</h4><h3 class="text-2xl font-bold text-[#494949]">Reporte Mensual</h3><p class="text-[14px] text-slate-500 mt-2 leading-relaxed text-left text-left text-left">Registra tus medidas y progreso del mes.</p></div>
+                    <div class="mt-8 text-left text-left text-left"><a href="https://airtable.com/appCHcm7XPzeoyBCs/pagh79fwniuSPmusB/form" target="_blank" class="btn-ghost-sm">Llenar Reporte</a></div>
                 </section>
-                <section class="bento-card min-h-[300px] text-left">
+                <section class="bento-card min-h-[300px]">
                     <div class="w-14 h-14 bg-[#D0F0E0] rounded-2xl flex items-center justify-center mb-6 text-[#2E4982] shrink-0"><svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg></div>
-                    <div class="text-left"><h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-1 text-left text-left text-left text-left">Citas</h4><h3 class="text-2xl font-bold text-[#494949] text-left text-left text-left">Reservar Consulta</h3><p class="text-[14px] text-slate-500 mt-2 leading-relaxed text-left text-left text-left text-left text-left text-left">Reserva tu espacio con el especialista.</p></div>
-                    <div class="mt-8 text-left text-left text-left text-left text-left text-left text-left"><a id="btn-calendar-action" href="#" target="_blank" class="btn-ghost-sm">Ir al Calendario</a></div>
+                    <div><h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-1">Citas</h4><h3 class="text-2xl font-bold text-[#494949]">Reservar Consulta</h3><p class="text-[14px] text-slate-500 mt-2 leading-relaxed text-left text-left text-left text-left">Reserva tu espacio con el especialista.</p></div>
+                    <div class="mt-8 text-left text-left text-left text-left text-left"><a id="btn-calendar-action" href="#" target="_blank" class="btn-ghost-sm">Ir al Calendario</a></div>
                 </section>
-                <section class="bento-card min-h-[300px] text-left">
+                <section class="bento-card min-h-[300px]">
                     <div class="w-14 h-14 bg-[#E7E3FB] rounded-2xl flex items-center justify-center mb-6 text-[#2E4982] shrink-0"><svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg></div>
-                    <div class="text-left"><h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-1 text-left text-left text-left text-left text-left text-left text-left">Registro</h4><h3 class="text-2xl font-bold text-[#494949] text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left">Consultas Recientes</h3><p class="text-[14px] text-slate-500 mt-2 leading-relaxed text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left">Detalle de evaluaciones anteriores.</p></div>
-                    <div class="mt-8 text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left"><a id="btn-consultas-action" href="#" target="_blank" class="btn-ghost-sm">Abrir Historial</a></div>
+                    <div><h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-1">Registro</h4><h3 class="text-2xl font-bold text-[#494949]">Consultas Recientes</h3><p class="text-[14px] text-slate-500 mt-2 leading-relaxed text-left text-left text-left text-left text-left">Detalle de evaluaciones anteriores.</p></div>
+                    <div class="mt-8 text-left text-left text-left text-left text-left text-left"><a id="btn-consultas-action" href="#" target="_blank" class="btn-ghost-sm">Abrir Historial</a></div>
                 </section>
             </div>
         </main>
@@ -315,67 +329,84 @@
 
     <!-- PROGRAM DETAIL VIEW -->
     <section id="program-detail-view" class="min-h-screen hidden bg-white">
-        <header class="h-24 flex items-center px-8 border-b border-slate-50 justify-between sticky top-0 bg-white z-50 text-left">
+        <header class="h-24 flex items-center px-8 border-b border-slate-50 justify-between sticky top-0 bg-white z-50">
             <button onclick="window.showView('patient-view')" class="flex items-center gap-2 text-slate-400 hover:text-[#2E4982] transition-colors font-bold text-xs uppercase tracking-widest group"><svg class="w-4 h-4 transform group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path d="M15 19l-7-7 7-7"></path></svg> Volver</button>
-            <span class="text-sm font-bold text-[#494949] uppercase tracking-[0.2em] text-left">Programa Asignado</span><div class="w-10 text-left"></div>
+            <span class="text-sm font-bold text-[#494949] uppercase tracking-[0.2em]">Programa Asignado</span><div class="w-10"></div>
         </header>
-        <main class="max-w-xl mx-auto py-16 px-6 fade-in space-y-12 flex flex-col items-center">
-            <div id="program-img-container" class="text-left text-left text-left text-left text-left text-left"><img id="program-img-main" src="" class="w-full h-auto object-contain grayscale-[0.2] opacity-90 transition-opacity"></div>
-            <div class="w-full space-y-8 text-left text-left">
+        <main class="max-w-xl mx-auto py-16 px-6 fade-in space-y-12 flex flex-col items-center text-left text-left">
+            <div id="program-img-container" class="text-left text-left"><img id="program-img-main" src="" class="w-full h-auto object-contain grayscale-[0.2] opacity-90 transition-opacity"></div>
+            <div class="w-full space-y-8 text-left text-left text-left">
                 <div class="space-y-2 text-center text-left text-left text-left">
-                    <p class="text-slate-300 text-[9px] font-extrabold uppercase tracking-[0.4em] text-left text-left">Contenido Oficial</p>
-                    <h3 class="text-2xl font-bold text-slate-800 text-left text-left">Recursos de tu Tratamiento</h3>
+                    <p class="text-slate-300 text-[9px] font-extrabold uppercase tracking-[0.4em] text-left text-left text-left">Contenido Oficial</p>
+                    <h3 class="text-2xl font-bold text-slate-800 text-left text-left text-left text-left">Recursos de tu Tratamiento</h3>
                 </div>
-                <div id="program-guias-list" class="grid gap-4 w-full text-left"></div>
+                <div id="program-guias-list" class="grid gap-4 w-full"></div>
             </div>
-            <p class="text-slate-200 text-[9px] font-medium uppercase tracking-[0.5em] text-center italic text-left text-left">© IMNUFIT — Nutrición con Propósito</p>
+            <p class="text-slate-200 text-[9px] font-medium uppercase tracking-[0.5em] text-center italic">© IMNUFIT — Nutrición con Propósito</p>
         </main>
     </section>
 
-    <!-- CONTACT VIEW (NUEVA PANTALLA) -->
+    <!-- CONTACT VIEW -->
     <section id="contact-view" class="min-h-screen hidden bg-white">
-        <header class="h-24 flex items-center px-8 border-b border-slate-50 justify-between sticky top-0 bg-white z-50 text-left">
+        <header class="h-24 flex items-center px-8 border-b border-slate-50 justify-between sticky top-0 bg-white z-50">
             <button onclick="window.showView('patient-view')" class="flex items-center gap-2 text-slate-400 hover:text-[#2E4982] transition-colors font-bold text-xs uppercase tracking-widest group"><svg class="w-4 h-4 transform group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path d="M15 19l-7-7 7-7"></path></svg> Volver</button>
-            <span class="text-sm font-bold text-[#494949] uppercase tracking-[0.2em] text-left">Contáctanos</span><div class="w-10 text-left"></div>
+            <span class="text-sm font-bold text-[#494949] uppercase tracking-[0.2em] text-left text-left">Contáctanos</span><div class="w-10 text-left"></div>
         </header>
-        <main class="max-w-xl mx-auto py-16 px-6 fade-in space-y-12">
+        <main class="max-w-xl mx-auto py-16 px-6 fade-in space-y-12 text-left text-left">
             <div class="text-center space-y-4">
-                <h3 class="text-2xl font-bold text-slate-800 tracking-tight">¿En qué podemos ayudarte?</h3>
-                <p class="text-slate-500 text-sm">Nuestro equipo está listo para apoyarte en tu camino.</p>
+                <h3 class="text-2xl font-bold text-slate-800 tracking-tight text-left">Atención al Paciente</h3>
+                <p class="text-slate-500 text-sm text-left">Nuestro equipo te atenderá a la brevedad posible.</p>
             </div>
 
-            <!-- SOPORTE WHATSAPP -->
-            <a href="https://wa.me/14076325438" target="_blank" class="group flex items-center justify-between p-8 rounded-[2.5rem] bg-[#2E4982] text-white shadow-xl hover:scale-[1.02] transition-all">
-                <div class="flex items-center gap-6">
-                    <div class="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center"><svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.246 2.248 3.484 5.232 3.483 8.413-.003 6.557-5.338 11.892-11.893 11.892-1.997-.001-3.951-.5-5.688-1.448l-6.308 1.655zm6.205-4.105l.345.205c1.332.793 2.839 1.211 4.382 1.212 4.793 0 8.694-3.901 8.697-8.694 0-2.324-.904-4.509-2.547-6.152-1.642-1.642-3.827-2.547-6.15-2.547-4.796 0-8.696 3.901-8.699 8.694 0 1.646.463 3.253 1.339 4.653l.225.362-.977 3.564 3.65-.958z"/></svg></div>
-                    <div class="text-left"><h4 class="font-bold text-lg">Soporte Inmediato</h4><p class="text-white/60 text-xs font-medium uppercase tracking-widest">Atención por WhatsApp</p></div>
+            <div class="bg-[#2E4982] rounded-[2.5rem] p-8 md:p-10 text-white shadow-xl space-y-8 relative overflow-hidden">
+                <div class="absolute -right-16 -top-16 w-48 h-48 bg-white/5 rounded-full blur-2xl"></div>
+                <div class="flex items-center gap-5 text-left text-left text-left">
+                    <div class="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center shrink-0">
+                        <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.246 2.248 3.484 5.232 3.483 8.413-.003 6.557-5.338 11.892-11.893 11.892-1.997-.001-3.951-.5-5.688-1.448l-6.308 1.655zm6.205-4.105l.345.205c1.332.793 2.839 1.211 4.382 1.212 4.793 0 8.694-3.901 8.697-8.694 0-2.324-.904-4.509-2.547-6.152-1.642-1.642-3.827-2.547-6.15-2.547-4.796 0-8.696 3.901-8.699 8.694 0 1.646.463 3.253 1.339 4.653l.225.362-.977 3.564 3.65-.958z"/></svg>
+                    </div>
+                    <div class="text-left text-left text-left">
+                        <h4 class="font-bold text-xl text-left">Soporte WhatsApp</h4>
+                        <p class="text-white/60 text-xs font-black uppercase tracking-widest mt-1 text-left text-left">Atención por chat</p>
+                    </div>
                 </div>
-                <svg class="w-5 h-5 text-white/40" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3"><path d="M9 5l7 7-7 7"/></svg>
-            </a>
 
-            <!-- REDES SOCIALES -->
-            <div class="grid gap-4">
-                <p class="text-slate-300 text-[10px] font-black uppercase tracking-[0.5em] text-center">Síguenos</p>
-                <div class="grid grid-cols-1 gap-3">
+                <div class="space-y-4 bg-white/10 p-6 rounded-3xl backdrop-blur-sm border border-white/5 text-left text-left">
+                    <p class="text-[10px] font-black uppercase tracking-[0.3em] text-white/50 text-left text-left">Horario de Atención (Hora Este EE.UU.)</p>
+                    <div class="grid grid-cols-1 gap-3 text-left">
+                        <div class="flex justify-between items-center text-sm font-semibold">
+                            <span>Lunes - Viernes</span>
+                            <span class="opacity-90">10:00 am - 12:00 pm | 2:00 pm - 6:00 pm</span>
+                        </div>
+                        <div class="flex justify-between items-center text-[10px] uppercase font-black tracking-widest text-white/40 pt-2 border-t border-white/5">
+                            <span>Sábados - Domingos</span>
+                            <span class="italic text-left">Sin disponibilidad</span>
+                        </div>
+                    </div>
+                </div>
+                <a href="https://wa.me/14076325438" target="_blank" class="block w-full bg-white text-[#2E4982] py-5 rounded-full text-[11px] font-black uppercase tracking-widest text-center shadow-lg hover:scale-[1.02] transition-transform text-left">Iniciar Chat</a>
+            </div>
+
+            <div class="grid gap-4 text-left">
+                <p class="text-slate-300 text-[10px] font-black uppercase tracking-[0.5em] text-center text-left">Nuestras Redes</p>
+                <div class="grid gap-3">
                     <a href="https://www.instagram.com/imnufit/" target="_blank" class="flex items-center justify-between p-5 rounded-3xl bg-slate-50 border border-slate-100 hover:bg-[#DEE9FA]/50 transition-all group">
-                        <div class="flex items-center gap-4"><span class="w-10 h-10 rounded-xl bg-white flex items-center justify-center text-slate-400 group-hover:text-pink-500 shadow-sm transition-colors font-bold text-xs italic">IG</span><span class="text-sm font-bold text-slate-700">Instagram</span></div>
+                        <div class="flex items-center gap-4 text-left text-left"><span class="w-10 h-10 rounded-xl bg-white flex items-center justify-center text-slate-400 group-hover:text-pink-500 shadow-sm font-bold text-xs italic">IG</span><span class="text-sm font-bold text-slate-700">Instagram</span></div>
                         <svg class="w-4 h-4 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3"><path d="M9 5l7 7-7 7"/></svg>
                     </a>
-                    <a href="https://www.youtube.com/@entrenaconfren" target="_blank" class="flex items-center justify-between p-5 rounded-3xl bg-slate-50 border border-slate-100 hover:bg-[#DEE9FA]/50 transition-all group">
-                        <div class="flex items-center gap-4"><span class="w-10 h-10 rounded-xl bg-white flex items-center justify-center text-slate-400 group-hover:text-red-500 shadow-sm transition-colors font-bold text-xs italic">YT</span><span class="text-sm font-bold text-slate-700">YouTube</span></div>
+                    <a href="https://www.youtube.com/@entrenaconfren" target="_blank" class="flex items-center justify-between p-5 rounded-3xl bg-slate-50 border border-slate-100 hover:bg-[#DEE9FA]/50 transition-all group text-left">
+                        <div class="flex items-center gap-4 text-left text-left"><span class="w-10 h-10 rounded-xl bg-white flex items-center justify-center text-slate-400 group-hover:text-red-500 shadow-sm font-bold text-xs italic">YT</span><span class="text-sm font-bold text-slate-700">YouTube</span></div>
                         <svg class="w-4 h-4 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3"><path d="M9 5l7 7-7 7"/></svg>
                     </a>
-                    <a href="https://www.facebook.com/entrenaconfren" target="_blank" class="flex items-center justify-between p-5 rounded-3xl bg-slate-50 border border-slate-100 hover:bg-[#DEE9FA]/50 transition-all group">
-                        <div class="flex items-center gap-4"><span class="w-10 h-10 rounded-xl bg-white flex items-center justify-center text-slate-400 group-hover:text-blue-600 shadow-sm transition-colors font-bold text-xs italic">FB</span><span class="text-sm font-bold text-slate-700">Facebook</span></div>
+                    <a href="https://www.facebook.com/entrenaconfren" target="_blank" class="flex items-center justify-between p-5 rounded-3xl bg-slate-50 border border-slate-100 hover:bg-[#DEE9FA]/50 transition-all group text-left">
+                        <div class="flex items-center gap-4 text-left text-left"><span class="w-10 h-10 rounded-xl bg-white flex items-center justify-center text-slate-400 group-hover:text-blue-600 shadow-sm font-bold text-xs italic text-left">FB</span><span class="text-sm font-bold text-slate-700">Facebook</span></div>
                         <svg class="w-4 h-4 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3"><path d="M9 5l7 7-7 7"/></svg>
                     </a>
                 </div>
             </div>
 
-            <!-- EMAIL -->
-            <div class="pt-8 border-t border-slate-50">
-                <a href="mailto:imnufit@gmail.com" class="block text-center space-y-1">
-                    <p class="text-slate-300 text-[10px] font-black uppercase tracking-[0.4em]">Email Oficial</p>
+            <div class="pt-8 border-t border-slate-50 text-center">
+                <a href="mailto:imnufit@gmail.com" class="inline-block space-y-1">
+                    <p class="text-slate-300 text-[9px] font-black uppercase tracking-[0.4em]">Email Oficial</p>
                     <p class="text-slate-600 font-bold text-sm hover:text-[#2E4982] transition-colors">imnufit@gmail.com</p>
                 </a>
             </div>
@@ -383,54 +414,54 @@
     </section>
 
     <!-- MI CUENTA -->
-    <section id="membership-view" class="min-h-screen hidden bg-slate-50/50 pb-20 text-left">
+    <section id="membership-view" class="min-h-screen hidden bg-slate-50/50 pb-20 text-left text-left">
         <header class="bg-white/40 backdrop-blur-xl border-b h-24 flex items-center px-8 justify-between sticky top-0 z-40">
             <button onclick="window.showView('patient-view')" class="flex items-center gap-2 text-slate-400 hover:text-[#2E4982] transition-colors font-bold text-xs uppercase tracking-widest group"><svg class="w-4 h-4 transform group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path d="M15 19l-7-7 7-7"></path></svg> Volver</button>
             <a href="https://imnufit.com" target="_blank"><img src="https://imnufit.com/wp-content/uploads/2025/05/cropped-logo-y-nombre-AZUL.png" class="h-9 object-contain hidden md:block"></a>
-            <h2 class="text-sm font-bold text-[#494949] uppercase tracking-[0.2em] text-left">Mi Cuenta</h2><div class="w-10 md:hidden"></div>
+            <h2 class="text-sm font-bold text-[#494949] uppercase tracking-[0.2em]">Mi Cuenta</h2><div class="w-10 md:hidden"></div>
         </header>
         <main class="max-w-2xl mx-auto py-12 px-6 space-y-10 text-left">
             <section class="bg-white rounded-[2.5rem] p-10 shadow-sm border border-slate-50 text-left">
-                <div class="flex items-center gap-4 mb-12 text-left"><div class="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center text-[#2E4982] shadow-sm"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg></div><div class="text-left"><h3 class="text-xl font-bold text-[#494949]">Perfil Personal</h3><p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Identidad en Consulta</p></div></div>
-                <div class="space-y-0 text-left"><div class="profile-line text-left"><span class="profile-label-text">Paciente:</span><span id="acc-nombre" class="profile-value-text text-slate-500">...</span></div><div class="profile-line flex items-center justify-start !py-6 text-left"><span id="acc-genero">--</span></div><div class="profile-line text-left"><span class="profile-label-text text-left">Nacimiento:</span><span id="acc-nacimiento" class="profile-value-text text-slate-500">--</span></div><div class="profile-line text-left"><span class="profile-label-text text-left">País:</span><span id="acc-pais" class="profile-value-text text-slate-500">--</span></div><div class="profile-line border-0 text-left"><span class="profile-label-text text-left">Teléfono:</span><span id="acc-telefono" class="profile-value-text text-slate-500">--</span></div><div class="mt-4 pt-10 border-t border-slate-50 text-left"><span class="profile-label-text !mb-1 text-left text-left">Email de acceso</span><span id="acc-email" class="text-[14px] font-medium text-slate-500">--</span></div></div>
+                <div class="flex items-center gap-4 mb-12 text-left"><div class="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center text-[#2E4982] shadow-sm"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg></div><div class="text-left text-left"><h3 class="text-xl font-bold text-[#494949] text-left">Perfil Personal</h3><p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest text-left">Identidad en Consulta</p></div></div>
+                <div class="space-y-0 text-left text-left"><div class="profile-line text-left"><span class="profile-label-text">Paciente:</span><span id="acc-nombre" class="profile-value-text text-slate-500">...</span></div><div class="profile-line flex items-center justify-start !py-6 text-left text-left text-left text-left"><span id="acc-genero">--</span></div><div class="profile-line text-left text-left"><span class="profile-label-text">Nacimiento:</span><span id="acc-nacimiento" class="profile-value-text text-slate-500 text-left">--</span></div><div class="profile-line text-left text-left"><span class="profile-label-text">País:</span><span id="acc-pais" class="profile-value-text text-slate-500 text-left">--</span></div><div class="profile-line border-0 text-left text-left text-left"><span class="profile-label-text">Teléfono:</span><span id="acc-telefono" class="profile-value-text text-slate-500 text-left">--</span></div><div class="mt-4 pt-10 border-t border-slate-50 text-left text-left"><span class="profile-label-text !mb-1 text-left">Email de acceso</span><span id="acc-email" class="text-[14px] font-medium text-slate-500 text-left">--</span></div></div>
             </section>
-            <section class="bg-white rounded-[2.5rem] p-10 shadow-sm border border-slate-50 text-left" style="animation-delay: 0.1s;"><div class="flex items-center gap-4 mb-8 text-left"><div class="w-12 h-12 bg-slate-50 rounded-2xl flex items-center justify-center text-slate-500"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg></div><div class="text-left"><h3 class="text-xl font-bold text-[#494949] text-left">Seguridad</h3><p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest text-left text-left text-left">Cambio de Acceso</p></div></div><form onsubmit="window.updateAppPassword(event)" class="space-y-6 text-left"><div><label class="text-[11px] font-bold text-slate-400 uppercase tracking-widest ml-1 text-left text-left text-left text-left">Nueva Contraseña</label><input type="password" name="newPassword" required minlength="6" placeholder="Mínimo 6 caracteres" class="input-apple mt-2"></div><button type="submit" class="btn-ingresar !bg-slate-800">Actualizar Contraseña</button></form></section>
-            <section class="bg-white rounded-[2.5rem] p-10 shadow-sm border border-slate-50 text-left" style="animation-delay: 0.2s;"><div class="flex items-center gap-4 mb-8 text-left"><div class="w-12 h-12 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-600 shadow-sm"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg></div><div class="text-left"><h3 class="text-xl font-bold text-[#494949] text-left text-left">Membresía</h3><p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest text-left text-left text-left text-left text-left text-left text-left">Gestión de Suscripción</p></div></div><p class="text-[14px] text-slate-500 mb-8 leading-relaxed text-left text-left text-left">Utilizamos una plataforma segura para tus suscripciones. Desde aquí podrás actualizar tu tarjeta o <strong>cancelar tu membresía</strong>.</p><a href="https://billing.stripe.com/p/login/bIY9CF3un99T2XefYY" target="_blank" class="btn-secure-portal text-left">Gestionar Membresía y Pagos <svg class="w-4 h-4 ml-1 text-left text-left text-left text-left text-left" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg></a></section>
-            <button onclick="window.cerrarSesion()" class="w-full py-4 text-xs font-bold text-red-400 uppercase tracking-widest hover:text-red-600 transition-colors text-center text-left text-left text-left text-left">Cerrar Sesión</button>
+            <section class="bg-white rounded-[2.5rem] p-10 shadow-sm border border-slate-50 text-left" style="animation-delay: 0.1s;"><div class="flex items-center gap-4 mb-8 text-left"><div class="w-12 h-12 bg-slate-50 rounded-2xl flex items-center justify-center text-slate-500"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg></div><div class="text-left text-left"><h3 class="text-xl font-bold text-[#494949] text-left">Seguridad</h3><p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest text-left">Cambio de Acceso</p></div></div><form onsubmit="window.updateAppPassword(event)" class="space-y-6 text-left"><div><label class="text-[11px] font-bold text-slate-400 uppercase tracking-widest ml-1 text-left text-left">Nueva Contraseña</label><input type="password" name="newPassword" required minlength="6" placeholder="Mínimo 6 caracteres" class="input-apple mt-2 text-left text-left"></div><button type="submit" class="btn-ingresar !bg-slate-800 text-left text-left text-left">Actualizar Contraseña</button></form></section>
+            <section class="bg-white rounded-[2.5rem] p-10 shadow-sm border border-slate-50 text-left" style="animation-delay: 0.2s;"><div class="flex items-center gap-4 mb-8 text-left text-left"><div class="w-12 h-12 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-600 shadow-sm"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg></div><div class="text-left text-left text-left"><h3 class="text-xl font-bold text-[#494949] text-left">Membresía</h3><p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest text-left">Gestión de Suscripción</p></div></div><p class="text-[14px] text-slate-500 mb-8 leading-relaxed text-left text-left text-left">Utilizamos una plataforma segura para tus suscripciones. Desde aquí podrás actualizar tu tarjeta o <strong>cancelar tu membresía</strong>.</p><a href="https://billing.stripe.com/p/login/bIY9CF3un99T2XefYY" target="_blank" class="btn-secure-portal text-left">Gestionar Membresía y Pagos <svg class="w-4 h-4 ml-1 text-left text-left"><path d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg></a></section>
+            <button onclick="window.cerrarSesion()" class="w-full py-4 text-xs font-bold text-red-400 uppercase tracking-widest hover:text-red-600 transition-colors text-center text-left text-left">Cerrar Sesión</button>
         </main>
     </section>
 
     <!-- FORGOT PASSWORD -->
     <section id="forgot-password-view" class="min-h-screen flex flex-col items-center justify-center p-8 hidden text-center">
-        <div class="max-w-[340px] w-full space-y-10 fade-in text-left text-left text-left text-left text-left text-left text-left"><img src="https://imnufit.com/wp-content/uploads/2025/05/cropped-logo-y-nombre-AZUL.png" class="mx-auto h-11 object-contain text-left text-left"><div class="space-y-2 text-center text-left text-left"><h1 class="text-2xl font-bold tracking-tight text-[#494949] text-left text-left text-left">Recuperar Acceso</h1><p class="text-[14px] text-slate-500 text-left text-left text-left">Te enviaremos un enlace a tu correo</p></div><form onsubmit="window.handlePasswordReset(event)" class="space-y-6 text-left text-left text-left text-left text-left text-left text-left text-left"><input type="email" name="resetEmail" required placeholder="Correo de acceso" class="input-apple text-left text-left text-left text-left text-left text-left text-left text-left"><button type="submit" class="btn-ingresar text-left text-left text-left text-left text-left">Enviar enlace</button><p class="text-[11px] text-slate-300 text-center font-medium text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left">💡 Si no recibes el correo, revisa tu carpeta de <span class="font-bold text-left">Spam</span>.</p></form><button onclick="window.showView('login-view')" class="text-[12px] font-bold text-[#2E4982] uppercase tracking-widest text-center w-full text-left text-left text-left text-left text-left text-left text-left text-left text-left">Volver al inicio</button></div>
+        <div class="max-w-[340px] w-full space-y-10 fade-in text-left text-left text-left text-left text-left"><img src="https://imnufit.com/wp-content/uploads/2025/05/cropped-logo-y-nombre-AZUL.png" class="mx-auto h-11 object-contain text-left"><div class="space-y-2 text-center text-left text-left text-left"><h1 class="text-2xl font-bold tracking-tight text-[#494949] text-left">Recuperar Acceso</h1><p class="text-[14px] text-slate-500 text-left text-left">Te enviaremos un enlace a tu correo</p></div><form onsubmit="window.handlePasswordReset(event)" class="space-y-6 text-left text-left text-left"><input type="email" name="resetEmail" required placeholder="Correo de acceso" class="input-apple text-left text-left"><button type="submit" class="btn-ingresar text-left text-left">Enviar enlace</button><p class="text-[11px] text-slate-300 text-center font-medium text-left">💡 Si no recibes el correo, revisa tu carpeta de <span class="font-bold text-left text-left">Spam</span>.</p></form><button onclick="window.showView('login-view')" class="text-[12px] font-bold text-[#2E4982] uppercase tracking-widest text-center w-full text-left text-left text-left text-left">Volver al inicio</button></div>
     </section>
 
     <!-- SIGNUP VIEW -->
     <section id="signup-view" class="min-h-screen flex flex-col items-center justify-center p-8 hidden text-center">
-        <div class="max-w-[340px] w-full space-y-12 fade-in text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left"><img src="https://imnufit.com/wp-content/uploads/2025/05/cropped-logo-y-nombre-AZUL.png" class="mx-auto h-11 object-contain text-left text-left text-left text-left text-left text-left text-left"><div class="space-y-2 text-center text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left"> <h1 class="text-2xl font-bold tracking-tight text-[#494949] text-left text-left text-left text-left text-left text-left text-left">Crear tu cuenta</h1><p class="text-[14px] text-slate-500 text-center text-left text-left text-left text-left text-left text-left text-left text-left">Usa el correo que registraste en consulta</p></div><form onsubmit="window.handleSignup(event)" class="space-y-6 text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left"><input type="email" name="email" required placeholder="Correo electrónico" class="input-apple text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left"><input type="password" name="pass" required minlength="6" placeholder="Crear contraseña" class="input-apple text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left"><input type="password" name="confirmPass" required minlength="6" placeholder="Confirmar contraseña" class="input-apple text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left"><button type="submit" class="btn-ingresar mt-4 text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left">Registrarme</button></form><button onclick="window.showView('login-view')" class="text-[11px] font-bold text-[#2E4982] uppercase tracking-widest hover:underline text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left">¿Ya tienes cuenta? Inicia sesión</button></div>
+        <div class="max-w-[340px] w-full space-y-12 fade-in text-left text-left text-left text-left text-left"><img src="https://imnufit.com/wp-content/uploads/2025/05/cropped-logo-y-nombre-AZUL.png" class="mx-auto h-11 object-contain text-left text-left"><div class="space-y-2 text-center text-left text-left text-left text-left"><h1 class="text-2xl font-bold tracking-tight text-[#494949] text-left text-left text-left">Crear tu cuenta</h1><p class="text-[14px] text-slate-500 text-center text-left text-left">Usa el correo que registraste en consulta</p></div><form onsubmit="window.handleSignup(event)" class="space-y-6 text-left text-left text-left text-left text-left"><input type="email" name="email" required placeholder="Correo electrónico" class="input-apple text-left text-left text-left"><input type="password" name="pass" required minlength="6" placeholder="Crear contraseña" class="input-apple text-left text-left text-left"><input type="password" name="confirmPass" required minlength="6" placeholder="Confirmar contraseña" class="input-apple text-left text-left text-left"><button type="submit" class="btn-ingresar mt-4 text-left text-left text-left text-left text-left text-left text-left">Registrarme</button></form><button onclick="window.showView('login-view')" class="text-[11px] font-bold text-[#2E4982] uppercase tracking-widest hover:underline text-left text-left text-left">¿Ya tienes cuenta? Inicia sesión</button></div>
     </section>
 
     <!-- LOGIN -->
-    <section id="login-view" class="min-h-screen flex flex-col items-center justify-center p-8 hidden text-center text-left">
-        <div class="max-w-[340px] w-full space-y-12 fade-in">
-            <img src="https://imnufit.com/wp-content/uploads/2025/05/cropped-logo-y-nombre-AZUL.png" class="mx-auto h-11 object-contain">
-            <div class="space-y-2 text-center">
-                <h1 class="text-2xl font-bold tracking-tight text-[#494949]">Portal del Paciente</h1>
-                <p class="text-[14px] text-slate-500 text-center">Inicia sesión para continuar</p>
+    <section id="login-view" class="min-h-screen flex flex-col items-center justify-center p-8 hidden text-center">
+        <div class="max-w-[340px] w-full space-y-12 fade-in text-left text-left text-left">
+            <img src="https://imnufit.com/wp-content/uploads/2025/05/cropped-logo-y-nombre-AZUL.png" class="mx-auto h-11 object-contain text-left text-left">
+            <div class="space-y-2 text-center text-left text-left text-left">
+                <h1 class="text-2xl font-bold tracking-tight text-[#494949] text-left text-left text-left">Portal del Paciente</h1>
+                <p class="text-[14px] text-slate-500 text-center text-left text-left text-left">Inicia sesión para continuar</p>
             </div>
-            <form onsubmit="window.handleLogin(event)" class="space-y-6 text-left">
-                <input type="email" name="email" required placeholder="Correo electrónico" class="input-apple">
-                <div class="space-y-3">
-                    <input type="password" name="pass" required placeholder="Contraseña" class="input-apple">
-                    <div class="text-right px-2">
-                        <button type="button" onclick="window.showView('forgot-password-view')" class="text-[11px] font-bold text-[#2E4982] uppercase tracking-widest hover:underline">¿Olvidaste tu contraseña?</button>
+            <form onsubmit="window.handleLogin(event)" class="space-y-6 text-left text-left text-left text-left">
+                <input type="email" name="email" required placeholder="Correo electrónico" class="input-apple text-left text-left text-left text-left">
+                <div class="space-y-3 text-left text-left text-left">
+                    <input type="password" name="pass" required placeholder="Contraseña" class="input-apple text-left text-left text-left">
+                    <div class="text-right px-2 text-left text-left">
+                        <button type="button" onclick="window.showView('forgot-password-view')" class="text-[11px] font-bold text-[#2E4982] uppercase tracking-widest hover:underline text-left text-left text-left text-left text-left">¿Olvidaste tu contraseña?</button>
                     </div>
                 </div>
-                <div class="space-y-5">
-                    <button type="submit" class="btn-ingresar">Entrar al portal</button>
-                    <div class="text-center">
-                        <button type="button" onclick="window.showView('signup-view')" class="text-[12px] font-extrabold text-[#2E4982] uppercase tracking-tight transition-opacity hover:opacity-70">
-                            ¿Eres nuevo? <span class="border-b border-[#2E4982]/30 pb-0.5">Crea tu cuenta aquí</span>
+                <div class="space-y-5 text-center text-left text-left">
+                    <button type="submit" class="btn-ingresar text-left text-left text-left">Entrar al portal</button>
+                    <div class="text-center text-left text-left">
+                        <button type="button" onclick="window.showView('signup-view')" class="text-[12px] font-extrabold text-[#2E4982] uppercase tracking-tight transition-opacity hover:opacity-70 text-left text-left">
+                            ¿Eres nuevo? <span class="border-b border-[#2E4982]/30 pb-0.5 text-left text-left text-left">Crea tu cuenta aquí</span>
                         </button>
                     </div>
                 </div>
