@@ -38,8 +38,7 @@
                 img: "https://imnufit.com/wp-content/uploads/2024/04/Imagen-de-WhatsApp-2024-04-30-a-las-18.35.48_16bb1ed2.jpg",
                 imgWidth: "w-48 md:w-56",
                 meses: {
-                    1: [{ label: "Guía Nutricional - Mes 1", desc: "Nueva Edición (Dic 2025): Desintoxicación", url: "https://imnufit.com/wp-content/uploads/2025/12/Mes-1-Nueva-Edicion.pdf", type: "PDF" },
-                        { label: "Video: Fundamentos", desc: "Aprende a controlar tu glucosa", url: "https://www.youtube.com/watch?v=eEMmieVpG-U", type: "VIDEO" }],
+                    1: [{ label: "Guía Nutricional - Mes 1", desc: "Nueva Edición (Dic 2025): Desintoxicación", url: "https://imnufit.com/wp-content/uploads/2025/12/Mes-1-Nueva-Edicion.pdf", type: "PDF" }],
                     2: [{ label: "Guía Nutricional - Mes 2", desc: "Nueva Edición (Dic 2025): Control Glucémico", url: "https://imnufit.com/wp-content/uploads/2025/12/Mes-2-Nueva-Edicion.pdf", type: "PDF" }],
                     3: [{ label: "Guía Nutricional - Mes 3", desc: "Nueva Edición (Dic 2025): Mantenimiento", url: "https://imnufit.com/wp-content/uploads/2025/12/Mes-3-Nueva-Edicion.pdf", type: "PDF" }]
                 }
@@ -47,8 +46,29 @@
             "Quema Grasa": {
                 img: "https://imnufit.com/wp-content/uploads/2022/04/qg.png",
                 imgWidth: "w-36 md:w-40",
+                monthTitles: {
+                    1: "MES 1 - DEPURACIÓN",
+                    2: "MES 2 - SACIEDAD",
+                    3: "MES 3 - AYUNO INICIAL",
+                    4: "MES 4 - AYUNO 16-18"
+                },
                 meses: {
-                    1: [{ label: "Plan Quema Grasa - Mes 1", desc: "Plataforma Web Interactiva", url: "https://imnufit.com/quema-grasa/", type: "WEB" }]
+                    1: [
+                        { label: "Guía PDF Descargable", desc: "Objetivo: Eliminaremos los comestibles que te enferman.", url: "https://imnufit.com/wp-content/uploads/2025/12/Mes-1-Completo-Depuracion.pdf", type: "PDF" },
+                        { label: "Video Explicativo.", desc: "Resúmen del mes.", url: "https://youtu.be/iO5ihFR8Vrg", type: "VIDEO" }
+                    ],
+                    2: [
+                        { label: "Guía PDF Descargable", desc: "Objetivo: Aprenderá a saciarse a través de una nutrición densa.", url: "https://imnufit.com/wp-content/uploads/2025/12/Mes-2-Completo-Saciedad.pdf", type: "PDF" },
+                        { label: "Video Explicativo.", desc: "Resúmen del mes.", url: "https://youtu.be/AeIQAgoc0Fc", type: "VIDEO" }
+                    ],
+                    3: [
+                        { label: "Guía PDF Descargable", desc: "Objetivo: Su organismo entrará en ayuno intermitente de forma natural.", url: "https://imnufit.com/wp-content/uploads/2025/12/Mes-3-Completo-Ayuno-Inicial.pdf", type: "PDF" },
+                        { label: "Video Explicativo.", desc: "Resúmen del mes.", url: "https://youtu.be/CTevX300uG8", type: "VIDEO" }
+                    ],
+                    4: [
+                        { label: "Guía PDF Descargable", desc: "Objetivo: Conocerá y experimentará los beneficios de un ayuno saludable prolongado.", url: "https://imnufit.com/wp-content/uploads/2025/12/Mes-4-Completo-Ayuno16-18.pdf", type: "PDF" },
+                        { label: "Video Explicativo.", desc: "Resúmen del mes.", url: "https://youtu.be/15VyQaKcOU4", type: "VIDEO" }
+                    ]
                 }
             },
             "SANO": { 
@@ -72,23 +92,7 @@
             "El Señor es mi pastor, nada me faltará. — Salmos 23:1",
             "Jehová es mi fortaleza y mi escudo. — Salmos 28:7",
             "Confía en el Señor de todo corazón. — Proverbios 3:5",
-            "Mira que te mando que te esfuerces y seas valiente. — Josué 1:9",
-            "La paz les dejo; mi paz les doy. — Juan 14:27",
-            "Crea en mí, oh Dios, un corazón limpio. — Salmos 51:10",
-            "Acerquémonos, pues, con confianza al trono de la gracia. — Hebreos 4:16",
-            "Sean fuertes y valientes. No teman ni se asusten. — Deuteronomio 31:6",
-            "Ustedes son la luz del mundo. — Mateo 5:14",
-            "Gracia y paz a ustedes de parte de Dios nuestro Padre. — Efesios 1:2",
-            "Pidan, y se les dará; busquen, y encontrarán. — Mateo 7:7",
-            "El Señor peleará por ustedes. — Éxodo 14:14",
-            "Donde está el Espíritu del Señor, allí hay libertad. — 2 Corintios 3:17",
-            "Den gracias al Señor, porque él es bueno. — Salmos 107:1",
-            "Ustedes son linaje escogido. — 1 Pedro 2:9",
-            "El Señor te guardará de todo mal. — Salmos 121:7",
-            "Todo tiene su tiempo. — Eclesiastés 3:1",
-            "Cualquier cosa que pidan en oración, crean que ya la han recibido. — Marcos 11:24",
-            "Si Dios es por nosotros, ¿quién contra nosotros? — Romanos 8:31",
-            "En el mundo tendrán aflicción; pero confíen, yo he vencido al mundo. — Juan 16:33"
+            "Mira que te mando que te esfuerces y seas valiente. — Josué 1:9"
         ];
 
         setPersistence(auth, browserLocalPersistence);
@@ -199,6 +203,7 @@
             const rawProgramName = airtableData["Programa"] || "";
             const progKey = getProgramKey(rawProgramName);
             
+            // Lógica Progresiva: Detectar número de mes
             let currentMesNum = 1;
             if (rawProgramName.includes("Mes 2")) currentMesNum = 2;
             else if (rawProgramName.includes("Mes 3")) currentMesNum = 3;
@@ -217,13 +222,13 @@
             const restrictedBtnCont = document.getElementById('restricted-btn-container');
 
             if (isRestricted) {
-                if(featuredBanner) featuredBanner.classList.add('hidden');
-                if(restrictedBanner) restrictedBanner.classList.remove('hidden');
+                if (featuredBanner) featuredBanner.classList.add('hidden');
+                if (restrictedBanner) restrictedBanner.classList.remove('hidden');
                 
                 if (restrictedTitle && restrictedBody && restrictedBtnCont) {
                     if (isInactive) {
                         restrictedTitle.textContent = "Portal de Seguimiento";
-                        restrictedBody.textContent = "Tu membresía no tiene un plan activo en este momento. Puedes retomar tu proceso consultando nuestros planes o revisando tu historial anterior.";
+                        restrictedBody.textContent = "Tu membresía no tiene un plan activo en este momento. Puedes consultar nuestras opciones de suscripción en nuestra web oficial.";
                         const histLink = airtableData["Link Consultas"] || "#";
                         restrictedBtnCont.innerHTML = `
                             <div class="flex flex-col sm:flex-row gap-4 items-center justify-center mt-6 text-center">
@@ -242,25 +247,13 @@
                     }
                 }
             } else {
-                if(restrictedBanner) restrictedBanner.classList.add('hidden');
+                if (restrictedBanner) restrictedBanner.classList.add('hidden');
                 if (progKey && PROGRAMAS_INFO[progKey] && featuredBanner) {
                     featuredBanner.classList.remove('hidden');
                     safeSetText('plan-banner-title', rawProgramName);
                     
                     window.viewProgramResources = () => {
                         const data = PROGRAMAS_INFO[progKey];
-                        let recursosAcumulados = [];
-                        for (let i = 1; i <= currentMesNum; i++) {
-                            if (data.meses[i]) recursosAcumulados = recursosAcumulados.concat(data.meses[i]);
-                        }
-
-                        // Videos al final
-                        recursosAcumulados.sort((a, b) => {
-                            if (a.type === 'VIDEO' && b.type !== 'VIDEO') return 1;
-                            if (a.type !== 'VIDEO' && b.type === 'VIDEO') return -1;
-                            return 0;
-                        });
-
                         const imgMain = document.getElementById('program-img-main');
                         const imgCont = document.getElementById('program-img-container');
                         if (imgMain) imgMain.src = data.img;
@@ -269,44 +262,82 @@
                         const container = document.getElementById('program-guias-list');
                         if (container) {
                             container.innerHTML = "";
-                            recursosAcumulados.forEach(guia => {
-                                const isVideo = guia.type === "VIDEO";
-                                const card = document.createElement('a');
-                                card.href = guia.url; card.target = "_blank";
-                                card.className = "group relative flex items-center justify-between p-6 rounded-[2.5rem] bg-white border border-slate-50 hover:border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 text-left";
-                                card.innerHTML = `
-                                    <div class="flex items-center gap-6">
-                                        <div class="w-14 h-14 rounded-2xl ${isVideo ? 'bg-rose-50 text-rose-500' : 'bg-[#DEE9FA] text-[#2E4982]'} flex items-center justify-center shrink-0 transition-transform group-hover:scale-110">
+
+                            // LÓGICA DE AGRUPACIÓN POR MES CON TÍTULOS PERSONALIZADOS
+                            for (let i = 1; i <= currentMesNum; i++) {
+                                if (!data.meses[i]) continue;
+                                const mesResources = data.meses[i];
+                                
+                                // Título del Mes (Personalizado o Default)
+                                let monthTitleText = `MES ${i}`;
+                                if (data.monthTitles && data.monthTitles[i]) {
+                                    monthTitleText = data.monthTitles[i];
+                                }
+
+                                // Crear Tarjeta del Mes
+                                const monthCard = document.createElement('div');
+                                monthCard.className = "w-full bg-white rounded-[2rem] p-6 border border-slate-100 shadow-sm mb-6 fade-in";
+                                monthCard.style.animationDelay = `${(i-1)*0.1}s`;
+
+                                const monthTitle = document.createElement('h4');
+                                monthTitle.className = "text-xs font-extrabold text-slate-400 uppercase tracking-[0.2em] mb-4 ml-1 text-center";
+                                monthTitle.textContent = monthTitleText;
+                                monthCard.appendChild(monthTitle);
+
+                                // Lista de Recursos
+                                const list = document.createElement('div');
+                                list.className = "flex flex-col gap-3";
+
+                                // Ordenar: Videos al final dentro del mes
+                                mesResources.sort((a, b) => {
+                                    if (a.type === 'VIDEO' && b.type !== 'VIDEO') return 1;
+                                    if (a.type !== 'VIDEO' && b.type === 'VIDEO') return -1;
+                                    return 0;
+                                });
+
+                                mesResources.forEach(guia => {
+                                    const isVideo = guia.type === "VIDEO";
+                                    const item = document.createElement('a');
+                                    item.href = guia.url; 
+                                    item.target = "_blank";
+                                    item.className = "group flex items-start gap-4 p-4 rounded-2xl bg-slate-50 border border-slate-100 hover:bg-[#DEE9FA]/30 hover:border-[#DEE9FA] transition-all duration-300";
+                                    
+                                    item.innerHTML = `
+                                        <div class="w-12 h-12 mt-0.5 rounded-xl ${isVideo ? 'bg-rose-100 text-rose-500' : 'bg-blue-100 text-[#2E4982]'} flex items-center justify-center shrink-0 transition-transform group-hover:scale-110">
                                             ${isVideo 
-                                                ? '<svg class="w-7 h-7" fill="currentColor" viewBox="0 0 24 24"><path d="M10 15.5l6-3.5-6-3.5v7zM22 12c0 5.523-4.477 10-10 10S2 17.523 2 12 6.477 2 12 2s10 4.477 10 10z"/></svg>' 
-                                                : '<svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>'}
+                                                ? '<svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>' 
+                                                : '<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>'} 
                                         </div>
-                                        <div class="text-left">
-                                            <h4 class="text-[15px] font-bold text-slate-800 group-hover:text-[#2E4982] transition-colors">${guia.label}</h4>
-                                            <p class="text-[11px] text-slate-400 font-medium mt-0.5">${guia.desc || 'Recurso disponible'}</p>
+                                        <div class="flex-1 min-w-0">
+                                            <h4 class="text-sm font-bold text-slate-800 group-hover:text-[#2E4982] transition-colors leading-snug break-words">${guia.label}</h4>
+                                            <p class="text-xs text-slate-500 font-medium mt-1 leading-relaxed break-words">${guia.desc || 'Recurso disponible'}</p>
                                         </div>
-                                    </div>
-                                    <div class="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center group-hover:bg-[#2E4982] group-hover:text-white transition-all duration-300">
-                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3"><path d="M9 5l7 7-7 7"/></svg>
-                                    </div>
-                                `;
-                                container.appendChild(card);
-                            });
+                                        <div class="self-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 text-[#2E4982]">
+                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path d="M9 5l7 7-7 7"/></svg>
+                                        </div>
+                                    `;
+                                    list.appendChild(item);
+                                });
+
+                                monthCard.appendChild(list);
+                                container.appendChild(monthCard);
+                            }
                         }
                         window.showView('program-detail-view');
                     };
                 } else if (featuredBanner) { featuredBanner.classList.add('hidden'); }
             }
 
-            const hideAllCards = isInactive || isPorAsignar;
-            const cardIds = ['card-entrenamientos', 'card-reporte', 'card-citas', 'card-consultas'];
-            cardIds.forEach(id => {
-                const el = document.getElementById(id);
-                if (el) {
-                    if (hideAllCards) el.classList.add('hidden');
-                    else el.classList.remove('hidden');
-                }
-            });
+            // Visibilidad de Tarjetas Bento
+            const entCard = document.getElementById('card-entrenamientos');
+            const repCard = document.getElementById('card-reporte');
+            const citCard = document.getElementById('card-citas');
+            const conCard = document.getElementById('card-consultas');
+
+            if (entCard) entCard.classList.toggle('hidden', isRestricted);
+            if (repCard) repCard.classList.toggle('hidden', isRestricted);
+            if (citCard) citCard.classList.toggle('hidden', isRestricted);
+            if (conCard) conCard.classList.toggle('hidden', isInactive || isPorAsignar);
 
             if (isPausa) {
                 document.getElementById('card-entrenamientos')?.classList.add('hidden');
@@ -328,17 +359,16 @@
             safeSetText('acc-nombre', infoPaciente);
             safeSetText('acc-nacimiento', window.formatDateMDY(airtableData["Fecha de Nacimiento"]));
             safeSetText('acc-email', auth.currentUser ? auth.currentUser.email : "--");
+            safeSetText('acc-pais', airtableData["País"] || "--");
+            safeSetText('acc-telefono', airtableData["Telefono"] || "--");
 
             const genero = String(airtableData["Género"] || "");
             safeUpdate('acc-genero', el => {
-                el.textContent = genero; // Mostrar texto del género
+                el.textContent = genero;
                 if (genero.toLowerCase().includes("masculino")) el.className = "px-4 py-1.5 rounded-full text-[10px] font-extrabold bg-sky-50 text-sky-600 border border-sky-100 uppercase tracking-widest inline-block shadow-sm";
                 else if (genero.toLowerCase().includes("femenino")) el.className = "px-4 py-1.5 rounded-full text-[10px] font-extrabold bg-rose-50 text-rose-600 border border-rose-100 uppercase tracking-widest shadow-sm inline-block";
                 else el.className = "hidden";
             });
-            
-            safeUpdate('acc-pais', el => el.textContent = airtableData["País"] || "--");
-            safeUpdate('acc-telefono', el => el.textContent = airtableData["Telefono"] || "--");
 
             safeSetText('display-frase', frasesCreyentes[Math.floor(Math.random() * frasesCreyentes.length)]);
         }
@@ -365,7 +395,7 @@
         });
 
         window.handleLogin = async (e) => { e.preventDefault(); const { email, pass } = e.target; try { document.getElementById('loading-screen').classList.remove('hidden'); await signInWithEmailAndPassword(auth, email.value, pass.value); } catch (err) { window.notify("Credenciales incorrectas"); document.getElementById('loading-screen').classList.add('hidden'); } };
-        window.handleSignup = async (e) => { e.preventDefault(); const { email, pass, confirmPass } = e.target; if (pass.value !== confirmPass.value) { window.notify("Contraseñas no coinciden"); return; } try { document.getElementById('loading-screen').classList.remove('hidden'); await createUserWithEmailAndPassword(auth, email.value, pass.value); window.notify("Cuenta creada", "success"); } catch (err) { window.notify("Error al registrar"); } finally { document.getElementById('loading-screen').classList.add('hidden'); } };
+        window.handleSignup = async (e) => { e.preventDefault(); const { email, pass, confirmPass } = e.target; if (pass.value !== confirmPass.value) { window.notify("Las contraseñas no coinciden"); return; } try { document.getElementById('loading-screen').classList.remove('hidden'); await createUserWithEmailAndPassword(auth, email.value, pass.value); window.notify("Cuenta creada", "success"); } catch (err) { window.notify("Error al registrar"); } finally { document.getElementById('loading-screen').classList.add('hidden'); } };
         window.handlePasswordReset = async (e) => { e.preventDefault(); const email = e.target.resetEmail.value; try { document.getElementById('loading-screen').classList.remove('hidden'); await sendPasswordResetEmail(auth, email); window.notify("Correo enviado", "success"); window.showView('login-view'); } catch (err) { window.notify("Error de envío"); } finally { document.getElementById('loading-screen').classList.add('hidden'); } };
         window.updateAppPassword = async (e) => { e.preventDefault(); const newPass = e.target.newPassword.value; const user = auth.currentUser; if(!user) return; try { document.getElementById('loading-screen').classList.remove('hidden'); await updatePassword(user, newPass); window.notify("Clave actualizada", "success"); e.target.reset(); } catch (err) { window.notify("Sesión expirada"); } finally { document.getElementById('loading-screen').classList.add('hidden'); } };
         window.cerrarSesion = () => signOut(auth);
@@ -403,7 +433,7 @@
 
     <!-- DASHBOARD -->
     <section id="patient-view" class="min-h-screen hidden text-left">
-        <header class="bg-white/40 backdrop-blur-xl border-b h-24 flex items-center px-8 justify-between sticky top-0 z-40">
+        <header class="bg-white/40 backdrop-blur-xl border-b h-24 flex items-center px-8 justify-between sticky top-0 z-40 text-left">
             <button onclick="window.showView('patient-view')" class="hover:opacity-80 transition-opacity">
                 <img src="https://imnufit.com/wp-content/uploads/2025/05/cropped-logo-y-nombre-AZUL.png" class="h-10 object-contain mix-blend-multiply">
             </button>
@@ -420,33 +450,33 @@
             <div class="space-y-6 text-left">
                 <div>
                     <p id="display-greeting" class="text-[10px] font-bold text-[#2E4982] uppercase tracking-[0.5em] mb-1 flex items-center"></p>
-                    <h2 class="text-2xl font-bold tracking-tight text-[#494949] leading-tight text-left"><span id="display-nombre">...</span></h2>
-                    <div class="pt-2 text-left"><span id="display-estatus" class="px-3 py-1 rounded-full text-[10px] font-bold uppercase border inline-block text-left">Cargando...</span></div>
+                    <h2 class="text-2xl font-bold tracking-tight text-[#494949] leading-tight text-left text-left"><span id="display-nombre">...</span></h2>
+                    <div class="pt-2 text-left"><span id="display-estatus" class="px-3 py-1 rounded-full text-[10px] font-bold uppercase border inline-block text-left text-left text-left">Cargando...</span></div>
                 </div>
-                <div class="bg-white/60 p-6 rounded-[2rem] border border-white/60 shadow-sm backdrop-blur-md max-w-3xl text-left text-slate-600"><p id="display-frase" class="italic text-[15px] leading-relaxed">...</p></div>
+                <div class="bg-white/60 p-6 rounded-[2rem] border border-white/60 shadow-sm backdrop-blur-md max-w-3xl text-slate-600 text-left text-left text-left"><p id="display-frase" class="italic text-[15px] leading-relaxed">...</p></div>
                 
-                <div id="featured-plan-banner" class="hidden fade-in text-left">
+                <div id="featured-plan-banner" class="hidden fade-in text-left text-left">
                     <div class="bg-[#2E4982] rounded-[2.5rem] p-8 md:p-12 text-white shadow-2xl relative overflow-hidden group cursor-pointer" onclick="window.viewProgramResources()">
-                        <div class="absolute -right-16 -top-16 w-64 h-64 bg-white/10 rounded-full blur-3xl text-left"></div>
-                        <div class="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-8 text-left">
-                            <div class="space-y-3">
-                                <span class="text-[10px] font-bold uppercase tracking-[0.4em] opacity-60">Tu Programa Asignado</span>
-                                <h3 id="plan-banner-title" class="text-xl md:text-2xl font-bold tracking-tight text-left">...</h3>
-                                <p class="text-white/50 text-sm max-w-sm italic font-medium leading-relaxed">Accede a tus recursos exclusivos.</p>
+                        <div class="absolute -right-16 -top-16 w-64 h-64 bg-white/10 rounded-full blur-3xl text-left text-left"></div>
+                        <div class="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-8 text-left text-left">
+                            <div class="space-y-3 text-left text-left">
+                                <span class="text-[10px] font-bold uppercase tracking-[0.4em] opacity-60 text-left text-left text-left">Tu Programa Asignado</span>
+                                <h3 id="plan-banner-title" class="text-xl md:text-2xl font-bold tracking-tight text-left text-left">...</h3>
+                                <p class="text-white/50 text-sm max-w-sm italic font-medium leading-relaxed text-left text-left text-left">Accede a tus recursos exclusivos acumulados.</p>
                             </div>
                             <button class="bg-white text-[#2E4982] px-8 py-4 rounded-full text-[11px] font-extrabold uppercase tracking-widest shadow-xl group-hover:scale-105 transition-transform shrink-0">Ver Recursos</button>
                         </div>
                     </div>
                 </div>
 
-                <div id="restricted-banner" class="hidden fade-in text-left">
+                <div id="restricted-banner" class="hidden fade-in text-left text-left">
                     <div class="bg-[#2E4982] rounded-[2.5rem] p-10 md:p-12 text-white shadow-2xl relative overflow-hidden text-center flex flex-col items-center">
-                        <div class="absolute -right-16 -top-16 w-64 h-64 bg-white/10 rounded-full blur-3xl text-left"></div>
-                        <div class="relative z-10 space-y-4 max-w-xl text-center">
-                            <span id="restricted-banner-title" class="text-[10px] font-bold uppercase tracking-[0.4em] opacity-60 text-center">Portal de Seguimiento</span>
-                            <h3 class="text-xl md:text-2xl font-bold tracking-tight text-center">Tu Salud es Prioridad</h3>
-                            <p id="restricted-banner-body" class="text-white/70 text-[14px] font-medium leading-relaxed text-center"></p>
-                            <div id="restricted-btn-container" class="w-full text-center"></div>
+                        <div class="absolute -right-16 -top-16 w-64 h-64 bg-white/10 rounded-full blur-3xl text-left text-left"></div>
+                        <div class="relative z-10 space-y-4 max-w-xl text-center text-center">
+                            <span id="restricted-banner-title" class="text-[10px] font-bold uppercase tracking-[0.4em] opacity-60 text-center text-center">Portal de Seguimiento</span>
+                            <h3 class="text-xl md:text-2xl font-bold tracking-tight text-center text-center text-white">Tu Salud es Prioridad</h3>
+                            <p id="restricted-banner-body" class="text-white/70 text-[14px] font-medium leading-relaxed text-center text-center"></p>
+                            <div id="restricted-btn-container" class="w-full text-center text-center"></div>
                         </div>
                     </div>
                 </div>
@@ -454,154 +484,156 @@
 
             <div id="dashboard-grid" class="grid grid-cols-1 md:grid-cols-2 gap-8 text-left">
                 <section id="card-entrenamientos" class="bento-card min-h-[300px]">
-                    <div class="w-14 h-14 bg-[#DEE9FA] rounded-2xl flex items-center justify-center mb-6 shrink-0"><img src="https://imnufit.com/wp-content/uploads/2022/01/iuiuo.png" class="w-11 h-11 object-contain text-left"></div>
-                    <div class="text-left"><h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-1">Entrenaconfren+</h4><h3 class="text-2xl font-bold text-[#494949]">Entrenamientos</h3><p class="text-[14px] text-slate-500 mt-2 leading-relaxed text-left">Accede a tus rutinas y guías.</p></div>
-                    <div class="mt-8 text-center"><a href="https://imnufit.com/entrenaconfrenplus/" target="_blank" class="btn-ghost-sm">Ir a Entrenar</a></div>
+                    <div class="w-14 h-14 bg-[#DEE9FA] rounded-2xl flex items-center justify-center mb-6 shrink-0"><img src="https://imnufit.com/wp-content/uploads/2022/01/iuiuo.png" class="w-11 h-11 object-contain text-left text-left"></div>
+                    <div class="text-left text-left"><h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-1">Entrenaconfren+</h4><h3 class="text-2xl font-bold text-[#494949]">Entrenamientos</h3><p class="text-[14px] text-slate-500 mt-2 leading-relaxed text-left text-left">Accede a tus rutinas y guías.</p></div>
+                    <div class="mt-8 text-center text-center text-center"><a href="https://imnufit.com/entrenaconfrenplus/" target="_blank" class="btn-ghost-sm">Ir a Entrenar</a></div>
                 </section>
                 <section id="card-reporte" class="bento-card min-h-[300px]">
-                    <div class="w-14 h-14 bg-[#FFEDD5] rounded-2xl flex items-center justify-center mb-6 text-[#2E4982] shrink-0"><svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg></div>
-                    <div class="text-left"><h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-1">Seguimiento</h4><h3 class="text-2xl font-bold text-[#494949]">Reporte Mensual</h3><p class="text-[14px] text-slate-500 mt-2 leading-relaxed text-left">Registra tus progresos.</p></div>
-                    <div class="mt-8 text-center"><a href="https://airtable.com/appCHcm7XPzeoyBCs/pagh79fwniuSPmusB/form" target="_blank" class="btn-ghost-sm">Llenar Reporte</a></div>
+                    <div class="w-14 h-14 bg-[#FFEDD5] rounded-2xl flex items-center justify-center mb-6 text-[#2E4982] shrink-0 text-left text-left"><svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg></div>
+                    <div class="text-left text-left text-left"><h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-1">Seguimiento</h4><h3 class="text-2xl font-bold text-[#494949]">Reporte Mensual</h3><p class="text-[14px] text-slate-500 mt-2 leading-relaxed text-left text-left text-left">Registra tus progresos.</p></div>
+                    <div class="mt-8 text-center text-center text-center text-center"><a href="https://airtable.com/appCHcm7XPzeoyBCs/pagh79fwniuSPmusB/form" target="_blank" class="btn-ghost-sm">Llenar Reporte</a></div>
                 </section>
                 <section id="card-citas" class="bento-card min-h-[300px]">
-                    <div class="w-14 h-14 bg-[#D0F0E0] rounded-2xl flex items-center justify-center mb-6 text-[#2E4982] shrink-0"><svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg></div>
-                    <div class="text-left"><h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-1">Citas</h4><h3 class="text-2xl font-bold text-[#494949]">Reservar Consulta</h3><p class="text-[14px] text-slate-500 mt-2 leading-relaxed text-left">Gestiona tu espacio aquí.</p></div>
-                    <div id="calendar-action-container" class="mt-8 text-center w-full"></div>
+                    <div class="w-14 h-14 bg-[#D0F0E0] rounded-2xl flex items-center justify-center mb-6 text-[#2E4982] shrink-0 text-left text-left text-left text-left text-left"><svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg></div>
+                    <div class="text-left text-left text-left text-left"><h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-1 text-left text-left text-left text-left text-left">Citas</h4><h3 class="text-2xl font-bold text-[#494949]">Reservar Consulta</h3><p class="text-[14px] text-slate-500 mt-2 leading-relaxed text-left text-left text-left text-left">Gestiona tu espacio aquí.</p></div>
+                    <div id="calendar-action-container" class="mt-8 text-center text-center text-center w-full"></div>
                 </section>
                 <section id="card-consultas" class="bento-card min-h-[300px]">
-                    <div class="w-14 h-14 bg-[#E7E3FB] rounded-2xl flex items-center justify-center mb-6 text-[#2E4982] shrink-0"><svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg></div>
-                    <div class="text-left"><h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-1">Registro</h4><h3 class="text-2xl font-bold text-[#494949]">Consultas Recientes</h3><p class="text-[14px] text-slate-500 mt-2 leading-relaxed text-left">Detalle de evaluaciones.</p></div>
-                    <div class="mt-8 text-center"><a id="btn-consultas-action" href="#" target="_blank" class="btn-ghost-sm">Abrir Historial</a></div>
+                    <div class="w-14 h-14 bg-[#E7E3FB] rounded-2xl flex items-center justify-center mb-6 text-[#2E4982] shrink-0 text-left text-left text-left text-left text-left text-left"><svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg></div>
+                    <div class="text-left text-left text-left text-left text-left text-left text-left text-left text-left"><h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-1 text-left text-left text-left text-left text-left text-left text-left">Registro</h4><h3 class="text-2xl font-bold text-[#494949] text-left text-left text-left">Consultas Recientes</h3><p class="text-[14px] text-slate-500 mt-2 leading-relaxed text-left text-left text-left text-left">Historial de evaluaciones.</p></div>
+                    <div class="mt-8 text-center text-center text-center text-center text-center"><a id="btn-consultas-action" href="#" target="_blank" class="btn-ghost-sm">Abrir Historial</a></div>
                 </section>
             </div>
         </main>
     </section>
 
-    <!-- PROGRAM DETAIL -->
-    <section id="program-detail-view" class="min-h-screen hidden bg-[#FBFBFC]">
-        <header class="h-24 flex items-center px-8 border-b border-slate-50 justify-between sticky top-0 bg-white z-50 text-left">
-            <button onclick="window.showView('patient-view')" class="flex items-center gap-2 text-slate-400 hover:text-[#2E4982] font-bold text-xs uppercase tracking-widest transition-colors group"><svg class="w-4 h-4 transform group-hover:-translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path d="M15 19l-7-7 7-7"></path></svg> Volver</button>
-            <span class="text-sm font-bold text-[#494949] uppercase tracking-[0.2em]">Recursos del Mes</span><div class="w-10"></div>
+    <!-- PROGRAM DETAIL (PROGRESIVO Y CENTRADO) -->
+    <section id="program-detail-view" class="min-h-screen hidden bg-[#FBFBFC] text-left">
+        <header class="h-24 flex items-center px-8 border-b border-slate-50 justify-between sticky top-0 bg-white z-50 text-left text-left text-left text-left">
+            <button onclick="window.showView('patient-view')" class="flex items-center gap-2 text-slate-400 hover:text-[#2E4982] font-bold text-xs uppercase tracking-widest transition-colors group text-left"><svg class="w-4 h-4 transform group-hover:-translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path d="M15 19l-7-7 7-7"></path></svg> Volver</button>
+            <span class="text-sm font-bold text-[#494949] uppercase tracking-[0.2em] text-left">Recursos del Programa</span><div class="w-10 text-left text-left text-left"></div>
         </header>
-        <main class="max-w-xl mx-auto py-16 px-6 fade-in space-y-12 flex flex-col items-center">
-            <div id="program-img-container" class="flex justify-center"><img id="program-img-main" src="" class="object-contain mix-blend-multiply"></div>
-            <div class="w-full space-y-8 text-center">
-                <div class="space-y-2 text-center text-left">
-                    <p class="text-[#2E4982] text-[9px] font-extrabold uppercase tracking-[0.5em]">Material Oficial</p>
-                    <h3 class="text-2xl font-bold text-slate-800 text-center">Recursos de tu Tratamiento</h3>
+        <main class="max-w-xl mx-auto py-16 px-6 fade-in space-y-12 flex flex-col items-center text-center text-center text-center">
+            <div id="program-img-container" class="flex justify-center"><img id="program-img-main" src="" class="object-contain mix-blend-multiply text-center"></div>
+            <div class="w-full space-y-8 text-center text-center">
+                <div class="space-y-2 text-center text-center text-center">
+                    <p class="text-[#2E4982] text-[9px] font-extrabold uppercase tracking-[0.5em] text-center text-center text-center">Material Oficial</p>
+                    <h3 class="text-2xl font-bold text-slate-800 text-center text-center text-center">Recursos de tu Tratamiento</h3>
                 </div>
-                <div id="program-guias-list" class="grid gap-5 w-full text-left"></div>
+                <div id="program-guias-list" class="grid gap-5 w-full text-left text-left text-left"></div>
             </div>
             <div class="pt-10 border-t border-slate-100 w-full text-center">
-                <p class="text-slate-300 text-[10px] font-medium italic">© IMNUFIT — Nutrición con Propósito</p>
+                <p class="text-slate-300 text-[10px] font-medium italic text-center text-center">© IMNUFIT — Nutrición con Propósito</p>
             </div>
         </main>
     </section>
 
     <!-- CONTACT VIEW -->
     <section id="contact-view" class="min-h-screen hidden bg-white text-left">
-        <header class="h-24 flex items-center px-8 border-b border-slate-50 justify-between sticky top-0 bg-white z-50 text-left">
+        <header class="h-24 flex items-center px-8 border-b border-slate-50 justify-between sticky top-0 bg-white z-50 text-left text-left text-left">
             <button onclick="window.showView('patient-view')" class="flex items-center gap-2 text-slate-400 hover:text-[#2E4982] font-bold text-xs uppercase tracking-widest transition-colors"><svg class="w-4 h-4 transform group-hover:-translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path d="M15 19l-7-7 7-7"></path></svg> Volver</button>
-            <span class="text-sm font-bold text-[#494949] uppercase tracking-[0.2em]">Contacto</span><div class="w-10"></div>
+            <span class="text-sm font-bold text-[#494949] uppercase tracking-[0.2em] text-left">Contacto</span><div class="w-10 text-left text-left"></div>
         </header>
         <main class="max-w-xl mx-auto py-16 px-6 fade-in space-y-12 text-left">
-            <div class="text-center space-y-4 text-left">
-                <h3 class="text-2xl font-bold text-slate-800 tracking-tight text-left">Atención al Paciente</h3>
-                <p class="text-slate-500 text-sm text-left">Estamos aquí para apoyarte en tu camino.</p>
+            <div class="text-center space-y-4 text-left text-left">
+                <h3 class="text-2xl font-bold text-slate-800 tracking-tight text-left text-left text-left">Atención al Paciente</h3>
+                <p class="text-slate-500 text-sm text-left text-left text-left">Estamos aquí para apoyarte en tu camino.</p>
             </div>
             <div class="bg-[#2E4982] rounded-[2.5rem] p-8 md:p-10 text-white shadow-xl space-y-8 relative overflow-hidden text-left">
-                <div class="absolute -right-16 -top-16 w-48 h-48 bg-white/5 rounded-full blur-2xl"></div>
-                <div class="flex items-center gap-5 text-left">
-                    <div class="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center shrink-0"><svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.246 2.248 3.484 5.232 3.483 8.413-.003 6.557-5.338 11.892-11.893 11.892-1.997-.001-3.951-.5-5.688-1.448l-6.308 1.655zm6.205-4.105l.345.205c1.332.793 2.839 1.211 4.382 1.212 4.793 0 8.694-3.901 8.697-8.694 0-2.324-.904-4.509-2.547-6.152-1.642-1.642-3.827-2.547-6.15-2.547-4.796 0-8.696 3.901-8.699 8.694 0 1.646.463 3.253 1.339 4.653l.225.362-.977 3.564 3.65-.958z"/></svg></div>
-                    <div class="text-left"><h4 class="font-bold text-xl">Soporte WhatsApp</h4><p class="text-white/60 text-xs font-black uppercase tracking-widest mt-1">Atención inmediata</p></div>
+                <div class="absolute -right-16 -top-16 w-48 h-48 bg-white/5 rounded-full blur-2xl text-left text-left text-left"></div>
+                <div class="flex items-center gap-5 text-left text-left text-left text-left">
+                    <div class="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center shrink-0 text-left text-left"><svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.246 2.248 3.484 5.232 3.483 8.413-.003 6.557-5.338 11.892-11.893 11.892-1.997-.001-3.951-.5-5.688-1.448l-6.308 1.655zm6.205-4.105l.345.205c1.332.793 2.839 1.211 4.382 1.212 4.793 0 8.694-3.901 8.697-8.694 0-2.324-.904-4.509-2.547-6.152-1.642-1.642-3.827-2.547-6.15-2.547-4.796 0-8.696 3.901-8.699 8.694 0 1.646.463 3.253 1.339 4.653l.225.362-.977 3.564 3.65-.958z"/></svg></div>
+                    <div class="text-left text-left text-left text-left"><h4 class="font-bold text-xl text-left text-left">Soporte WhatsApp</h4><p class="text-white/60 text-xs font-black uppercase tracking-widest mt-1 text-left text-left text-left text-left">Chat directo</p></div>
                 </div>
-                <div class="space-y-4 bg-white/10 p-6 rounded-3xl backdrop-blur-sm border border-white/5 text-left">
-                    <p class="text-[10px] font-black uppercase tracking-[0.3em] text-white/50 text-left">Horario de Atención (EE.UU. Este)</p>
-                    <div class="grid grid-cols-1 gap-3 text-left">
-                        <div class="flex justify-between items-center text-sm font-semibold"><span>Lunes - Viernes</span><span class="opacity-90">10:00 am - 6:00 pm</span></div>
-                        <div class="flex justify-between items-center text-[10px] uppercase font-black tracking-widest text-white/40 pt-2 border-t border-white/5 text-left"><span>Sábados - Domingos</span><span class="italic">Cerrado</span></div>
+                <div class="space-y-4 bg-white/10 p-6 rounded-3xl backdrop-blur-sm border border-white/5 text-left text-left text-left">
+                    <p class="text-[10px] font-black uppercase tracking-[0.3em] text-white/50 text-left text-left text-left text-left">Horario de Atención (EE.UU. Este)</p>
+                    <div class="grid grid-cols-1 gap-3 text-left text-left text-left">
+                        <div class="flex justify-between items-center text-sm font-semibold text-left text-left text-left"><span>Lunes - Viernes</span><span class="opacity-90 text-left text-left text-left text-left">10:00 am - 6:00 pm</span></div>
+                        <div class="flex justify-between items-center text-[10px] uppercase font-black tracking-widest text-white/40 pt-2 border-t border-white/5 text-left text-left text-left text-left text-left"><span>Sábados - Domingos</span><span class="italic text-left text-left text-left text-left">Cerrado</span></div>
                     </div>
                 </div>
-                <a href="https://wa.me/14076325438" target="_blank" class="block w-full bg-white text-[#2E4982] py-5 rounded-full text-[11px] font-black uppercase tracking-widest text-center shadow-lg hover:scale-[1.02] transition-transform">Iniciar Chat</a>
+                <a href="https://wa.me/14076325438" target="_blank" class="block w-full bg-white text-[#2E4982] py-5 rounded-full text-[11px] font-black uppercase tracking-widest text-center shadow-lg hover:scale-[1.02] transition-transform text-center text-center">Iniciar Chat</a>
             </div>
             <div class="grid gap-4 text-left">
-                <p class="text-slate-300 text-[10px] font-black uppercase tracking-[0.5em] text-center">Nuestras Redes</p>
-                <div class="grid gap-3 text-left">
-                    <a href="https://www.instagram.com/imnufit/" target="_blank" class="flex items-center justify-between p-5 rounded-3xl bg-slate-50 border border-slate-100 hover:bg-[#DEE9FA]/50 transition-all group">
-                        <div class="flex items-center gap-4 text-left"><span class="w-10 h-10 rounded-xl bg-white flex items-center justify-center text-slate-400 shadow-sm font-bold text-xs italic">IG</span><span class="text-sm font-bold text-slate-700">Instagram</span></div>
+                <p class="text-slate-300 text-[10px] font-black uppercase tracking-[0.5em] text-center text-left text-left">Nuestras Redes</p>
+                <div class="grid gap-3 text-left text-left">
+                    <a href="https://www.instagram.com/imnufit/" target="_blank" class="flex items-center justify-between p-5 rounded-3xl bg-slate-50 border border-slate-100 hover:bg-[#DEE9FA]/50 transition-all group text-left">
+                        <div class="flex items-center gap-4 text-left text-left"><span class="w-10 h-10 rounded-xl bg-white flex items-center justify-center text-slate-400 shadow-sm font-bold text-xs italic text-left text-left">IG</span><span class="text-sm font-bold text-slate-700 text-left text-left text-left">Instagram</span></div>
                         <svg class="w-4 h-4 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3"><path d="M9 5l7 7-7 7"/></svg>
                     </a>
-                    <a href="https://www.youtube.com/@entrenaconfren" target="_blank" class="flex items-center justify-between p-5 rounded-3xl bg-slate-50 border border-slate-100 hover:bg-[#DEE9FA]/50 transition-all group">
-                        <div class="flex items-center gap-4 text-left"><span class="w-10 h-10 rounded-xl bg-white flex items-center justify-center text-slate-400 shadow-sm font-bold text-xs italic">YT</span><span class="text-sm font-bold text-slate-700">YouTube</span></div>
+                    <a href="https://www.youtube.com/@entrenaconfren" target="_blank" class="flex items-center justify-between p-5 rounded-3xl bg-slate-50 border border-slate-100 hover:bg-[#DEE9FA]/50 transition-all group text-left">
+                        <div class="flex items-center gap-4 text-left text-left text-left"><span class="w-10 h-10 rounded-xl bg-white flex items-center justify-center text-slate-400 shadow-sm font-bold text-xs italic text-left text-left text-left">YT</span><span class="text-sm font-bold text-slate-700 text-left text-left">YouTube</span></div>
                         <svg class="w-4 h-4 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3"><path d="M9 5l7 7-7 7"/></svg>
                     </a>
-                    <a href="https://www.facebook.com/entrenaconfren" target="_blank" class="flex items-center justify-between p-5 rounded-3xl bg-slate-50 border border-slate-100 hover:bg-[#DEE9FA]/50 transition-all group">
-                        <div class="flex items-center gap-4 text-left"><span class="w-10 h-10 rounded-xl bg-white flex items-center justify-center text-slate-400 shadow-sm font-bold text-xs italic">FB</span><span class="text-sm font-bold text-slate-700">Facebook</span></div>
+                    <a href="https://www.facebook.com/entrenaconfren" target="_blank" class="flex items-center justify-between p-5 rounded-3xl bg-slate-50 border border-slate-100 hover:bg-[#DEE9FA]/50 transition-all group text-left">
+                        <div class="flex items-center gap-4 text-left text-left text-left text-left"><span class="w-10 h-10 rounded-xl bg-white flex items-center justify-center text-slate-400 shadow-sm font-bold text-xs italic text-left text-left text-left text-left">FB</span><span class="text-sm font-bold text-slate-700 text-left text-left text-left">Facebook</span></div>
                         <svg class="w-4 h-4 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3"><path d="M9 5l7 7-7 7"/></svg>
                     </a>
                 </div>
             </div>
-            <div class="pt-8 border-t border-slate-50 text-center"><a href="mailto:imnufit@gmail.com" class="inline-block space-y-1"><p class="text-slate-300 text-[9px] font-black uppercase tracking-[0.4em]">Email Oficial</p><p class="text-slate-600 font-bold text-sm hover:text-[#2E4982] transition-colors">imnufit@gmail.com</p></a></div>
+            <div class="pt-8 border-t border-slate-50 text-center"><a href="mailto:imnufit@gmail.com" class="inline-block space-y-1 text-left text-left"><p class="text-slate-300 text-[9px] font-black uppercase tracking-[0.4em] text-left text-left">Email Oficial</p><p class="text-slate-600 font-bold text-sm hover:text-[#2E4982] transition-colors text-left text-left text-left text-left">imnufit@gmail.com</p></a></div>
         </main>
     </section>
 
     <!-- MI CUENTA -->
-    <section id="membership-view" class="min-h-screen hidden bg-slate-50/50 pb-20 text-left">
-        <header class="bg-white/40 backdrop-blur-xl border-b h-24 flex items-center px-8 justify-between sticky top-0 z-40">
-            <button onclick="window.showView('patient-view')" class="flex items-center gap-2 text-slate-400 hover:text-[#2E4982] font-bold text-xs uppercase tracking-widest transition-colors"><svg class="w-4 h-4 transform group-hover:-translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path d="M15 19l-7-7 7-7"></path></svg> Volver</button>
-            <button onclick="window.showView('patient-view')" class="hover:opacity-80 transition-opacity hidden md:block">
-                <img src="https://imnufit.com/wp-content/uploads/2025/05/cropped-logo-y-nombre-AZUL.png" class="h-9 object-contain mix-blend-multiply">
+    <section id="membership-view" class="min-h-screen hidden bg-slate-50/50 pb-20 text-left text-left text-left text-left">
+        <header class="bg-white/40 backdrop-blur-xl border-b h-24 flex items-center px-8 justify-between sticky top-0 z-40 text-left text-left text-left text-left">
+            <button onclick="window.showView('patient-view')" class="flex items-center gap-2 text-slate-400 hover:text-[#2E4982] font-bold text-xs uppercase tracking-widest transition-colors text-left"><svg class="w-4 h-4 transform group-hover:-translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path d="M15 19l-7-7 7-7"></path></svg> Volver</button>
+            <button onclick="window.showView('patient-view')" class="hover:opacity-80 transition-opacity hidden md:block text-left text-left text-left">
+                <img src="https://imnufit.com/wp-content/uploads/2025/05/cropped-logo-y-nombre-AZUL.png" class="h-9 object-contain mix-blend-multiply text-left text-left text-left">
             </button>
-            <h2 class="text-sm font-bold text-[#494949] uppercase tracking-[0.2em]">Mi Cuenta</h2><div class="w-10"></div>
+            <h2 class="text-sm font-bold text-[#494949] uppercase tracking-[0.2em] text-left text-left text-left">Perfil</h2><div class="w-10 text-left text-left text-left"></div>
         </header>
         <main class="max-w-2xl mx-auto py-12 px-6 space-y-10 text-left">
             <section class="bg-white rounded-[2.5rem] p-10 shadow-sm border border-slate-50 text-left">
-                <div class="flex items-center gap-4 mb-12 text-left"><div class="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center text-[#2E4982] shadow-sm text-left"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg></div><div><h3 class="text-xl font-bold text-[#494949]">Perfil Personal</h3><p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest text-left">Identidad en Consulta</p></div></div>
-                <div class="space-y-0 text-left">
-                    <div class="profile-line text-left"><span class="profile-label-text">Paciente:</span><span id="acc-nombre" class="profile-value-text text-slate-500">...</span></div>
-                    <div class="profile-line flex items-center justify-start !py-6 text-left"><span id="acc-genero">--</span></div>
-                    <div class="profile-line text-left"><span class="profile-label-text">Nacimiento:</span><span id="acc-nacimiento" class="profile-value-text text-slate-500">--</span></div>
-                    <div class="profile-line text-left"><span class="profile-label-text">País:</span><span id="acc-pais" class="profile-value-text text-slate-500">--</span></div>
-                    <div class="profile-line border-0 text-left"><span class="profile-label-text">Teléfono:</span><span id="acc-telefono" class="profile-value-text text-slate-500">--</span></div>
-                    <div class="mt-4 pt-10 border-t border-slate-50 text-left">
-                        <span class="profile-label-text !mb-1 text-left">Email de acceso</span>
-                        <div class="h-1"></div>
-                        <span id="acc-email" class="text-[14px] font-medium text-slate-500">--</span>
+                <div class="flex items-center gap-4 mb-12 text-left text-left text-left text-left text-left text-left"><div class="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center text-[#2E4982] shadow-sm text-left text-left text-left"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg></div><div class="text-left text-left text-left"><h3 class="text-xl font-bold text-[#494949] text-left text-left">Personal</h3><p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest text-left text-left text-left">Identidad Oficial</p></div></div>
+                <div class="space-y-0 text-left text-left">
+                    <div class="profile-line text-left text-left text-left text-left text-left text-left"><span class="profile-label-text text-left text-left">Paciente:</span><span id="acc-nombre" class="profile-value-text text-slate-500 text-left text-left text-left text-left">...</span></div>
+                    <div class="profile-line flex items-center justify-start !py-6 text-left text-left"><span id="acc-genero">--</span></div>
+                    <div class="profile-line text-left text-left text-left text-left text-left text-left text-left"><span class="profile-label-text text-left text-left text-left text-left">Nacimiento:</span><span id="acc-nacimiento" class="profile-value-text text-slate-500 text-left text-left text-left text-left">--</span></div>
+                    <div class="profile-line text-left text-left text-left text-left text-left text-left text-left"><span class="profile-label-text text-left text-left text-left text-left">País:</span><span id="acc-pais" class="profile-value-text text-slate-500 text-left text-left text-left">--</span></div>
+                    <div class="profile-line border-0 text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left text-left"><span class="profile-label-text text-left text-left text-left text-left text-left text-left">Teléfono:</span><span id="acc-telefono" class="profile-value-text text-slate-500 text-left text-left text-left text-left text-left text-left">--</span></div>
+                    <div class="mt-4 pt-10 border-t border-slate-50 text-left text-left text-left text-left text-left text-left text-left">
+                        <span class="profile-label-text !mb-1 text-left text-left text-left">Email de acceso</span>
+                        <div class="h-1 text-left text-left text-left text-left text-left text-left text-left"></div>
+                        <span id="acc-email" class="text-[14px] font-medium text-slate-500 text-left text-left text-left">--</span>
                     </div>
                 </div>
             </section>
             
-            <section class="bg-white rounded-[2.5rem] p-10 shadow-sm border border-slate-50 text-left"><div class="flex items-center gap-4 mb-8 text-left"><div class="w-12 h-12 bg-slate-50 rounded-2xl flex items-center justify-center text-slate-500 shadow-sm"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg></div><div><h3 class="text-xl font-bold text-[#494949]">Seguridad</h3><p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest text-left">Cambio de Acceso</p></div></div><form onsubmit="window.updateAppPassword(event)" class="space-y-6"><div><label class="text-[11px] font-bold text-slate-400 uppercase tracking-widest ml-1 text-left">Nueva Contraseña</label><input type="password" name="newPassword" required minlength="6" class="input-apple mt-2"></div><button type="submit" class="btn-ingresar !bg-slate-800">Actualizar Contraseña</button></form></section>
+            <section class="bg-white rounded-[2.5rem] p-10 shadow-sm border border-slate-50 text-left text-left text-left text-left text-left text-left text-left" style="animation-delay: 0.1s;"><div class="flex items-center gap-4 mb-8 text-left text-left text-left text-left text-left text-left text-left text-left text-left"><div class="w-12 h-12 bg-slate-50 rounded-2xl flex items-center justify-center text-slate-500 shadow-sm text-left text-left text-left"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg></div><div class="text-left text-left text-left text-left text-left"><h3 class="text-xl font-bold text-[#494949] text-left text-left">Seguridad</h3><p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest text-left text-left text-left text-left text-left">Clave de Acceso</p></div></div><form onsubmit="window.updateAppPassword(event)" class="space-y-6 text-left text-left text-left text-left text-left text-left text-left"><div><label class="text-[11px] font-bold text-slate-400 uppercase tracking-widest ml-1 text-left text-left text-left text-left text-left text-left text-left">Nueva Contraseña</label><input type="password" name="newPassword" required minlength="6" class="input-apple mt-2 text-left"></div><button type="submit" class="btn-ingresar !bg-slate-800 text-center text-center text-center text-center text-center">Actualizar Contraseña</button></form></section>
             
-            <section class="bg-white rounded-[2.5rem] p-10 shadow-sm border border-slate-50 text-left">
-                <div class="flex items-center gap-4 mb-8 text-left">
-                    <div class="w-12 h-12 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-600 shadow-sm"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg></div>
-                    <div><h3 class="text-xl font-bold text-[#494949]">Membresía</h3><p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest text-left">Gestión de Suscripción</p></div>
+            <section class="bg-white rounded-[2.5rem] p-10 shadow-sm border border-slate-50 text-left text-left text-left text-left text-left text-left text-left" style="animation-delay: 0.2s;">
+                <div class="flex items-center gap-4 mb-8 text-left text-left text-left">
+                    <div class="w-12 h-12 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-600 shadow-sm text-left text-left text-left text-left text-left text-left text-left"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg></div>
+                    <div class="text-left text-left text-left text-left text-left"><h3 class="text-xl font-bold text-[#494949] text-left text-left text-left text-left">Membresía</h3><p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest text-left text-left text-left text-left text-left text-left">Stripe Secure</p></div>
                 </div>
-                <p class="text-[14px] text-slate-500 mb-8 leading-relaxed text-left">Utilizamos una plataforma segura para tus suscripciones. Desde aquí podrás actualizar tu tarjeta o <strong>cancelar tu membresía</strong>.</p>
-                <div class="flex justify-center"><a href="https://billing.stripe.com/p/login/bIY9CF3un99T2XefYY" target="_blank" class="btn-secure-portal px-12">Gestionar Membresía y Pagos <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg></a></div>
+                <p class="text-[14px] text-slate-500 mb-8 leading-relaxed text-left text-left text-left text-left text-left text-left text-left">Gestiona tus facturas y suscripción de forma segura.</p>
+                <div class="flex justify-center text-center text-center text-center text-center text-center">
+                    <a href="https://billing.stripe.com/p/login/bIY9CF3un99T2XefYY" target="_blank" class="btn-secure-portal px-12 text-center text-center text-center text-center text-center">Abrir Portal de Pagos <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg></a>
+                </div>
             </section>
-            <button onclick="window.cerrarSesion()" class="w-full py-4 text-xs font-bold text-red-400 uppercase tracking-widest hover:text-red-600 transition-colors text-center">Cerrar Sesión</button>
+            <button onclick="window.cerrarSesion()" class="w-full py-4 text-xs font-bold text-red-400 uppercase tracking-widest hover:text-red-600 transition-colors text-center text-center text-center text-center text-center">Cerrar Sesión</button>
         </main>
     </section>
 
     <!-- LOGIN -->
     <section id="login-view" class="min-h-screen flex flex-col items-center justify-center p-8 hidden text-center">
-        <div class="max-w-[340px] w-full space-y-12 fade-in text-center">
-            <img src="https://imnufit.com/wp-content/uploads/2025/05/cropped-logo-y-nombre-AZUL.png" class="mx-auto h-11 object-contain mix-blend-multiply">
-            <div class="space-y-2 text-center">
+        <div class="max-w-[340px] w-full space-y-12 fade-in text-center text-left text-left text-left text-left text-left text-left">
+            <img src="https://imnufit.com/wp-content/uploads/2025/05/cropped-logo-y-nombre-AZUL.png" class="mx-auto h-11 object-contain mix-blend-multiply text-center text-center text-center text-center">
+            <div class="space-y-2 text-center text-center text-center text-center text-center">
                 <h1 class="text-2xl font-bold tracking-tight text-[#494949]">Portal del Paciente</h1>
-                <p class="text-[14px] text-slate-500 text-center">Inicia sesión para continuar</p>
+                <p class="text-[14px] text-slate-500 text-center text-center text-center text-center text-center">Inicia sesión para continuar</p>
             </div>
-            <form onsubmit="window.handleLogin(event)" class="space-y-6 text-center">
-                <input type="email" name="email" required placeholder="Correo electrónico" class="input-apple text-center">
-                <div class="space-y-3 text-center">
-                    <input type="password" name="pass" required placeholder="Contraseña" class="input-apple text-center">
-                    <button type="button" onclick="window.showView('forgot-password-view')" class="text-[11px] font-bold text-[#2E4982] uppercase tracking-widest hover:underline text-center">¿Olvidaste tu contraseña?</button>
+            <form onsubmit="window.handleLogin(event)" class="space-y-6 text-center text-center text-center">
+                <input type="email" name="email" required placeholder="Correo electrónico" class="input-apple text-center text-center text-center">
+                <div class="space-y-3 text-center text-center text-center text-center text-center">
+                    <input type="password" name="pass" required placeholder="Contraseña" class="input-apple text-center text-center text-center text-center">
+                    <div class="text-center text-center text-center text-center text-center text-center text-center text-center text-center text-center"><button type="button" onclick="window.showView('forgot-password-view')" class="text-[11px] font-bold text-[#2E4982] uppercase tracking-widest hover:underline text-center text-center text-center text-center text-center text-center text-center">¿Olvidaste tu contraseña?</button></div>
                 </div>
-                <div class="space-y-5 text-center">
+                <div class="space-y-5 text-center text-center text-center text-center text-center text-center">
                     <button type="submit" class="btn-ingresar">Entrar al portal</button>
-                    <button type="button" onclick="window.showView('signup-view')" class="text-[12px] font-extrabold text-[#2E4982] uppercase tracking-tight text-center">
+                    <button type="button" onclick="window.showView('signup-view')" class="text-[12px] font-extrabold text-[#2E4982] uppercase tracking-tight text-center text-center text-center text-center text-center">
                         ¿Eres nuevo? <span class="border-b border-[#2E4982]/30 pb-0.5">Crea tu cuenta aquí</span>
                     </button>
                 </div>
@@ -609,38 +641,38 @@
         </div>
     </section>
 
-    <!-- SIGNUP -->
-    <section id="signup-view" class="min-h-screen flex flex-col items-center justify-center p-8 hidden text-center">
-        <div class="max-w-[340px] w-full space-y-12 fade-in text-center">
-            <img src="https://imnufit.com/wp-content/uploads/2025/05/cropped-logo-y-nombre-AZUL.png" class="mx-auto h-11 object-contain mix-blend-multiply">
-            <div class="space-y-2 text-center">
-                <h1 class="text-2xl font-bold tracking-tight text-[#494949]">Crear tu cuenta</h1>
-                <p class="text-[14px] text-slate-500 text-center">Usa el correo registrado en consulta</p>
-            </div>
-            <form onsubmit="window.handleSignup(event)" class="space-y-6 text-center">
-                <input type="email" name="email" required placeholder="Correo electrónico" class="input-apple text-center">
-                <input type="password" name="pass" required minlength="6" placeholder="Contraseña" class="input-apple text-center">
-                <input type="password" name="confirmPass" required minlength="6" placeholder="Confirmar contraseña" class="input-apple text-center">
-                <button type="submit" class="btn-ingresar mt-4">Registrarme</button>
-            </form>
-            <button onclick="window.showView('login-view')" class="text-[11px] font-bold text-[#2E4982] uppercase tracking-widest hover:underline text-center">¿Ya tienes cuenta? Inicia sesión</button>
-        </div>
-    </section>
-
     <!-- FORGOT PASSWORD -->
     <section id="forgot-password-view" class="min-h-screen flex flex-col items-center justify-center p-8 hidden text-center">
-        <div class="max-w-[340px] w-full space-y-10 fade-in text-center">
+        <div class="max-w-[340px] w-full space-y-10 fade-in text-center text-left text-left">
             <img src="https://imnufit.com/wp-content/uploads/2025/05/cropped-logo-y-nombre-AZUL.png" class="mx-auto h-11 object-contain mix-blend-multiply">
-            <div class="space-y-2 text-center">
-                <h1 class="text-2xl font-bold tracking-tight text-[#494949]">Recuperar Acceso</h1>
+            <div class="space-y-2 text-center text-center text-center">
+                <h1 class="text-2xl font-bold tracking-tight text-[#494949] text-center">Recuperar Acceso</h1>
                 <p class="text-[14px] text-slate-500 text-center">Te enviaremos un enlace a tu correo</p>
             </div>
-            <form onsubmit="window.handlePasswordReset(event)" class="space-y-6 text-center">
-                <input type="email" name="resetEmail" required placeholder="Correo de acceso" class="input-apple text-center">
+            <form onsubmit="window.handlePasswordReset(event)" class="space-y-6 text-center text-left text-left">
+                <input type="email" name="resetEmail" required placeholder="Correo de acceso" class="input-apple text-center text-left">
                 <button type="submit" class="btn-ingresar">Enviar enlace</button>
                 <p class="text-[12px] text-slate-700 font-bold text-center">💡 Si no recibes el correo, revisa tu carpeta de <span class="text-slate-800 underline">Spam</span>.</p>
             </form>
             <button onclick="window.showView('login-view')" class="text-[12px] font-bold text-[#2E4982] uppercase tracking-widest w-full text-center">Volver al inicio</button>
+        </div>
+    </section>
+
+    <!-- SIGNUP -->
+    <section id="signup-view" class="min-h-screen flex flex-col items-center justify-center p-8 hidden text-center">
+        <div class="max-w-[340px] w-full space-y-12 fade-in text-center text-left text-left text-left">
+            <img src="https://imnufit.com/wp-content/uploads/2025/05/cropped-logo-y-nombre-AZUL.png" class="mx-auto h-11 object-contain mix-blend-multiply">
+            <div class="space-y-2 text-center text-center text-center">
+                <h1 class="text-2xl font-bold tracking-tight text-[#494949] text-center">Crear tu cuenta</h1>
+                <p class="text-[14px] text-slate-500 text-center">Usa el correo registrado en consulta</p>
+            </div>
+            <form onsubmit="window.handleSignup(event)" class="space-y-6 text-center text-left text-left">
+                <input type="email" name="email" required placeholder="Correo electrónico" class="input-apple text-center text-left">
+                <input type="password" name="pass" required minlength="6" placeholder="Contraseña" class="input-apple text-center text-center">
+                <input type="password" name="confirmPass" required minlength="6" placeholder="Confirmar contraseña" class="input-apple text-center text-center">
+                <button type="submit" class="btn-ingresar mt-4 text-center">Registrarme</button>
+            </form>
+            <button onclick="window.showView('login-view')" class="text-[11px] font-bold text-[#2E4982] uppercase tracking-widest hover:underline text-center">¿Ya tienes cuenta? Inicia sesión</button>
         </div>
     </section>
 
