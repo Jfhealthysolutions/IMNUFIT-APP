@@ -220,10 +220,9 @@
             
             const infoPaciente = airtableData["Nombre + Edad"] || "Usuario IMNUFIT";
             safeSetText('display-nombre', infoPaciente);
-            safeUpdate('display-greeting', (el) => {
-                const g = getGreeting();
-                el.innerHTML = `<span class="text-xl mr-2">${g.icon}</span> ${g.text}`;
-            });
+            
+            const g = getGreeting();
+            safeUpdate('display-greeting', (el) => el.innerHTML = `<span class="text-xl mr-2">${g.icon}</span> ${g.text}`);
             
             const status = airtableData["Estatus"] || "Activo";
             safeUpdate('display-estatus', (el) => {
@@ -365,6 +364,8 @@
         onAuthStateChanged(auth, async (user) => {
             if (user) {
                 document.getElementById('loading-screen').classList.remove('hidden');
+                
+                // MODO ESPECIALISTA
                 isSpecialistMode = (user.email === SPECIALIST_EMAIL);
                 const panel = document.getElementById('specialist-panel');
                 if(panel) panel.classList.toggle('hidden', !isSpecialistMode);
@@ -373,7 +374,14 @@
                 cachedAirtableData = airtableData;
                 refreshUIWithData();
                 window.showView('patient-view', false);
-            } else { window.showView('login-view', false); }
+            } else { 
+                // AL SALIR: Asegurar que el panel desaparezca y resetear modo
+                const panel = document.getElementById('specialist-panel');
+                if(panel) panel.classList.add('hidden');
+                isSpecialistMode = false;
+                
+                window.showView('login-view', false); 
+            }
             document.getElementById('loading-screen').classList.add('hidden');
         });
 
@@ -513,9 +521,10 @@
 
     <!-- PROGRAM DETAIL -->
     <section id="program-detail-view" class="min-h-screen hidden bg-[#FBFBFC] text-left">
-        <header class="h-24 flex items-center px-8 border-b border-slate-50 justify-between sticky top-0 bg-white z-50 text-left">
-            <button onclick="window.showView('patient-view')" class="flex items-center gap-2 text-slate-400 hover:text-[#2E4982] font-bold text-xs uppercase tracking-widest transition-colors group text-left"><svg class="w-4 h-4 transform group-hover:-translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path d="M15 19l-7-7 7-7"></path></svg> Volver</button>
-            <span class="text-sm font-bold text-[#494949] uppercase tracking-[0.2em] text-left">Recursos del Programa</span><div class="w-10"></div>
+        <header class="h-24 flex items-center px-4 md:px-8 border-b border-slate-50 justify-between sticky top-0 bg-white z-50 text-left">
+            <button onclick="window.showView('patient-view')" class="flex items-center gap-2 text-slate-400 hover:text-[#2E4982] font-bold text-xs uppercase tracking-widest transition-colors group text-left flex-shrink-0"><svg class="w-4 h-4 transform group-hover:-translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path d="M15 19l-7-7 7-7"></path></svg> Volver</button>
+            <span class="text-[10px] md:text-sm font-bold text-[#494949] uppercase tracking-[0.2em] text-center flex-1 mx-2">Recursos del Programa</span>
+            <div class="w-10 hidden md:block"></div>
         </header>
         <main class="max-w-xl mx-auto py-16 px-6 fade-in space-y-12 flex flex-col items-center text-center">
             <div id="program-img-container" class="flex justify-center"><img id="program-img-main" src="" class="object-contain mix-blend-multiply text-center"></div>
@@ -618,7 +627,7 @@
 
     <!-- LOGIN -->
     <section id="login-view" class="min-h-screen flex flex-col items-center justify-center p-8 hidden text-center">
-        <div class="max-w-[340px] w-full space-y-12 fade-in text-center">
+        <div class="max-w-[340px] w-full space-y-12 fade-in text-center text-left">
             <img src="https://imnufit.com/wp-content/uploads/2025/05/cropped-logo-y-nombre-AZUL.png" class="mx-auto h-11 object-contain mix-blend-multiply text-center">
             <div class="space-y-2 text-center">
                 <h1 class="text-2xl font-bold tracking-tight text-[#494949]">Portal del Paciente</h1>
@@ -649,7 +658,7 @@
                 <p class="text-[14px] text-slate-500 text-center">Te enviaremos un enlace a tu correo</p>
             </div>
             <form onsubmit="window.handlePasswordReset(event)" class="space-y-6 text-center">
-                <input type="email" name="resetEmail" required placeholder="Correo de acceso" class="input-apple text-center text-left">
+                <input type="email" name="resetEmail" required placeholder="Correo de acceso" class="input-apple text-center">
                 <button type="submit" class="btn-ingresar">Enviar enlace</button>
                 <p class="text-[12px] text-slate-700 font-bold text-center">💡 Si no recibes el correo, revisa tu carpeta de <span class="text-slate-800 underline">Spam</span>.</p>
             </form>
@@ -660,13 +669,13 @@
     <!-- SIGNUP -->
     <section id="signup-view" class="min-h-screen flex flex-col items-center justify-center p-8 hidden text-center">
         <div class="max-w-[340px] w-full space-y-12 fade-in text-center text-left">
-            <img src="https://imnufit.com/wp-content/uploads/2025/05/cropped-logo-y-nombre-AZUL.png" class="mx-auto h-11 object-contain mix-blend-multiply">
+            <img src="https://imnufit.com/wp-content/uploads/2025/05/cropped-logo-y-nombre-AZUL.png" class="mx-auto h-11 object-contain mix-blend-multiply text-center">
             <div class="space-y-2 text-center">
                 <h1 class="text-2xl font-bold tracking-tight text-[#494949] text-center">Crear tu cuenta</h1>
                 <p class="text-[14px] text-slate-500 text-center">Usa el correo registrado en consulta</p>
             </div>
             <form onsubmit="window.handleSignup(event)" class="space-y-6 text-center">
-                <input type="email" name="email" required placeholder="Correo electrónico" class="input-apple text-center text-left">
+                <input type="email" name="email" required placeholder="Correo electrónico" class="input-apple text-center">
                 <input type="password" name="pass" required minlength="6" placeholder="Contraseña" class="input-apple text-center">
                 <input type="password" name="confirmPass" required minlength="6" placeholder="Confirmar contraseña" class="input-apple text-center">
                 <button type="submit" class="btn-ingresar mt-4 text-center">Registrarme</button>
