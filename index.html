@@ -29,30 +29,8 @@
         const auth = getAuth(app);
         const db = getFirestore(app);
 
-        // --- CONFIGURACIÓN GEMINI AI ---
-        const GEMINI_API_KEY = "AIzaSyDwUn86PQpIZlTFDYhY33PMg3YkgbS3iqc";
-        
-        const getSystemPrompt = (data) => {
-            const calLink = data?.["Link Calendar"] || "https://calendar.app.google/CE4KjKxPeFiV93GV7";
-            const histLink = data?.["Link Consultas"] || "#";
-            const nombre = data?.["Nombre + Edad"] || "Paciente";
-
-            return `Eres el Asistente IA de IMNUFIT. Estás hablando con ${nombre}.
-            Tu misión es ayudar al paciente a navegar y realizar acciones de forma humana.
-            
-            REGLAS DE COMPORTAMIENTO:
-            1. Sé amable, motivador y breve.
-            2. Si el usuario te da las gracias o se despide, responde de forma natural y cortés, no repitas todo el menú de opciones a menos que te pregunten algo nuevo.
-            3. Para dar énfasis, usa negritas con doble asterisco (**ejemplo**).
-            4. REGLA CRÍTICA DE BOTONES: Para cualquier acción o link, usa SIEMPRE este formato al final: [BOTON: Texto|URL]. No escribas links normales en el texto.
-            
-            BOTONES DISPONIBLES:
-            - Reservar consulta: [BOTON: Reservar Cita|${calLink}]
-            - Entrenar: [BOTON: Ir a Entrenar|https://imnufit.com/entrenaconfrenplus/]
-            - Reporte mensual: [BOTON: Llenar Reporte|https://airtable.com/appCHcm7XPzeoyBCs/pagh79fwniuSPmusB/form]
-            - Historial: ${histLink !== "#" ? `[BOTON: Ver Historial|${histLink}]` : "Dile que no tiene historial todavía."}
-            - WhatsApp: [BOTON: Chat con Soporte|https://wa.me/14076325438]`;
-        };
+        // --- CONFIGURACIÓN IA (GEMINI) ---
+        const apiKey = ""; 
 
         // --- CONFIGURACIÓN MODO ESPECIALISTA ---
         const SPECIALIST_EMAIL = "imnufit@gmail.com";
@@ -165,6 +143,164 @@
             return null;
         }
 
+        // --- LÓGICA DE IA (GEMINI) ---
+        let chatHistory = [];
+
+        async function fetchWithRetry(url, options, retries = 5, backoff = 1000) {
+            try {
+                const response = await fetch(url, options);
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                return await response.json();
+            } catch (error) {
+                if (retries > 0) {
+                    await new Promise(resolve => setTimeout(resolve, backoff));
+                    return fetchWithRetry(url, options, retries - 1, backoff * 2);
+                }
+                throw error;
+            }
+        }
+
+        // --- PARSER DE MARKDOWN E INTENCIONES ---
+        function parseAIResponse(text) {
+            if (!text) return "";
+            
+            // 1. Negritas: **texto** -> <strong>
+            let html = text.replace(/\*\*(.*?)\*\*/g, '<strong class="font-bold text-slate-900">$1</strong>');
+            
+            // 2. Cursivas: *texto* -> <em>
+            html = html.replace(/\*(.*?)\*/g, '<em class="italic text-slate-600">$1</em>');
+
+            // 3. Botones de Acción (Internos): [Label](function:viewId)
+            html = html.replace(/\[([^\]]+)\]\(function:([a-zA-Z0-9-]+)\)/g, 
+                `<button onclick="window.closeAIModal(); setTimeout(() => window.showView('$2'), 350)" class="mt-3 flex items-center gap-2 bg-[#2E4982]/10 text-[#2E4982] px-5 py-3 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-[#2E4982] hover:text-white transition-all shadow-sm w-full md:w-auto justify-center md:justify-start">
+                    <span>$1</span>
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
+                </button>`
+            );
+
+            // 4. Botones de Acción (Externos): [Label](https://...)
+            html = html.replace(/\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g, 
+                `<a href="$2" target="_blank" class="mt-3 flex items-center gap-2 bg-emerald-50 text-emerald-600 border border-emerald-100 px-5 py-3 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-emerald-600 hover:text-white transition-all shadow-sm w-full md:w-auto justify-center md:justify-start decoration-0">
+                    <span>$1</span>
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                </a>`
+            );
+
+            // 5. Listas (simple)
+            html = html.replace(/^\s*-\s+(.*)$/gm, '<li class="ml-4 list-disc marker:text-[#2E4982] pl-1 mb-1">$1</li>');
+            // Envolver listas consecutivas (básico)
+            html = html.replace(/(<li.*<\/li>)/s, '<ul class="my-2 space-y-1">$1</ul>');
+
+            // 6. Saltos de línea
+            html = html.replace(/\n/g, '<br>');
+            
+            return html;
+        }
+
+        // Lógica de Modal
+        window.openAIModal = () => {
+            const modal = document.getElementById('ai-modal-overlay');
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                modal.classList.remove('opacity-0');
+                modal.querySelector('div').classList.remove('scale-95', 'opacity-0');
+            }, 10);
+            document.getElementById('ai-input').focus();
+        };
+
+        window.closeAIModal = () => {
+            const modal = document.getElementById('ai-modal-overlay');
+            modal.classList.add('opacity-0');
+            modal.querySelector('div').classList.add('scale-95', 'opacity-0');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+            }, 300);
+        };
+
+        window.sendMessageToAI = async () => {
+            const input = document.getElementById('ai-input');
+            const chatContainer = document.getElementById('ai-chat-messages');
+            const userMessage = input.value.trim();
+            if (!userMessage) return;
+
+            appendChatMessage('user', userMessage);
+            input.value = '';
+            
+            const loadingId = 'loading-' + Date.now();
+            chatContainer.innerHTML += `<div id="${loadingId}" class="flex justify-start mb-4"><div class="bg-slate-100 text-slate-400 px-4 py-2 rounded-2xl text-[11px] animate-pulse italic">Analizando...</div></div>`;
+            chatContainer.scrollTo(0, chatContainer.scrollHeight);
+
+            // PREPARAR DATOS DEL PACIENTE
+            const nombreCompleto = cachedAirtableData?.["Nombre + Edad"] || "Paciente";
+            // Intentar extraer solo el primer nombre (ej. "Jorge 35" -> "Jorge")
+            const nombrePila = nombreCompleto.split(' ')[0] || "Paciente";
+            const linkCalendar = cachedAirtableData?.["Link Calendar"] || CALENDAR_LINK_DEFAULT;
+            const programaActual = cachedAirtableData?.Programa || 'No asignado aún';
+            
+            const systemPrompt = `Eres el Especialista IA de IMNUFIT. Estás hablando con **${nombreCompleto}**. Llámalo por su nombre (${nombrePila}) para ser cercano y amable.
+            
+            Tu objetivo es motivar y guiar en su programa (${programaActual}).
+            
+            Tu tono es profesional, motivador y breve. Usa **negritas** para resaltar ideas clave.
+            
+            IMPORTANTE: Si el usuario quiere realizar una acción disponible en la app, DEBES facilitar el botón usando este formato exacto de Markdown:
+            [TEXTO DEL BOTÓN](link_o_funcion)
+
+            LISTA DE ACCIONES DISPONIBLES (Úsalas cuando sea relevante):
+            - Ver Entrenamientos: [Ir a Entrenamientos](https://imnufit.com/entrenaconfrenplus/)
+            - Reportar Progreso: [Llenar Reporte Mensual](https://airtable.com/appCHcm7XPzeoyBCs/pagh79fwniuSPmusB/form)
+            - Agendar Cita: [Reservar Cita](${linkCalendar})
+            - Historial Médico: [Ver Consultas](https://airtable.com/)
+            - Contactar Soporte: [Contactar Soporte](function:contact-view)
+            - Ver Perfil/Pagos: [Mi Cuenta](function:membership-view)
+            - Recursos del Programa: [Ver Guías PDF](function:program-detail-view)
+            `;
+
+            try {
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+                const payload = {
+                    contents: [{ parts: [{ text: `CONTEXTO DEL SISTEMA: ${systemPrompt}\n\nHISTORIAL: ${JSON.stringify(chatHistory)}\n\nUSUARIO: ${userMessage}` }] }]
+                };
+
+                const data = await fetchWithRetry(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const aiText = data.candidates?.[0]?.content?.parts?.[0]?.text || "No pude procesar eso ahora.";
+                
+                document.getElementById(loadingId).remove();
+                appendChatMessage('ai', aiText);
+                chatHistory.push({ role: 'user', text: userMessage }, { role: 'ai', text: aiText });
+
+            } catch (error) {
+                document.getElementById(loadingId).remove();
+                window.notify("Error con la IA");
+            }
+        };
+
+        function appendChatMessage(role, text) {
+            const container = document.getElementById('ai-chat-messages');
+            const msgDiv = document.createElement('div');
+            
+            let contentHtml = text;
+            if (role === 'ai') {
+                contentHtml = parseAIResponse(text);
+            } else {
+                contentHtml = text.replace(/\n/g, '<br>');
+            }
+
+            msgDiv.className = `flex ${role === 'user' ? 'justify-end' : 'justify-start'} mb-6 fade-in`;
+            msgDiv.innerHTML = `
+                <div class="max-w-[85%] px-5 py-4 rounded-[1.4rem] text-[14px] leading-relaxed ${role === 'user' ? 'bg-[#2E4982] text-white rounded-tr-sm' : 'bg-white border border-slate-100 text-slate-600 rounded-tl-sm shadow-sm'}">
+                    ${contentHtml}
+                </div>
+            `;
+            container.appendChild(msgDiv);
+            container.scrollTo(0, container.scrollHeight);
+        }
+
         // --- NAVEGACIÓN ---
         window.showView = (viewId, saveHistory = true) => {
             const views = ['login-view', 'signup-view', 'patient-view', 'membership-view', 'program-detail-view', 'forgot-password-view', 'contact-view'];
@@ -200,7 +336,7 @@
         window.updateSpecMode = (val) => {
             specModeSelection = val;
             refreshUIWithData();
-            window.showView('patient-view'); 
+            window.showView('patient-view');
         };
 
         let cachedAirtableData = null;
@@ -246,6 +382,13 @@
             const infoPaciente = airtableData["Nombre + Edad"] || "Usuario IMNUFIT";
             safeSetText('display-nombre', infoPaciente);
             
+            // ACTUALIZAR MENSAJE DE BIENVENIDA DE IA
+            const nombrePila = infoPaciente.split(' ')[0] || "Paciente";
+            const welcomeMsg = document.getElementById('ai-welcome-text');
+            if (welcomeMsg) {
+                welcomeMsg.innerHTML = `Hola <strong>${nombrePila}</strong>, soy tu asistente personal de nutrición. Conozco cada detalle de tu plan en IMNUFIT. ¿En qué puedo guiarte hoy?`;
+            }
+
             const g = getGreeting();
             safeUpdate('display-greeting', (el) => el.innerHTML = `<span class="text-xl mr-2">${g.icon}</span> ${g.text}`);
             
@@ -271,16 +414,16 @@
 
             const featuredBanner = document.getElementById('featured-plan-banner');
             const restrictedBanner = document.getElementById('restricted-banner');
-            const restrictedTitle = document.getElementById('restricted-banner-title');
-            const restrictedBody = document.getElementById('restricted-banner-body');
-            const restrictedBtnCont = document.getElementById('restricted-btn-container');
+            const aiCard = document.getElementById('card-ai');
 
             if (isRestricted) {
                 if (featuredBanner) featuredBanner.classList.add('hidden');
                 if (restrictedBanner) restrictedBanner.classList.remove('hidden');
+                if (aiCard) aiCard.classList.add('hidden');
                 safeSetText('restricted-banner-title', isPorAsignar ? "Plan en Preparación" : "Portal de Seguimiento");
                 safeSetText('restricted-banner-body', isPorAsignar ? "Tu membresía está activa y estamos diseñando tu estrategia personalizada. Tu plan será asignado oficialmente en nuestra próxima consulta. ¡Estamos listos para empezar!" : "Tu membresía no tiene un plan activo en este momento. Puedes consultar nuestras opciones de suscripción en nuestra web oficial.");
 
+                const restrictedBtnCont = document.getElementById('restricted-btn-container');
                 if (restrictedBtnCont) {
                     if (isInactive) {
                         const histLink = airtableData["Link Consultas"] || "#";
@@ -289,6 +432,7 @@
                 }
             } else {
                 if (restrictedBanner) restrictedBanner.classList.add('hidden');
+                if (aiCard) aiCard.classList.remove('hidden');
                 if (progKey && PROGRAMAS_INFO[progKey] && featuredBanner) {
                     featuredBanner.classList.remove('hidden');
                     safeSetText('plan-banner-title', rawProgramName);
@@ -339,12 +483,12 @@
             }
 
             const hideCards = (isInactive || isPorAsignar) && !isSpecialistMode;
-            ['card-entrenamientos', 'card-reporte', 'card-citas', 'card-consultas'].forEach(id => {
+            ['card-entrenamientos', 'card-reporte', 'card-citas', 'card-consultas', 'card-ai'].forEach(id => {
                 safeUpdate(id, el => el.classList.toggle('hidden', hideCards));
             });
 
             if (isPausa && !isSpecialistMode) {
-                ['card-entrenamientos', 'card-reporte', 'card-citas'].forEach(id => safeUpdate(id, el => el.classList.add('hidden')));
+                ['card-entrenamientos', 'card-reporte', 'card-citas', 'card-ai'].forEach(id => safeUpdate(id, el => el.classList.add('hidden')));
                 safeUpdate('card-consultas', el => el.classList.remove('hidden'));
             }
 
@@ -397,14 +541,11 @@
                 cachedAirtableData = airtableData;
                 refreshUIWithData();
                 window.showView('patient-view', false);
-                document.getElementById('ai-chat-bubble').classList.remove('hidden');
             } else { 
                 const panel = document.getElementById('specialist-panel');
                 if(panel) panel.classList.add('hidden');
                 isSpecialistMode = false;
                 window.showView('login-view', false); 
-                document.getElementById('ai-chat-bubble').classList.add('hidden');
-                document.getElementById('ai-chat-window').classList.add('hidden');
             }
             document.getElementById('loading-screen').classList.add('hidden');
         });
@@ -414,83 +555,6 @@
         window.handlePasswordReset = async (e) => { e.preventDefault(); const email = e.target.resetEmail.value; try { document.getElementById('loading-screen').classList.remove('hidden'); await sendPasswordResetEmail(auth, email); window.notify("Correo enviado", "success"); window.showView('login-view'); } catch (err) { window.notify("Error de envío"); } finally { document.getElementById('loading-screen').classList.add('hidden'); } };
         window.updateAppPassword = async (e) => { e.preventDefault(); const newPass = e.target.newPassword.value; const user = auth.currentUser; if(!user) return; try { document.getElementById('loading-screen').classList.remove('hidden'); await updatePassword(user, newPass); window.notify("Clave actualizada", "success"); e.target.reset(); } catch (err) { window.notify("Sesión expirada"); } finally { document.getElementById('loading-screen').classList.add('hidden'); } };
         window.cerrarSesion = () => signOut(auth);
-
-        // --- LÓGICA DE AI ASSISTANT ---
-        window.toggleAIChat = () => {
-            const chat = document.getElementById('ai-chat-window');
-            chat.classList.toggle('hidden');
-            if (!chat.classList.contains('hidden')) {
-                document.getElementById('ai-user-input').focus();
-            }
-        };
-
-        async function fetchGeminiResponse(query, retries = 5, delay = 1000) {
-            try {
-                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${GEMINI_API_KEY}`;
-                const payload = {
-                    contents: [{ parts: [{ text: query }] }],
-                    systemInstruction: { parts: [{ text: getSystemPrompt(cachedAirtableData) }] }
-                };
-
-                const response = await fetch(url, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-
-                if (!response.ok) throw new Error('Error API Gemini');
-                const result = await response.json();
-                return result.candidates?.[0]?.content?.parts?.[0]?.text;
-            } catch (error) {
-                if (retries > 0) {
-                    await new Promise(res => setTimeout(res, delay));
-                    return fetchGeminiResponse(query, retries - 1, delay * 2);
-                }
-                throw error;
-            }
-        }
-
-        // Función mejorada para renderizar texto: procesa botones, negritas y saltos de línea
-        const renderAiText = (text) => {
-            // 1. Manejar botones personalizados
-            const buttonRegex = /\[BOTON: (.*?)\|(.*?)\]/g;
-            let html = text.replace(buttonRegex, (match, label, url) => {
-                return `<a href="${url}" target="_blank" class="inline-flex items-center justify-center bg-[#2E4982] text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest mt-4 shadow-md hover:scale-105 transition-transform w-full sm:w-auto text-center">${label}</a>`;
-            });
-            // 2. Manejar negritas Markdown (**texto**)
-            html = html.replace(/\*\*(.*?)\*\*/g, '<strong class="font-bold text-slate-900">$1</strong>');
-            // 3. Manejar saltos de línea
-            html = html.replace(/\n/g, '<br>');
-            return html;
-        };
-
-        window.sendAIMessage = async (e) => {
-            if (e) e.preventDefault();
-            const input = document.getElementById('ai-user-input');
-            const message = input.value.trim();
-            if (!message) return;
-
-            const container = document.getElementById('ai-messages-container');
-            container.innerHTML += `<div class="flex justify-end mb-3"><div class="bg-[#DEE9FA] text-[#2E4982] p-3 rounded-2xl rounded-tr-none text-xs font-medium max-w-[85%]">${message}</div></div>`;
-            input.value = "";
-            container.scrollTop = container.scrollHeight;
-
-            const loadingId = 'ai-loading-' + Date.now();
-            container.innerHTML += `<div id="${loadingId}" class="flex justify-start mb-3"><div class="bg-slate-100 text-slate-500 p-3 rounded-2xl rounded-tl-none text-xs italic animate-pulse">Pensando...</div></div>`;
-            container.scrollTop = container.scrollHeight;
-
-            try {
-                const response = await fetchGeminiResponse(message);
-                const loader = document.getElementById(loadingId);
-                if (loader) loader.remove();
-                container.innerHTML += `<div class="flex justify-start mb-3"><div class="bg-white border border-slate-100 text-slate-700 p-4 rounded-2xl rounded-tl-none text-xs font-medium max-w-[90%] shadow-sm leading-relaxed">${renderAiText(response)}</div></div>`;
-            } catch (err) {
-                const loader = document.getElementById(loadingId);
-                if (loader) loader.remove();
-                container.innerHTML += `<div class="flex justify-start mb-3"><div class="bg-rose-50 text-rose-600 p-3 rounded-2xl rounded-tl-none text-xs font-bold border border-rose-100 w-full">Error de conexión. Por favor reintenta.</div></div>`;
-            }
-            container.scrollTop = container.scrollHeight;
-        };
 
     </script>
     <style>
@@ -502,7 +566,7 @@
         .btn-ingresar { background-color: var(--primary); color: #FFFFFF; width: 100%; padding: 20px !important; border-radius: 100px; font-weight: 600; font-size: 15px; border: none; transition: all 0.4s ease; box-shadow: 0 10px 20px -5px rgba(46, 73, 130, 0.25); cursor: pointer; text-align: center; }
         .btn-ghost-sm { background-color: transparent; color: var(--primary); border: 1.5px solid var(--primary); padding: 14px 20px !important; border-radius: 100px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.12em; transition: all 0.3s ease; display: inline-block; text-align: center; width: 100%; }
         .btn-ghost-sm:hover { background-color: #DEE9FA; border-color: #DEE9FA; }
-        .btn-secure-portal { background-color: #2E4982; color: white; width: 100%; padding: 18px !important; border-radius: 14px; font-weight: 600; font-size: 14px; display: flex; items-center justify-center gap-2 transition: all 0.3s ease; box-shadow: 0 10px 20px -5px rgba(46, 73, 130, 0.2); text-align: center; }
+        .btn-secure-portal { background-color: #2E4982; color: white; width: 100%; padding: 18px !important; border-radius: 14px; font-weight: 600; font-size: 14px; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.3s ease; box-shadow: 0 10px 20px -5px rgba(46, 73, 130, 0.2); text-align: center; }
         .profile-line { @apply border-b border-slate-50 py-7 last:border-0; }
         .profile-label-text { @apply text-[10px] font-extrabold text-slate-400 uppercase tracking-[0.3em] block mb-2; }
         .profile-value-text { @apply text-[14px] text-slate-500 font-medium leading-relaxed; }
@@ -516,8 +580,14 @@
         .spec-select { background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; font-size: 10px; font-weight: 700; padding: 6px 12px; outline: none; color: white; cursor: pointer; text-transform: uppercase; letter-spacing: 0.05em; }
         .spec-select option { color: #333; }
 
-        #ai-messages-container::-webkit-scrollbar { width: 4px; }
-        #ai-messages-container::-webkit-scrollbar-thumb { background: #DEE9FA; border-radius: 10px; }
+        /* APPLE INTELLIGENCE GLOW EFFECT */
+        @keyframes ai-breathing {
+            0%, 100% { box-shadow: 0 0 20px rgba(139, 92, 246, 0.2), 0 0 40px rgba(59, 130, 246, 0.1); border-color: rgba(139, 92, 246, 0.3); }
+            50% { box-shadow: 0 0 30px rgba(139, 92, 246, 0.4), 0 0 60px rgba(59, 130, 246, 0.2); border-color: rgba(59, 130, 246, 0.5); }
+        }
+        .ai-card-glow { animation: ai-breathing 4s infinite ease-in-out; background: linear-gradient(135deg, #ffffff 0%, #f0f7ff 100%); }
+        #ai-chat-messages::-webkit-scrollbar { width: 3px; }
+        #ai-chat-messages::-webkit-scrollbar-thumb { background: #E2E8F0; border-radius: 10px; }
     </style>
 </head>
 <body class="selection:bg-[#DEE9FA] selection:text-[#2E4982]">
@@ -540,48 +610,51 @@
         </div>
     </div>
 
+    <!-- MODAL DE IA (ESTILO SPOTLIGHT) -->
+    <div id="ai-modal-overlay" class="fixed inset-0 z-[1000] bg-white/30 backdrop-blur-xl hidden opacity-0 transition-opacity duration-300 flex items-center justify-center p-4">
+        <div class="bg-white w-full max-w-2xl h-[70vh] rounded-[2.5rem] shadow-2xl border border-white/60 flex flex-col overflow-hidden scale-95 opacity-0 transition-all duration-300 relative">
+            <!-- Header Modal -->
+            <div class="h-16 flex items-center justify-between px-8 border-b border-slate-50 shrink-0 bg-white/80 backdrop-blur-md z-10">
+                <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-violet-500 to-blue-500 flex items-center justify-center text-white shadow-lg shadow-blue-500/20">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                    </div>
+                    <span class="text-sm font-bold text-slate-800">Asistente IMNUFIT</span>
+                </div>
+                <button onclick="window.closeAIModal()" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition-colors">
+                    <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l18 18"></path></svg>
+                </button>
+            </div>
+
+            <!-- Chat Area -->
+            <div id="ai-chat-messages" class="flex-1 overflow-y-auto p-8 space-y-6 scroll-smooth bg-[#FBFBFC]">
+                <div class="flex justify-center mb-8">
+                    <p class="text-xs text-slate-400 font-medium uppercase tracking-widest">Hoy</p>
+                </div>
+                <div class="flex justify-start fade-in">
+                    <div id="ai-welcome-text" class="max-w-[85%] bg-white border border-slate-100 px-6 py-4 rounded-[1.5rem] rounded-tl-sm text-[15px] leading-relaxed text-slate-600 shadow-sm">
+                        Hola, soy tu asistente personal de nutrición. Conozco cada detalle de tu plan en IMNUFIT. ¿En qué puedo guiarte hoy?
+                    </div>
+                </div>
+            </div>
+
+            <!-- Input Area -->
+            <div class="p-6 bg-white shrink-0">
+                <div class="relative flex items-center gap-3 bg-slate-50 border border-slate-200 rounded-[1.5rem] px-2 py-2 shadow-inner focus-within:ring-2 focus-within:ring-blue-100 transition-all">
+                    <input id="ai-input" type="text" placeholder="Pregúntame sobre recetas, ayuno o tu progreso..." class="flex-1 bg-transparent border-none outline-none px-4 py-3 text-slate-700 placeholder:text-slate-400 text-[15px]" onkeypress="if(event.key==='Enter') window.sendMessageToAI()">
+                    <button onclick="window.sendMessageToAI()" class="w-12 h-12 bg-[#2E4982] hover:bg-[#1e315a] text-white rounded-2xl flex items-center justify-center shadow-lg shadow-blue-900/10 transition-transform active:scale-95">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M12 5l7 7-7 7"></path></svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div id="notification-toast" class="hidden fixed top-8 left-1/2 -translate-x-1/2 z-[800] px-8 py-4 rounded-full shadow-2xl text-[13px] font-semibold bg-white border">
         <span id="notification-content"></span>
     </div>
     <div id="loading-screen" class="fixed inset-0 bg-white z-[100] flex items-center justify-center">
         <div class="h-8 w-8 border-[3px] border-[#2E4982] border-t-transparent rounded-full animate-spin"></div>
-    </div>
-
-    <!-- AI ASSISTANT CHAT -->
-    <div id="ai-chat-bubble" class="hidden fixed bottom-8 right-8 z-[600] fade-in">
-        <button onclick="window.toggleAIChat()" class="w-14 h-14 bg-[#2E4982] rounded-full shadow-2xl flex items-center justify-center text-white hover:scale-110 transition-transform active:scale-95 group">
-            <svg class="w-6 h-6 group-hover:rotate-12 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
-                <path d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"></path>
-            </svg>
-        </button>
-    </div>
-
-    <div id="ai-chat-window" class="hidden fixed bottom-24 right-8 z-[600] w-[350px] max-w-[calc(100vw-40px)] bg-white/95 backdrop-blur-2xl rounded-[2.5rem] shadow-2xl border border-white flex flex-col overflow-hidden fade-in">
-        <div class="bg-[#2E4982] p-6 text-white flex justify-between items-center">
-            <div class="flex items-center gap-3">
-                <div class="w-8 h-8 bg-white/20 rounded-xl flex items-center justify-center">
-                    <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z"/></svg>
-                </div>
-                <div>
-                    <h4 class="text-xs font-black uppercase tracking-widest">Asistente IMNUFIT</h4>
-                    <p class="text-[9px] opacity-60">IA en línea</p>
-                </div>
-            </div>
-            <button onclick="window.toggleAIChat()" class="text-white/50 hover:text-white transition-colors"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12"/></svg></button>
-        </div>
-        <div id="ai-messages-container" class="flex-1 p-6 overflow-y-auto max-h-[400px] bg-slate-50/50 text-slate-700">
-            <div class="flex justify-start mb-3">
-                <div class="bg-white border border-slate-100 p-3 rounded-2xl rounded-tl-none text-xs font-medium max-w-[80%] shadow-sm leading-relaxed">
-                    ¡Hola! Soy tu asistente de IMNUFIT. ¿En qué te puedo ayudar hoy?
-                </div>
-            </div>
-        </div>
-        <form onsubmit="window.sendAIMessage(event)" class="p-4 bg-white border-t border-slate-50 flex gap-2">
-            <input id="ai-user-input" type="text" placeholder="Escribe tu duda aquí..." class="flex-1 bg-slate-50 border-none rounded-2xl px-4 py-3 text-xs outline-none focus:ring-1 focus:ring-[#2E4982] transition-all">
-            <button type="submit" class="w-10 h-10 bg-[#2E4982] rounded-xl flex items-center justify-center text-white shrink-0 hover:opacity-90 active:scale-95 transition-all">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-            </button>
-        </form>
     </div>
 
     <!-- DASHBOARD -->
@@ -636,6 +709,30 @@
             </div>
 
             <div id="dashboard-grid" class="grid grid-cols-1 md:grid-cols-2 gap-8 text-left">
+                <!-- TARJETA IA REDISEÑADA (ESTILO APPLE INTELLIGENCE) -->
+                <section id="card-ai" class="ai-card-glow rounded-[2.5rem] p-8 border border-white/50 relative overflow-hidden cursor-pointer group transition-transform hover:-translate-y-1" onclick="window.openAIModal()">
+                    <div class="relative z-10 flex flex-col justify-between h-full min-h-[220px]">
+                        <div class="flex items-start justify-between">
+                            <div>
+                                <span class="px-3 py-1 bg-white/50 backdrop-blur-md rounded-full text-[10px] font-extrabold text-[#2E4982] uppercase tracking-[0.2em] border border-white/60">Nuevo</span>
+                                <h3 class="text-2xl font-bold text-slate-800 mt-3 leading-tight">Asistente<br><span class="text-transparent bg-clip-text bg-gradient-to-r from-violet-600 to-blue-500">Inteligente</span></h3>
+                            </div>
+                            <div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-violet-100 to-blue-50 flex items-center justify-center text-blue-600 shadow-sm">
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path></svg>
+                            </div>
+                        </div>
+                        <div class="space-y-4">
+                            <p class="text-[14px] text-slate-500 font-medium leading-relaxed">"¿Qué puedo comer si tengo antojo de dulce?"</p>
+                            <div class="flex items-center gap-2 text-xs font-bold text-[#2E4982] group-hover:gap-3 transition-all">
+                                <span>Iniciar conversación</span>
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"></path></svg>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Decorative blurred orb -->
+                    <div class="absolute -bottom-10 -right-10 w-48 h-48 bg-gradient-to-tr from-blue-200 to-violet-200 rounded-full blur-[60px] opacity-60 pointer-events-none"></div>
+                </section>
+
                 <section id="card-entrenamientos" class="bento-card min-h-[300px]">
                     <div class="w-14 h-14 bg-[#DEE9FA] rounded-2xl flex items-center justify-center mb-6 shrink-0"><img src="https://imnufit.com/wp-content/uploads/2022/01/iuiuo.png" class="w-11 h-11 object-contain text-left"></div>
                     <div class="text-left"><h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-1">Entrenaconfren+</h4><h3 class="text-2xl font-bold text-[#494949]">Entrenamientos</h3><p class="text-[14px] text-slate-500 mt-2 leading-relaxed text-left">Accede a tus rutinas y guías.</p></div>
@@ -670,7 +767,7 @@
         <main class="max-w-xl mx-auto py-16 px-6 fade-in space-y-12 flex flex-col items-center text-center">
             <div id="program-img-container" class="flex justify-center"><img id="program-img-main" src="" class="object-contain mix-blend-multiply text-center"></div>
             <div class="w-full space-y-8 text-center">
-                <div class="space-y-2 text-center text-center">
+                <div class="space-y-2 text-center">
                     <p class="text-[#2E4982] text-[9px] font-extrabold uppercase tracking-[0.5em] text-center">Material Oficial</p>
                     <h3 class="text-2xl font-bold text-slate-800 text-center">Recursos de tu Tratamiento</h3>
                 </div>
@@ -704,7 +801,7 @@
                         <div class="flex justify-between items-center text-[10px] uppercase font-black tracking-widest text-white/40 pt-2 border-t border-white/5 text-left"><span>Sábados - Domingos</span><span class="italic text-left">Cerrado</span></div>
                     </div>
                 </div>
-                <a href="https://wa.me/14076325438" target="_blank" class="block w-full bg-white text-[#2E4982] py-5 rounded-full text-[11px] font-black uppercase tracking-widest text-center shadow-lg hover:scale-[1.02] transition-transform">Iniciar Chat</a>
+                <a href="https://wa.me/14076325438" target="_blank" class="block w-full bg-white text-[#2E4982] py-5 rounded-full text-[11px] font-black uppercase tracking-widest text-center shadow-lg hover:scale-[1.02] transition-transform text-center">Iniciar Chat</a>
             </div>
             <div class="grid gap-4 text-left">
                 <p class="text-slate-300 text-[10px] font-black uppercase tracking-[0.5em] text-center text-left">Nuestras Redes</p>
