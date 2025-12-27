@@ -30,7 +30,6 @@
         const db = getFirestore(app);
 
         // --- CONFIGURACIÓN IA (GEMINI) ---
-        // NOTA: Para funcionalidad real, reemplaza esto con tu API Key válida de Gemini
         const apiKey = ""; 
 
         // --- CONFIGURACIÓN MODO ESPECIALISTA ---
@@ -217,7 +216,7 @@
         window.openDesktopAIModal = () => {
             const modal = document.getElementById('ai-modal-overlay');
             modal.classList.remove('hidden');
-            modal.classList.add('flex'); // Solo añadir flex al abrir
+            modal.classList.add('flex'); // AÑADIMOS FLEX SOLO AL ABRIR
             void modal.offsetWidth; 
             modal.classList.remove('opacity-0');
             modal.querySelector('div').classList.remove('scale-95', 'opacity-0');
@@ -230,7 +229,7 @@
             modal.querySelector('div').classList.add('scale-95', 'opacity-0');
             setTimeout(() => {
                 modal.classList.add('hidden');
-                modal.classList.remove('flex'); // Quitar flex al cerrar
+                modal.classList.remove('flex'); // QUITAMOS FLEX AL CERRAR
             }, 300);
         };
 
@@ -249,44 +248,6 @@
             document.getElementById('ai-messages-mobile').insertAdjacentHTML('beforeend', loadingHtml);
             document.getElementById('ai-messages-desktop').insertAdjacentHTML('beforeend', loadingHtml);
             scrollToBottom();
-
-            // MODO DEMO CHECK INTELIGENTE
-            if (!apiKey) {
-                setTimeout(() => {
-                    document.querySelectorAll('.ai-loading-indicator').forEach(el => el.remove());
-                    
-                    let demoResponse = "";
-                    const lowerMsg = userMessage.toLowerCase();
-
-                    // Simulación de IA básica para que el usuario no sienta que está roto
-                    if (lowerMsg.match(/(hola|buenos|buenas|qué tal)/)) {
-                        demoResponse = "¡Hola! 👋 Me alegra saludarte. Aunque estoy en **Modo Demo**, estoy aquí para apoyarte. ¿Quieres revisar tus entrenamientos o tu plan de alimentación?";
-                    } 
-                    else if (lowerMsg.includes("cómo estás") || lowerMsg.includes("como estas")) {
-                        demoResponse = "¡Estoy genial y listo para motivarte! 💪 Gracias por preguntar. ¿En qué puedo ayudarte hoy?\n\n- [Ver mi Progreso](function:card-reporte)\n- [Ir a Entrenamientos](https://imnufit.com/entrenaconfrenplus/)";
-                    } 
-                    else if (lowerMsg.includes("entren") || lowerMsg.includes("ejercicio")) {
-                        demoResponse = "¡Excelente iniciativa! El movimiento es clave. Aquí tienes acceso directo:\n\n[Ir a Entrenamientos](https://imnufit.com/entrenaconfrenplus/)";
-                    } 
-                    else if (lowerMsg.includes("cita") || lowerMsg.includes("reserva")) {
-                        demoResponse = "Claro, es importante mantener el seguimiento. Puedes agendar aquí:\n\n[Reservar Cita en Calendar](${CALENDAR_LINK_DEFAULT})";
-                    } 
-                    else if (lowerMsg.includes("dieta") || lowerMsg.includes("comer") || lowerMsg.includes("plan")) {
-                        demoResponse = "Para ver los detalles de tu alimentación, te recomiendo ir a la sección de recursos:\n\n[Ver Guías PDF](function:program-detail-view)";
-                    }
-                    else if (lowerMsg.includes("gracias")) {
-                        demoResponse = "¡Con gusto! Recuerda: **Todo lo puedo en Cristo que me fortalece.** ¡Sigue así!";
-                    }
-                    else {
-                        // Respuesta genérica de fallback
-                        demoResponse = "Entiendo. Al estar en **Modo Demo** (sin API Key real), mi capacidad es limitada, pero aquí tienes atajos útiles:\n\n- [Ver mi Programa](function:program-detail-view)\n- [Contactar Soporte](function:contact-view)\n- [Mis Datos](function:membership-view)";
-                    }
-                    
-                    appendChatMessageToAll('ai', demoResponse);
-                    chatHistory.push({ role: 'user', text: userMessage }, { role: 'ai', text: demoResponse });
-                }, 1500); 
-                return;
-            }
 
             // PREPARAR DATOS
             const nombreCompleto = cachedAirtableData?.["Nombre + Edad"] || "Paciente";
@@ -325,7 +286,7 @@
                 chatHistory.push({ role: 'user', text: userMessage }, { role: 'ai', text: aiText });
             } catch (error) {
                 document.querySelectorAll('.ai-loading-indicator').forEach(el => el.remove());
-                window.notify("Error con la IA");
+                window.notify("Error con la IA: " + error.message);
             }
         };
 
