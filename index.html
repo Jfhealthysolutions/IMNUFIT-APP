@@ -203,25 +203,31 @@
             modal.classList.remove('hidden');
             setTimeout(() => {
                 modal.classList.remove('opacity-0');
-                modal.querySelector('div').classList.remove('scale-100', 'opacity-0');
-                // En móvil usamos scale-100 para full screen, en desktop scale-95
+                // En móvil (default), quitamos escala y opacidad para full screen
+                const modalContent = modal.querySelector('div');
+                modalContent.classList.remove('scale-100', 'opacity-0');
+                
+                // En desktop, manejamos la escala 95->100
                 if(window.innerWidth >= 768) {
-                     modal.querySelector('div').classList.remove('md:scale-95');
+                     modalContent.classList.remove('md:scale-95');
                 }
             }, 10);
             
-            // Pequeño delay para el focus en móvil para evitar saltos bruscos
+            // Focus con delay para evitar saltos en móvil
             setTimeout(() => {
-                document.getElementById('ai-input').focus();
+                const input = document.getElementById('ai-input');
+                if(input) input.focus();
             }, 100);
         };
 
         window.closeAIModal = () => {
             const modal = document.getElementById('ai-modal-overlay');
+            const modalContent = modal.querySelector('div');
+            
             modal.classList.add('opacity-0');
-            modal.querySelector('div').classList.add('scale-100', 'opacity-0'); // Reset mobile scale
+            modalContent.classList.add('scale-100', 'opacity-0'); 
             if(window.innerWidth >= 768) {
-                 modal.querySelector('div').classList.add('md:scale-95');
+                 modalContent.classList.add('md:scale-95');
             }
             setTimeout(() => {
                 modal.classList.add('hidden');
@@ -621,10 +627,10 @@
     </div>
 
     <!-- MODAL DE IA (ESTILO SPOTLIGHT) -->
-    <div id="ai-modal-overlay" class="fixed inset-0 z-[1000] bg-white/30 backdrop-blur-xl hidden opacity-0 transition-opacity duration-300 flex items-end md:items-center justify-center md:p-4">
-        <div class="bg-white w-full md:max-w-2xl h-[100dvh] md:h-[70vh] md:rounded-[2.5rem] shadow-2xl border border-white/60 flex flex-col overflow-hidden scale-100 md:scale-95 opacity-0 transition-all duration-300 relative">
+    <div id="ai-modal-overlay" class="fixed inset-0 z-[2000] bg-white md:bg-white/30 md:backdrop-blur-xl hidden opacity-0 transition-opacity duration-300 md:flex md:items-center md:justify-center md:p-4">
+        <div class="fixed inset-0 md:relative md:inset-auto bg-white w-full h-full md:max-w-2xl md:h-[70vh] md:rounded-[2.5rem] shadow-2xl border-0 md:border border-white/60 flex flex-col overflow-hidden opacity-0 transition-all duration-300 z-[2001] scale-100 md:scale-95">
             <!-- Header Modal -->
-            <div class="h-16 flex items-center justify-between px-8 border-b border-slate-50 shrink-0 bg-white/80 backdrop-blur-md z-10">
+            <div class="h-16 flex items-center justify-between px-6 md:px-8 border-b border-slate-50 shrink-0 bg-white/80 backdrop-blur-md z-10">
                 <div class="flex items-center gap-3">
                     <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-violet-500 to-blue-500 flex items-center justify-center text-white shadow-lg shadow-blue-500/20">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
@@ -637,7 +643,7 @@
             </div>
 
             <!-- Chat Area -->
-            <div id="ai-chat-messages" class="flex-1 overflow-y-auto p-8 space-y-6 scroll-smooth bg-[#FBFBFC]">
+            <div id="ai-chat-messages" class="flex-1 overflow-y-auto p-6 md:p-8 space-y-6 scroll-smooth bg-[#FBFBFC]">
                 <div class="flex justify-center mb-8">
                     <p class="text-xs text-slate-400 font-medium uppercase tracking-widest">Hoy</p>
                 </div>
@@ -649,7 +655,7 @@
             </div>
 
             <!-- Input Area -->
-            <div class="p-6 bg-white shrink-0">
+            <div class="p-4 md:p-6 bg-white shrink-0 safe-area-pb">
                 <div class="relative flex items-center gap-3 bg-slate-50 border border-slate-200 rounded-[1.5rem] px-2 py-2 shadow-inner focus-within:ring-2 focus-within:ring-blue-100 transition-all">
                     <input id="ai-input" type="text" placeholder="Pregúntame sobre recetas, ayuno o tu progreso..." class="flex-1 bg-transparent border-none outline-none px-4 py-3 text-slate-700 placeholder:text-slate-400 text-[15px]" onkeypress="if(event.key==='Enter') window.sendMessageToAI()">
                     <button onclick="window.sendMessageToAI()" class="w-12 h-12 bg-[#2E4982] hover:bg-[#1e315a] text-white rounded-2xl flex items-center justify-center shadow-lg shadow-blue-900/10 transition-transform active:scale-95">
