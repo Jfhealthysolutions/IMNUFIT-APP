@@ -30,6 +30,7 @@
         const db = getFirestore(app);
 
         // --- CONFIGURACIÓN IA (GEMINI) ---
+        // NOTA: Para funcionalidad real, reemplaza esto con tu API Key válida de Gemini
         const apiKey = ""; 
 
         // --- CONFIGURACIÓN MODO ESPECIALISTA ---
@@ -197,19 +198,17 @@
         }
 
         window.handleAIAction = (viewId) => {
-            window.closeDesktopAIModal(); // Cierra modal desktop si está abierto
-            window.showView(viewId); // Navega a la vista (funciona para móvil y desktop)
+            window.closeDesktopAIModal(); 
+            window.showView(viewId); 
         };
 
         // LÓGICA HÍBRIDA DE APERTURA DE CHAT
         window.openAIChat = () => {
-            const isMobile = window.innerWidth < 768; // Tailwind md breakpoint
+            const isMobile = window.innerWidth < 768; 
             if (isMobile) {
-                // MÓVIL: Abrir como una VISTA completa (esconde homepage)
                 window.showView('mobile-ai-view');
                 setTimeout(() => document.getElementById('ai-input-mobile').focus(), 100);
             } else {
-                // DESKTOP: Abrir como MODAL (sobre homepage)
                 window.openDesktopAIModal();
             }
         };
@@ -217,10 +216,8 @@
         // Lógica Modal Desktop
         window.openDesktopAIModal = () => {
             const modal = document.getElementById('ai-modal-overlay');
-            modal.classList.remove('hidden', 'pointer-events-none'); // Enable pointer events
-            modal.classList.add('flex', 'pointer-events-auto'); // AGREGADO: Forzar flex al abrir
-            
-            // Forzar reflow
+            modal.classList.remove('hidden');
+            modal.classList.add('flex'); // Solo añadir flex al abrir
             void modal.offsetWidth; 
             modal.classList.remove('opacity-0');
             modal.querySelector('div').classList.remove('scale-95', 'opacity-0');
@@ -229,51 +226,80 @@
 
         window.closeDesktopAIModal = () => {
             const modal = document.getElementById('ai-modal-overlay');
-            modal.classList.add('opacity-0', 'pointer-events-none'); // Disable pointer events
-            modal.classList.remove('pointer-events-auto');
+            modal.classList.add('opacity-0');
             modal.querySelector('div').classList.add('scale-95', 'opacity-0');
             setTimeout(() => {
                 modal.classList.add('hidden');
-                modal.classList.remove('flex'); // AGREGADO: Quitar flex al cerrar
+                modal.classList.remove('flex'); // Quitar flex al cerrar
             }, 300);
         };
 
         window.sendMessageToAI = async (source) => {
-            // Determinar origen (móvil o desktop)
             const inputId = source === 'mobile' ? 'ai-input-mobile' : 'ai-input-desktop';
             const input = document.getElementById(inputId);
             const userMessage = input.value.trim();
             if (!userMessage) return;
 
-            // Limpiar inputs
             document.getElementById('ai-input-mobile').value = '';
             document.getElementById('ai-input-desktop').value = '';
 
-            // Mostrar mensaje en AMBOS chats para sincronización
             appendChatMessageToAll('user', userMessage);
             
-            // Loading en AMBOS chats
             const loadingHtml = `<div class="ai-loading-indicator flex justify-start mb-4"><div class="bg-slate-100 text-slate-400 px-4 py-2 rounded-2xl text-[11px] animate-pulse italic">Analizando...</div></div>`;
             document.getElementById('ai-messages-mobile').insertAdjacentHTML('beforeend', loadingHtml);
             document.getElementById('ai-messages-desktop').insertAdjacentHTML('beforeend', loadingHtml);
             scrollToBottom();
 
-            // PREPARAR DATOS DEL PACIENTE
+            // MODO DEMO CHECK INTELIGENTE
+            if (!apiKey) {
+                setTimeout(() => {
+                    document.querySelectorAll('.ai-loading-indicator').forEach(el => el.remove());
+                    
+                    let demoResponse = "";
+                    const lowerMsg = userMessage.toLowerCase();
+
+                    // Simulación de IA básica para que el usuario no sienta que está roto
+                    if (lowerMsg.match(/(hola|buenos|buenas|qué tal)/)) {
+                        demoResponse = "¡Hola! 👋 Me alegra saludarte. Aunque estoy en **Modo Demo**, estoy aquí para apoyarte. ¿Quieres revisar tus entrenamientos o tu plan de alimentación?";
+                    } 
+                    else if (lowerMsg.includes("cómo estás") || lowerMsg.includes("como estas")) {
+                        demoResponse = "¡Estoy genial y listo para motivarte! 💪 Gracias por preguntar. ¿En qué puedo ayudarte hoy?\n\n- [Ver mi Progreso](function:card-reporte)\n- [Ir a Entrenamientos](https://imnufit.com/entrenaconfrenplus/)";
+                    } 
+                    else if (lowerMsg.includes("entren") || lowerMsg.includes("ejercicio")) {
+                        demoResponse = "¡Excelente iniciativa! El movimiento es clave. Aquí tienes acceso directo:\n\n[Ir a Entrenamientos](https://imnufit.com/entrenaconfrenplus/)";
+                    } 
+                    else if (lowerMsg.includes("cita") || lowerMsg.includes("reserva")) {
+                        demoResponse = "Claro, es importante mantener el seguimiento. Puedes agendar aquí:\n\n[Reservar Cita en Calendar](${CALENDAR_LINK_DEFAULT})";
+                    } 
+                    else if (lowerMsg.includes("dieta") || lowerMsg.includes("comer") || lowerMsg.includes("plan")) {
+                        demoResponse = "Para ver los detalles de tu alimentación, te recomiendo ir a la sección de recursos:\n\n[Ver Guías PDF](function:program-detail-view)";
+                    }
+                    else if (lowerMsg.includes("gracias")) {
+                        demoResponse = "¡Con gusto! Recuerda: **Todo lo puedo en Cristo que me fortalece.** ¡Sigue así!";
+                    }
+                    else {
+                        // Respuesta genérica de fallback
+                        demoResponse = "Entiendo. Al estar en **Modo Demo** (sin API Key real), mi capacidad es limitada, pero aquí tienes atajos útiles:\n\n- [Ver mi Programa](function:program-detail-view)\n- [Contactar Soporte](function:contact-view)\n- [Mis Datos](function:membership-view)";
+                    }
+                    
+                    appendChatMessageToAll('ai', demoResponse);
+                    chatHistory.push({ role: 'user', text: userMessage }, { role: 'ai', text: demoResponse });
+                }, 1500); 
+                return;
+            }
+
+            // PREPARAR DATOS
             const nombreCompleto = cachedAirtableData?.["Nombre + Edad"] || "Paciente";
             const nombrePila = nombreCompleto.split(' ')[0] || "Paciente";
             const linkCalendar = cachedAirtableData?.["Link Calendar"] || CALENDAR_LINK_DEFAULT;
             const programaActual = cachedAirtableData?.Programa || 'No asignado aún';
             
             const systemPrompt = `Eres el Especialista IA de IMNUFIT. Estás hablando con **${nombreCompleto}**. Llámalo por su nombre (${nombrePila}) para ser cercano y amable.
-            
             Tu objetivo es motivar y guiar en su programa (${programaActual}).
-            
             Tu tono es profesional, motivador y breve. Usa **negritas** para resaltar ideas clave.
-            
             IMPORTANTE: Si el usuario quiere realizar una acción disponible en la app, DEBES facilitar el botón usando este formato exacto de Markdown:
             [TEXTO DEL BOTÓN](link_o_funcion)
-
-            LISTA DE ACCIONES DISPONIBLES (Úsalas cuando sea relevante):
+            LISTA DE ACCIONES DISPONIBLES:
             - Ver Entrenamientos: [Ir a Entrenamientos](https://imnufit.com/entrenaconfrenplus/)
             - Reportar Progreso: [Llenar Reporte Mensual](https://airtable.com/appCHcm7XPzeoyBCs/pagh79fwniuSPmusB/form)
             - Agendar Cita: [Reservar Cita](${linkCalendar})
@@ -288,22 +314,15 @@
                 const payload = {
                     contents: [{ parts: [{ text: `CONTEXTO DEL SISTEMA: ${systemPrompt}\n\nHISTORIAL: ${JSON.stringify(chatHistory)}\n\nUSUARIO: ${userMessage}` }] }]
                 };
-
                 const data = await fetchWithRetry(url, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
                 });
-
                 const aiText = data.candidates?.[0]?.content?.parts?.[0]?.text || "No pude procesar eso ahora.";
-                
-                // Quitar loading
                 document.querySelectorAll('.ai-loading-indicator').forEach(el => el.remove());
-                
-                // Mostrar respuesta en AMBOS chats
                 appendChatMessageToAll('ai', aiText);
                 chatHistory.push({ role: 'user', text: userMessage }, { role: 'ai', text: aiText });
-
             } catch (error) {
                 document.querySelectorAll('.ai-loading-indicator').forEach(el => el.remove());
                 window.notify("Error con la IA");
@@ -331,7 +350,6 @@
             if(desk) desk.scrollTo(0, desk.scrollHeight);
         }
 
-        // --- NAVEGACIÓN ---
         window.showView = (viewId, saveHistory = true) => {
             const views = ['login-view', 'signup-view', 'patient-view', 'membership-view', 'program-detail-view', 'forgot-password-view', 'contact-view', 'mobile-ai-view'];
             views.forEach(id => {
@@ -362,7 +380,6 @@
             }
         };
 
-        // --- MODO ESPECIALISTA ---
         window.updateSpecMode = (val) => {
             specModeSelection = val;
             refreshUIWithData();
@@ -408,42 +425,32 @@
 
         function updateDashboardUI(airtableData) {
             if (!airtableData) return;
-            
             const infoPaciente = airtableData["Nombre + Edad"] || "Usuario IMNUFIT";
             safeSetText('display-nombre', infoPaciente);
-            
-            // ACTUALIZAR MENSAJES DE BIENVENIDA DE IA (MOVIL Y DESKTOP)
             const nombrePila = infoPaciente.split(' ')[0] || "Paciente";
             const welcomeMsg = `Hola <strong>${nombrePila}</strong>, soy tu asistente personal de nutrición. Conozco cada detalle de tu plan en IMNUFIT. ¿En qué puedo guiarte hoy?`;
-            
             const mobWel = document.getElementById('ai-welcome-text-mobile');
             const deskWel = document.getElementById('ai-welcome-text-desktop');
             if (mobWel) mobWel.innerHTML = welcomeMsg;
             if (deskWel) deskWel.innerHTML = welcomeMsg;
-
             const g = getGreeting();
             safeUpdate('display-greeting', (el) => el.innerHTML = `<span class="text-xl mr-2">${g.icon}</span> ${g.text}`);
-            
             const status = airtableData["Estatus"] || "Activo";
             safeUpdate('display-estatus', (el) => {
                 el.textContent = status;
                 el.className = `px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-widest border inline-block mt-2 ${getStatusClass(status)}`;
             });
-
             const rawProgramName = airtableData["Programa"] || "";
             const progKey = getProgramKey(rawProgramName);
-            
             let currentMesNum = 1;
             if (rawProgramName.includes("Mes 2")) currentMesNum = 2;
             else if (rawProgramName.includes("Mes 3")) currentMesNum = 3;
             else if (rawProgramName.includes("Mes 4")) currentMesNum = 4;
-
             const sLow = status.toLowerCase();
             const isInactive = sLow.includes("inactivo");
             const isPorAsignar = sLow.includes("por asignar");
             const isPausa = sLow.includes("pausa");
             const isRestricted = (isInactive || isPorAsignar || isPausa) && !isSpecialistMode;
-
             const featuredBanner = document.getElementById('featured-plan-banner');
             const restrictedBanner = document.getElementById('restricted-banner');
             const aiCard = document.getElementById('card-ai');
@@ -454,7 +461,6 @@
                 if (aiCard) aiCard.classList.add('hidden');
                 safeSetText('restricted-banner-title', isPorAsignar ? "Plan en Preparación" : "Portal de Seguimiento");
                 safeSetText('restricted-banner-body', isPorAsignar ? "Tu membresía está activa y estamos diseñando tu estrategia personalizada. Tu plan será asignado oficialmente en nuestra próxima consulta. ¡Estamos listos para empezar!" : "Tu membresía no tiene un plan activo en este momento. Puedes consultar nuestras opciones de suscripción en nuestra web oficial.");
-
                 const restrictedBtnCont = document.getElementById('restricted-btn-container');
                 if (restrictedBtnCont) {
                     if (isInactive) {
@@ -468,7 +474,6 @@
                 if (progKey && PROGRAMAS_INFO[progKey] && featuredBanner) {
                     featuredBanner.classList.remove('hidden');
                     safeSetText('plan-banner-title', rawProgramName);
-                    
                     window.viewProgramResources = () => {
                         const data = PROGRAMAS_INFO[progKey];
                         const container = document.getElementById('program-guias-list');
@@ -479,10 +484,8 @@
                                 const monthCard = document.createElement('div');
                                 monthCard.className = "w-full bg-white rounded-[2rem] p-6 border border-slate-100 shadow-sm mb-6 fade-in";
                                 monthCard.style.animationDelay = `${(i-1)*0.1}s`;
-                                
                                 let monthTitleText = `MES ${i}`;
                                 if (data.monthTitles && data.monthTitles[i]) monthTitleText = data.monthTitles[i];
-
                                 monthCard.innerHTML = `<h4 class="text-xs font-extrabold text-slate-400 uppercase tracking-[0.2em] mb-4 text-center">${monthTitleText}</h4>`;
                                 const list = document.createElement('div');
                                 list.className = "flex flex-col gap-3";
@@ -513,32 +516,26 @@
                     };
                 } else if (featuredBanner) { featuredBanner.classList.add('hidden'); }
             }
-
             const hideCards = (isInactive || isPorAsignar) && !isSpecialistMode;
             ['card-entrenamientos', 'card-reporte', 'card-citas', 'card-consultas', 'card-ai'].forEach(id => {
                 safeUpdate(id, el => el.classList.toggle('hidden', hideCards));
             });
-
             if (isPausa && !isSpecialistMode) {
                 ['card-entrenamientos', 'card-reporte', 'card-citas', 'card-ai'].forEach(id => safeUpdate(id, el => el.classList.add('hidden')));
                 safeUpdate('card-consultas', el => el.classList.remove('hidden'));
             }
-
             const calLink = airtableData["Link Calendar"] || CALENDAR_LINK_DEFAULT;
             safeUpdate('calendar-action-container', el => el.innerHTML = `<a href="${calLink}" target="_blank" class="btn-ghost-sm text-center">Ir al Calendario</a>`);
-
             const btnHist = document.getElementById('btn-consultas-action');
             if (btnHist) {
                 btnHist.href = airtableData["Link Consultas"] || "#";
                 btnHist.style.opacity = btnHist.href.includes("#") ? "0.4" : "1";
             }
-
             safeSetText('acc-nombre', infoPaciente);
             safeSetText('acc-nacimiento', window.formatDateMDY(airtableData["Fecha de Nacimiento"]));
             safeSetText('acc-email', auth.currentUser?.email || "--");
             safeSetText('acc-pais', airtableData["País"] || "--");
             safeSetText('acc-telefono', airtableData["Telefono"] || "--");
-
             const genero = String(airtableData["Género"] || "");
             safeUpdate('acc-genero', el => {
                 el.textContent = genero;
@@ -546,7 +543,6 @@
                 else if (genero.toLowerCase().includes("femenino")) el.className = "px-4 py-1.5 rounded-full text-[10px] font-extrabold bg-rose-50 text-rose-600 border border-rose-100 uppercase tracking-widest shadow-sm inline-block";
                 else el.className = "hidden";
             });
-
             safeSetText('display-frase', frasesCreyentes[Math.floor(Math.random() * frasesCreyentes.length)]);
         }
 
@@ -568,7 +564,6 @@
                 isSpecialistMode = (user.email === SPECIALIST_EMAIL);
                 const panel = document.getElementById('specialist-panel');
                 if(panel) panel.classList.toggle('hidden', !isSpecialistMode);
-
                 const airtableData = await fetchAirtableData(user.email);
                 cachedAirtableData = airtableData;
                 refreshUIWithData();
@@ -587,7 +582,6 @@
         window.handlePasswordReset = async (e) => { e.preventDefault(); const email = e.target.resetEmail.value; try { document.getElementById('loading-screen').classList.remove('hidden'); await sendPasswordResetEmail(auth, email); window.notify("Correo enviado", "success"); window.showView('login-view'); } catch (err) { window.notify("Error de envío"); } finally { document.getElementById('loading-screen').classList.add('hidden'); } };
         window.updateAppPassword = async (e) => { e.preventDefault(); const newPass = e.target.newPassword.value; const user = auth.currentUser; if(!user) return; try { document.getElementById('loading-screen').classList.remove('hidden'); await updatePassword(user, newPass); window.notify("Clave actualizada", "success"); e.target.reset(); } catch (err) { window.notify("Sesión expirada"); } finally { document.getElementById('loading-screen').classList.add('hidden'); } };
         window.cerrarSesion = () => signOut(auth);
-
     </script>
     <style>
         :root { --primary: #2E4982; --apple-bg: #FBFBFC; }
@@ -607,19 +601,15 @@
         .fade-in { animation: fadeIn 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
         .mix-blend-multiply { mix-blend-mode: multiply; }
-        
         #specialist-panel { background: #2E4982; border-bottom: 2px solid #1e315a; position: sticky; top: 0; z-index: 500; color: white; padding: 10px 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
         .spec-select { background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; font-size: 10px; font-weight: 700; padding: 6px 12px; outline: none; color: white; cursor: pointer; text-transform: uppercase; letter-spacing: 0.05em; }
         .spec-select option { color: #333; }
-
         /* APPLE INTELLIGENCE GLOW EFFECT */
         @keyframes ai-breathing {
             0%, 100% { box-shadow: 0 0 20px rgba(139, 92, 246, 0.2), 0 0 40px rgba(59, 130, 246, 0.1); border-color: rgba(139, 92, 246, 0.3); }
             50% { box-shadow: 0 0 30px rgba(139, 92, 246, 0.4), 0 0 60px rgba(59, 130, 246, 0.2); border-color: rgba(59, 130, 246, 0.5); }
         }
         .ai-card-glow { animation: ai-breathing 4s infinite ease-in-out; background: linear-gradient(135deg, #ffffff 0%, #f0f7ff 100%); }
-        
-        /* SCROLLBAR */
         ::-webkit-scrollbar { width: 4px; }
         ::-webkit-scrollbar-thumb { background: #E2E8F0; border-radius: 10px; }
     </style>
@@ -650,7 +640,13 @@
             <button onclick="window.showView('patient-view')" class="flex items-center gap-2 text-slate-400 hover:text-[#2E4982] font-bold text-xs uppercase tracking-widest transition-colors"><svg class="w-4 h-4 transform group-hover:-translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path d="M15 19l-7-7 7-7"></path></svg> Volver</button>
             <div class="flex flex-col items-center">
                 <span class="text-[10px] font-bold text-[#2E4982] uppercase tracking-[0.3em]">Asistente</span>
-                <h2 class="text-sm font-bold text-slate-800 uppercase tracking-tight">Inteligente</h2>
+                <div class="flex items-center gap-1.5">
+                    <span class="relative flex h-2 w-2">
+                      <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                      <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                    </span>
+                    <span class="text-[10px] font-medium text-emerald-600 uppercase tracking-wider">En línea</span>
+                </div>
             </div>
             <div class="w-10"></div>
         </header>
@@ -677,15 +673,19 @@
     </section>
 
     <!-- DESKTOP MODAL (ESTILO SPOTLIGHT) - SOLO VISIBLE EN PANTALLAS GRANDES -->
-    <div id="ai-modal-overlay" class="fixed inset-0 z-[2000] bg-white/30 backdrop-blur-xl hidden opacity-0 transition-opacity duration-300 items-center justify-center p-4 pointer-events-none">
+    <div id="ai-modal-overlay" class="fixed inset-0 z-[2000] bg-white/30 backdrop-blur-xl hidden opacity-0 transition-opacity duration-300 items-center justify-center p-4">
         <div class="bg-white w-full max-w-2xl h-[70vh] rounded-[2.5rem] shadow-2xl border border-white/60 flex flex-col overflow-hidden scale-95 opacity-0 transition-all duration-300 relative pointer-events-auto">
             <!-- Header Modal -->
             <div class="h-16 flex items-center justify-between px-8 border-b border-slate-50 shrink-0 bg-white/80 backdrop-blur-md z-10">
-                <div class="flex items-center gap-3">
-                    <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-violet-500 to-blue-500 flex items-center justify-center text-white shadow-lg shadow-blue-500/20">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                <div class="flex flex-col">
+                    <span class="font-bold text-sm text-slate-800">Asistente IMNUFIT</span>
+                    <div class="flex items-center gap-1.5 mt-0.5">
+                        <span class="relative flex h-1.5 w-1.5">
+                          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                          <span class="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
+                        </span>
+                        <span class="text-[9px] font-bold text-emerald-600 uppercase tracking-widest">En línea</span>
                     </div>
-                    <span class="text-sm font-bold text-slate-800">Asistente IMNUFIT</span>
                 </div>
                 <button onclick="window.closeDesktopAIModal()" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition-colors">
                     <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l18 18"></path></svg>
