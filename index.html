@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>IMNUFIT - Portal del Paciente</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -203,15 +203,26 @@
             modal.classList.remove('hidden');
             setTimeout(() => {
                 modal.classList.remove('opacity-0');
-                modal.querySelector('div').classList.remove('scale-95', 'opacity-0');
+                modal.querySelector('div').classList.remove('scale-100', 'opacity-0');
+                // En móvil usamos scale-100 para full screen, en desktop scale-95
+                if(window.innerWidth >= 768) {
+                     modal.querySelector('div').classList.remove('md:scale-95');
+                }
             }, 10);
-            document.getElementById('ai-input').focus();
+            
+            // Pequeño delay para el focus en móvil para evitar saltos bruscos
+            setTimeout(() => {
+                document.getElementById('ai-input').focus();
+            }, 100);
         };
 
         window.closeAIModal = () => {
             const modal = document.getElementById('ai-modal-overlay');
             modal.classList.add('opacity-0');
-            modal.querySelector('div').classList.add('scale-95', 'opacity-0');
+            modal.querySelector('div').classList.add('scale-100', 'opacity-0'); // Reset mobile scale
+            if(window.innerWidth >= 768) {
+                 modal.querySelector('div').classList.add('md:scale-95');
+            }
             setTimeout(() => {
                 modal.classList.add('hidden');
             }, 300);
@@ -232,7 +243,6 @@
 
             // PREPARAR DATOS DEL PACIENTE
             const nombreCompleto = cachedAirtableData?.["Nombre + Edad"] || "Paciente";
-            // Intentar extraer solo el primer nombre (ej. "Jorge 35" -> "Jorge")
             const nombrePila = nombreCompleto.split(' ')[0] || "Paciente";
             const linkCalendar = cachedAirtableData?.["Link Calendar"] || CALENDAR_LINK_DEFAULT;
             const programaActual = cachedAirtableData?.Programa || 'No asignado aún';
@@ -611,8 +621,8 @@
     </div>
 
     <!-- MODAL DE IA (ESTILO SPOTLIGHT) -->
-    <div id="ai-modal-overlay" class="fixed inset-0 z-[1000] bg-white/30 backdrop-blur-xl hidden opacity-0 transition-opacity duration-300 flex items-center justify-center p-4">
-        <div class="bg-white w-full max-w-2xl h-[70vh] rounded-[2.5rem] shadow-2xl border border-white/60 flex flex-col overflow-hidden scale-95 opacity-0 transition-all duration-300 relative">
+    <div id="ai-modal-overlay" class="fixed inset-0 z-[1000] bg-white/30 backdrop-blur-xl hidden opacity-0 transition-opacity duration-300 flex items-end md:items-center justify-center md:p-4">
+        <div class="bg-white w-full md:max-w-2xl h-[100dvh] md:h-[70vh] md:rounded-[2.5rem] shadow-2xl border border-white/60 flex flex-col overflow-hidden scale-100 md:scale-95 opacity-0 transition-all duration-300 relative">
             <!-- Header Modal -->
             <div class="h-16 flex items-center justify-between px-8 border-b border-slate-50 shrink-0 bg-white/80 backdrop-blur-md z-10">
                 <div class="flex items-center gap-3">
