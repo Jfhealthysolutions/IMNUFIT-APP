@@ -172,7 +172,7 @@
 
             // 3. Botones de Acción (Internos): [Label](function:viewId)
             html = html.replace(/\[([^\]]+)\]\(function:([a-zA-Z0-9-]+)\)/g, 
-                `<button onclick="window.closeAIModal(); setTimeout(() => window.showView('$2'), 350)" class="mt-3 flex items-center gap-2 bg-[#2E4982]/10 text-[#2E4982] px-5 py-3 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-[#2E4982] hover:text-white transition-all shadow-sm w-full md:w-auto justify-center md:justify-start">
+                `<button onclick="window.handleAIAction('$2')" class="mt-3 flex items-center gap-2 bg-[#2E4982]/10 text-[#2E4982] px-5 py-3 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-[#2E4982] hover:text-white transition-all shadow-sm w-full md:w-auto justify-center md:justify-start">
                     <span>$1</span>
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
                 </button>`
@@ -188,7 +188,6 @@
 
             // 5. Listas (simple)
             html = html.replace(/^\s*-\s+(.*)$/gm, '<li class="ml-4 list-disc marker:text-[#2E4982] pl-1 mb-1">$1</li>');
-            // Envolver listas consecutivas (básico)
             html = html.replace(/(<li.*<\/li>)/s, '<ul class="my-2 space-y-1">$1</ul>');
 
             // 6. Saltos de línea
@@ -197,55 +196,67 @@
             return html;
         }
 
-        // Lógica de Modal
-        window.openAIModal = () => {
-            const modal = document.getElementById('ai-modal-overlay');
-            modal.classList.remove('hidden');
-            setTimeout(() => {
-                modal.classList.remove('opacity-0');
-                // En móvil (default), quitamos escala y opacidad para full screen
-                const modalContent = modal.querySelector('div');
-                modalContent.classList.remove('scale-100', 'opacity-0');
-                
-                // En desktop, manejamos la escala 95->100
-                if(window.innerWidth >= 768) {
-                     modalContent.classList.remove('md:scale-95');
-                }
-            }, 10);
-            
-            // Focus con delay para evitar saltos en móvil
-            setTimeout(() => {
-                const input = document.getElementById('ai-input');
-                if(input) input.focus();
-            }, 100);
+        window.handleAIAction = (viewId) => {
+            window.closeDesktopAIModal(); // Cierra modal desktop si está abierto
+            window.showView(viewId); // Navega a la vista (funciona para móvil y desktop)
         };
 
-        window.closeAIModal = () => {
-            const modal = document.getElementById('ai-modal-overlay');
-            const modalContent = modal.querySelector('div');
-            
-            modal.classList.add('opacity-0');
-            modalContent.classList.add('scale-100', 'opacity-0'); 
-            if(window.innerWidth >= 768) {
-                 modalContent.classList.add('md:scale-95');
+        // LÓGICA HÍBRIDA DE APERTURA DE CHAT
+        window.openAIChat = () => {
+            const isMobile = window.innerWidth < 768; // Tailwind md breakpoint
+            if (isMobile) {
+                // MÓVIL: Abrir como una VISTA completa (esconde homepage)
+                window.showView('mobile-ai-view');
+                setTimeout(() => document.getElementById('ai-input-mobile').focus(), 100);
+            } else {
+                // DESKTOP: Abrir como MODAL (sobre homepage)
+                window.openDesktopAIModal();
             }
+        };
+
+        // Lógica Modal Desktop
+        window.openDesktopAIModal = () => {
+            const modal = document.getElementById('ai-modal-overlay');
+            modal.classList.remove('hidden', 'pointer-events-none'); // Enable pointer events
+            modal.classList.add('flex', 'pointer-events-auto'); // AGREGADO: Forzar flex al abrir
+            
+            // Forzar reflow
+            void modal.offsetWidth; 
+            modal.classList.remove('opacity-0');
+            modal.querySelector('div').classList.remove('scale-95', 'opacity-0');
+            setTimeout(() => document.getElementById('ai-input-desktop').focus(), 100);
+        };
+
+        window.closeDesktopAIModal = () => {
+            const modal = document.getElementById('ai-modal-overlay');
+            modal.classList.add('opacity-0', 'pointer-events-none'); // Disable pointer events
+            modal.classList.remove('pointer-events-auto');
+            modal.querySelector('div').classList.add('scale-95', 'opacity-0');
             setTimeout(() => {
                 modal.classList.add('hidden');
+                modal.classList.remove('flex'); // AGREGADO: Quitar flex al cerrar
             }, 300);
         };
 
-        window.sendMessageToAI = async () => {
-            const input = document.getElementById('ai-input');
-            const chatContainer = document.getElementById('ai-chat-messages');
+        window.sendMessageToAI = async (source) => {
+            // Determinar origen (móvil o desktop)
+            const inputId = source === 'mobile' ? 'ai-input-mobile' : 'ai-input-desktop';
+            const input = document.getElementById(inputId);
             const userMessage = input.value.trim();
             if (!userMessage) return;
 
-            appendChatMessage('user', userMessage);
-            input.value = '';
+            // Limpiar inputs
+            document.getElementById('ai-input-mobile').value = '';
+            document.getElementById('ai-input-desktop').value = '';
+
+            // Mostrar mensaje en AMBOS chats para sincronización
+            appendChatMessageToAll('user', userMessage);
             
-            const loadingId = 'loading-' + Date.now();
-            chatContainer.innerHTML += `<div id="${loadingId}" class="flex justify-start mb-4"><div class="bg-slate-100 text-slate-400 px-4 py-2 rounded-2xl text-[11px] animate-pulse italic">Analizando...</div></div>`;
-            chatContainer.scrollTo(0, chatContainer.scrollHeight);
+            // Loading en AMBOS chats
+            const loadingHtml = `<div class="ai-loading-indicator flex justify-start mb-4"><div class="bg-slate-100 text-slate-400 px-4 py-2 rounded-2xl text-[11px] animate-pulse italic">Analizando...</div></div>`;
+            document.getElementById('ai-messages-mobile').insertAdjacentHTML('beforeend', loadingHtml);
+            document.getElementById('ai-messages-desktop').insertAdjacentHTML('beforeend', loadingHtml);
+            scrollToBottom();
 
             // PREPARAR DATOS DEL PACIENTE
             const nombreCompleto = cachedAirtableData?.["Nombre + Edad"] || "Paciente";
@@ -286,40 +297,43 @@
 
                 const aiText = data.candidates?.[0]?.content?.parts?.[0]?.text || "No pude procesar eso ahora.";
                 
-                document.getElementById(loadingId).remove();
-                appendChatMessage('ai', aiText);
+                // Quitar loading
+                document.querySelectorAll('.ai-loading-indicator').forEach(el => el.remove());
+                
+                // Mostrar respuesta en AMBOS chats
+                appendChatMessageToAll('ai', aiText);
                 chatHistory.push({ role: 'user', text: userMessage }, { role: 'ai', text: aiText });
 
             } catch (error) {
-                document.getElementById(loadingId).remove();
+                document.querySelectorAll('.ai-loading-indicator').forEach(el => el.remove());
                 window.notify("Error con la IA");
             }
         };
 
-        function appendChatMessage(role, text) {
-            const container = document.getElementById('ai-chat-messages');
-            const msgDiv = document.createElement('div');
-            
-            let contentHtml = text;
-            if (role === 'ai') {
-                contentHtml = parseAIResponse(text);
-            } else {
-                contentHtml = text.replace(/\n/g, '<br>');
-            }
-
-            msgDiv.className = `flex ${role === 'user' ? 'justify-end' : 'justify-start'} mb-6 fade-in`;
-            msgDiv.innerHTML = `
-                <div class="max-w-[85%] px-5 py-4 rounded-[1.4rem] text-[14px] leading-relaxed ${role === 'user' ? 'bg-[#2E4982] text-white rounded-tr-sm' : 'bg-white border border-slate-100 text-slate-600 rounded-tl-sm shadow-sm'}">
-                    ${contentHtml}
+        function appendChatMessageToAll(role, text) {
+            const contentHtml = role === 'ai' ? parseAIResponse(text) : text.replace(/\n/g, '<br>');
+            const msgHtml = `
+                <div class="flex ${role === 'user' ? 'justify-end' : 'justify-start'} mb-6 fade-in">
+                    <div class="max-w-[85%] px-5 py-4 rounded-[1.4rem] text-[14px] leading-relaxed ${role === 'user' ? 'bg-[#2E4982] text-white rounded-tr-sm' : 'bg-white border border-slate-100 text-slate-600 rounded-tl-sm shadow-sm'}">
+                        ${contentHtml}
+                    </div>
                 </div>
             `;
-            container.appendChild(msgDiv);
-            container.scrollTo(0, container.scrollHeight);
+            document.getElementById('ai-messages-mobile').insertAdjacentHTML('beforeend', msgHtml);
+            document.getElementById('ai-messages-desktop').insertAdjacentHTML('beforeend', msgHtml);
+            scrollToBottom();
+        }
+
+        function scrollToBottom() {
+            const mob = document.getElementById('ai-messages-mobile');
+            const desk = document.getElementById('ai-messages-desktop');
+            if(mob) mob.scrollTo(0, mob.scrollHeight);
+            if(desk) desk.scrollTo(0, desk.scrollHeight);
         }
 
         // --- NAVEGACIÓN ---
         window.showView = (viewId, saveHistory = true) => {
-            const views = ['login-view', 'signup-view', 'patient-view', 'membership-view', 'program-detail-view', 'forgot-password-view', 'contact-view'];
+            const views = ['login-view', 'signup-view', 'patient-view', 'membership-view', 'program-detail-view', 'forgot-password-view', 'contact-view', 'mobile-ai-view'];
             views.forEach(id => {
                 const el = document.getElementById(id);
                 if (el) el.classList.toggle('hidden', id !== viewId);
@@ -398,12 +412,14 @@
             const infoPaciente = airtableData["Nombre + Edad"] || "Usuario IMNUFIT";
             safeSetText('display-nombre', infoPaciente);
             
-            // ACTUALIZAR MENSAJE DE BIENVENIDA DE IA
+            // ACTUALIZAR MENSAJES DE BIENVENIDA DE IA (MOVIL Y DESKTOP)
             const nombrePila = infoPaciente.split(' ')[0] || "Paciente";
-            const welcomeMsg = document.getElementById('ai-welcome-text');
-            if (welcomeMsg) {
-                welcomeMsg.innerHTML = `Hola <strong>${nombrePila}</strong>, soy tu asistente personal de nutrición. Conozco cada detalle de tu plan en IMNUFIT. ¿En qué puedo guiarte hoy?`;
-            }
+            const welcomeMsg = `Hola <strong>${nombrePila}</strong>, soy tu asistente personal de nutrición. Conozco cada detalle de tu plan en IMNUFIT. ¿En qué puedo guiarte hoy?`;
+            
+            const mobWel = document.getElementById('ai-welcome-text-mobile');
+            const deskWel = document.getElementById('ai-welcome-text-desktop');
+            if (mobWel) mobWel.innerHTML = welcomeMsg;
+            if (deskWel) deskWel.innerHTML = welcomeMsg;
 
             const g = getGreeting();
             safeUpdate('display-greeting', (el) => el.innerHTML = `<span class="text-xl mr-2">${g.icon}</span> ${g.text}`);
@@ -602,8 +618,10 @@
             50% { box-shadow: 0 0 30px rgba(139, 92, 246, 0.4), 0 0 60px rgba(59, 130, 246, 0.2); border-color: rgba(59, 130, 246, 0.5); }
         }
         .ai-card-glow { animation: ai-breathing 4s infinite ease-in-out; background: linear-gradient(135deg, #ffffff 0%, #f0f7ff 100%); }
-        #ai-chat-messages::-webkit-scrollbar { width: 3px; }
-        #ai-chat-messages::-webkit-scrollbar-thumb { background: #E2E8F0; border-radius: 10px; }
+        
+        /* SCROLLBAR */
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-thumb { background: #E2E8F0; border-radius: 10px; }
     </style>
 </head>
 <body class="selection:bg-[#DEE9FA] selection:text-[#2E4982]">
@@ -626,39 +644,71 @@
         </div>
     </div>
 
-    <!-- MODAL DE IA (ESTILO SPOTLIGHT) -->
-    <div id="ai-modal-overlay" class="fixed inset-0 z-[2000] bg-white md:bg-white/30 md:backdrop-blur-xl hidden opacity-0 transition-opacity duration-300 md:flex md:items-center md:justify-center md:p-4">
-        <div class="fixed inset-0 md:relative md:inset-auto bg-white w-full h-full md:max-w-2xl md:h-[70vh] md:rounded-[2.5rem] shadow-2xl border-0 md:border border-white/60 flex flex-col overflow-hidden opacity-0 transition-all duration-300 z-[2001] scale-100 md:scale-95">
+    <!-- MÓVIL CHAT VIEW (SE COMPORTA COMO OTRA PÁGINA) -->
+    <section id="mobile-ai-view" class="min-h-screen hidden bg-[#FBFBFC] text-left flex flex-col fixed inset-0 z-[2000]">
+        <header class="h-24 flex items-center px-6 border-b border-slate-50 justify-between sticky top-0 bg-white z-50 shrink-0">
+            <button onclick="window.showView('patient-view')" class="flex items-center gap-2 text-slate-400 hover:text-[#2E4982] font-bold text-xs uppercase tracking-widest transition-colors"><svg class="w-4 h-4 transform group-hover:-translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path d="M15 19l-7-7 7-7"></path></svg> Volver</button>
+            <div class="flex flex-col items-center">
+                <span class="text-[10px] font-bold text-[#2E4982] uppercase tracking-[0.3em]">Asistente</span>
+                <h2 class="text-sm font-bold text-slate-800 uppercase tracking-tight">Inteligente</h2>
+            </div>
+            <div class="w-10"></div>
+        </header>
+        
+        <div id="ai-messages-mobile" class="flex-1 overflow-y-auto p-6 space-y-6 scroll-smooth">
+            <div class="flex justify-center mb-8">
+                <p class="text-xs text-slate-400 font-medium uppercase tracking-widest">Hoy</p>
+            </div>
+            <div class="flex justify-start fade-in">
+                <div id="ai-welcome-text-mobile" class="max-w-[90%] bg-white border border-slate-100 px-6 py-4 rounded-[1.5rem] rounded-tl-sm text-[15px] leading-relaxed text-slate-600 shadow-sm">
+                    Hola, soy tu asistente personal.
+                </div>
+            </div>
+        </div>
+
+        <div class="p-4 bg-white border-t border-slate-50 shrink-0">
+            <div class="relative flex items-center gap-3 bg-slate-50 border border-slate-200 rounded-[1.5rem] px-2 py-2 shadow-inner focus-within:ring-2 focus-within:ring-blue-100 transition-all">
+                <input id="ai-input-mobile" type="text" placeholder="Escribe tu consulta..." class="flex-1 bg-transparent border-none outline-none px-4 py-3 text-slate-700 placeholder:text-slate-400 text-[15px]" onkeypress="if(event.key==='Enter') window.sendMessageToAI('mobile')">
+                <button onclick="window.sendMessageToAI('mobile')" class="w-12 h-12 bg-[#2E4982] text-white rounded-2xl flex items-center justify-center shadow-lg active:scale-95 transition-transform">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M12 5l7 7-7 7"></path></svg>
+                </button>
+            </div>
+        </div>
+    </section>
+
+    <!-- DESKTOP MODAL (ESTILO SPOTLIGHT) - SOLO VISIBLE EN PANTALLAS GRANDES -->
+    <div id="ai-modal-overlay" class="fixed inset-0 z-[2000] bg-white/30 backdrop-blur-xl hidden opacity-0 transition-opacity duration-300 items-center justify-center p-4 pointer-events-none">
+        <div class="bg-white w-full max-w-2xl h-[70vh] rounded-[2.5rem] shadow-2xl border border-white/60 flex flex-col overflow-hidden scale-95 opacity-0 transition-all duration-300 relative pointer-events-auto">
             <!-- Header Modal -->
-            <div class="h-16 flex items-center justify-between px-6 md:px-8 border-b border-slate-50 shrink-0 bg-white/80 backdrop-blur-md z-10">
+            <div class="h-16 flex items-center justify-between px-8 border-b border-slate-50 shrink-0 bg-white/80 backdrop-blur-md z-10">
                 <div class="flex items-center gap-3">
                     <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-violet-500 to-blue-500 flex items-center justify-center text-white shadow-lg shadow-blue-500/20">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
                     </div>
                     <span class="text-sm font-bold text-slate-800">Asistente IMNUFIT</span>
                 </div>
-                <button onclick="window.closeAIModal()" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition-colors">
+                <button onclick="window.closeDesktopAIModal()" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition-colors">
                     <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l18 18"></path></svg>
                 </button>
             </div>
 
             <!-- Chat Area -->
-            <div id="ai-chat-messages" class="flex-1 overflow-y-auto p-6 md:p-8 space-y-6 scroll-smooth bg-[#FBFBFC]">
+            <div id="ai-messages-desktop" class="flex-1 overflow-y-auto p-8 space-y-6 scroll-smooth bg-[#FBFBFC]">
                 <div class="flex justify-center mb-8">
                     <p class="text-xs text-slate-400 font-medium uppercase tracking-widest">Hoy</p>
                 </div>
                 <div class="flex justify-start fade-in">
-                    <div id="ai-welcome-text" class="max-w-[85%] bg-white border border-slate-100 px-6 py-4 rounded-[1.5rem] rounded-tl-sm text-[15px] leading-relaxed text-slate-600 shadow-sm">
-                        Hola, soy tu asistente personal de nutrición. Conozco cada detalle de tu plan en IMNUFIT. ¿En qué puedo guiarte hoy?
+                    <div id="ai-welcome-text-desktop" class="max-w-[85%] bg-white border border-slate-100 px-6 py-4 rounded-[1.5rem] rounded-tl-sm text-[15px] leading-relaxed text-slate-600 shadow-sm">
+                        Hola, soy tu asistente personal.
                     </div>
                 </div>
             </div>
 
             <!-- Input Area -->
-            <div class="p-4 md:p-6 bg-white shrink-0 safe-area-pb">
+            <div class="p-6 bg-white shrink-0">
                 <div class="relative flex items-center gap-3 bg-slate-50 border border-slate-200 rounded-[1.5rem] px-2 py-2 shadow-inner focus-within:ring-2 focus-within:ring-blue-100 transition-all">
-                    <input id="ai-input" type="text" placeholder="Pregúntame sobre recetas, ayuno o tu progreso..." class="flex-1 bg-transparent border-none outline-none px-4 py-3 text-slate-700 placeholder:text-slate-400 text-[15px]" onkeypress="if(event.key==='Enter') window.sendMessageToAI()">
-                    <button onclick="window.sendMessageToAI()" class="w-12 h-12 bg-[#2E4982] hover:bg-[#1e315a] text-white rounded-2xl flex items-center justify-center shadow-lg shadow-blue-900/10 transition-transform active:scale-95">
+                    <input id="ai-input-desktop" type="text" placeholder="Pregúntame sobre recetas, ayuno o tu progreso..." class="flex-1 bg-transparent border-none outline-none px-4 py-3 text-slate-700 placeholder:text-slate-400 text-[15px]" onkeypress="if(event.key==='Enter') window.sendMessageToAI('desktop')">
+                    <button onclick="window.sendMessageToAI('desktop')" class="w-12 h-12 bg-[#2E4982] hover:bg-[#1e315a] text-white rounded-2xl flex items-center justify-center shadow-lg shadow-blue-900/10 transition-transform active:scale-95">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M12 5l7 7-7 7"></path></svg>
                     </button>
                 </div>
@@ -726,7 +776,7 @@
 
             <div id="dashboard-grid" class="grid grid-cols-1 md:grid-cols-2 gap-8 text-left">
                 <!-- TARJETA IA REDISEÑADA (ESTILO APPLE INTELLIGENCE) -->
-                <section id="card-ai" class="ai-card-glow rounded-[2.5rem] p-8 border border-white/50 relative overflow-hidden cursor-pointer group transition-transform hover:-translate-y-1" onclick="window.openAIModal()">
+                <section id="card-ai" class="ai-card-glow rounded-[2.5rem] p-8 border border-white/50 relative overflow-hidden cursor-pointer group transition-transform hover:-translate-y-1" onclick="window.openAIChat()">
                     <div class="relative z-10 flex flex-col justify-between h-full min-h-[220px]">
                         <div class="flex items-start justify-between">
                             <div>
