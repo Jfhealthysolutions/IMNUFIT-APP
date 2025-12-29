@@ -30,7 +30,8 @@
         const db = getFirestore(app);
 
         // --- CONFIGURACIÓN IA (GEMINI) ---
-        const apiKey = ""; 
+        // API KEY INTEGRADA PARA FUNCIONAMIENTO MÓVIL
+        const apiKey = "AIzaSyDwUn86PQpIZlTFDYhY33PMg3YkgbS3iqc"; 
 
         // --- CONFIGURACIÓN MODO ESPECIALISTA ---
         const SPECIALIST_EMAIL = "imnufit@gmail.com";
@@ -146,39 +147,43 @@
         // --- LÓGICA DE IA (GEMINI) ---
         let chatHistory = [];
 
-        // Lógica de fetch más robusta para móviles (timeout + fail fast)
-        async function fetchWithRetry(url, options, retries = 2) {
-            const backoffs = [1000, 2000, 3000]; // Tiempos de espera más cortos
+        // Lógica de fetch optimizada para móviles (Chrome/Safari) con política no-referrer
+        async function fetchWithRetry(url, options, retries = 1) {
+            const backoffs = [1000, 2000]; // Reintentos rápidos
             
             for (let i = 0; i <= retries; i++) {
-                // Controlador de timeout para evitar que se quede colgado
+                // Timeout de 15s para evitar bloqueos
                 const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s Timeout
+                const timeoutId = setTimeout(() => controller.abort(), 15000); 
                 
                 try {
-                    const response = await fetch(url, { ...options, signal: controller.signal });
+                    // referrerPolicy: 'no-referrer' es clave para Chrome iOS/Safari
+                    const response = await fetch(url, { 
+                        ...options, 
+                        signal: controller.signal,
+                        referrerPolicy: 'no-referrer' 
+                    });
                     clearTimeout(timeoutId);
 
-                    // Si es un error del cliente (ej: 400 Bad Request), NO reintentar, fallar ya.
+                    // Si es error de cliente (4xx), NO reintentar, es error de lógica o clave
                     if (response.status >= 400 && response.status < 500 && response.status !== 429) {
-                        throw new Error(`Error de solicitud (${response.status})`);
+                        const errBody = await response.text();
+                        throw new Error(`API Error ${response.status}: ${errBody}`);
                     }
 
                     if (!response.ok) throw new Error(`HTTP ${response.status}`);
                     return await response.json();
                 } catch (error) {
                     clearTimeout(timeoutId);
-                    // Si es el último intento o es un error que no se debe reintentar (como abort)
-                    if (i === retries || error.name === 'AbortError' || (error.message.includes('solicitud'))) {
+                    // No reintentar si es error de API explícito
+                    if (i === retries || error.message.includes('API Error')) {
                         throw error;
                     }
-                    // Esperar antes de reintentar
                     await new Promise(r => setTimeout(r, backoffs[i]));
                 }
             }
         }
 
-        // --- PARSER DE MARKDOWN E INTENCIONES ---
         function parseAIResponse(text) {
             if (!text) return "";
             let html = text.replace(/\*\*(.*?)\*\*/g, '<strong class="font-bold text-slate-900">$1</strong>');
@@ -241,18 +246,24 @@
         };
 
         window.sendMessageToAI = async (source) => {
+            // VERIFICACIÓN CRÍTICA DE API KEY
+            if (!apiKey || apiKey.trim() === "") {
+                const msgError = `⚠️ <strong>Falta Configuración:</strong><br>La API Key de IA no está configurada en este dispositivo.`;
+                appendChatMessageToAll('ai', msgError);
+                window.notify("Error: API Key no encontrada.", "error");
+                return;
+            }
+
             const inputId = source === 'mobile' ? 'ai-input-mobile' : 'ai-input-desktop';
             const input = document.getElementById(inputId);
             const userMessage = input.value.trim();
             if (!userMessage) return;
 
             input.value = '';
-            // Blur en mobile para evitar saltos raros del teclado, opcional
             if(source === 'mobile') input.blur();
 
             appendChatMessageToAll('user', userMessage);
             
-            // Añadir indicador
             const loadingHtml = `<div class="ai-loading-indicator flex justify-start mb-4"><div class="bg-slate-100 text-slate-400 px-4 py-2 rounded-2xl text-[11px] animate-pulse italic">Analizando...</div></div>`;
             document.getElementById('ai-messages-mobile').insertAdjacentHTML('beforeend', loadingHtml);
             document.getElementById('ai-messages-desktop').insertAdjacentHTML('beforeend', loadingHtml);
@@ -295,13 +306,28 @@
                 chatHistory.push({ role: 'user', text: userMessage }, { role: 'ai', text: aiText });
 
             } catch (error) {
-                console.error("AI Error:", error);
-                let msg = "Error de conexión. Intenta de nuevo.";
-                if(error.name === 'AbortError') msg = "La conexión tardó demasiado.";
-                window.notify(msg);
-                appendChatMessageToAll('ai', "⚠️ " + msg);
+                console.error("AI Error Full:", error);
+                
+                let debugMsg = "Error desconocido.";
+                let shortMsg = "Error de conexión";
+
+                if (error.message.includes('400')) {
+                    debugMsg = "La solicitud es inválida (API Key incorrecta).";
+                    shortMsg = "Error: API Key inválida";
+                } else if (error.message.includes('403')) {
+                    debugMsg = "Acceso denegado (API Key sin permisos).";
+                    shortMsg = "Error 403: Permisos";
+                } else if (error.name === 'AbortError') {
+                    debugMsg = "El servidor tardó demasiado en responder (Timeout).";
+                    shortMsg = "Tiempo de espera agotado";
+                } else if (error.message.includes('Failed to fetch')) {
+                    debugMsg = "Bloqueo de red o sin internet.";
+                    shortMsg = "Sin conexión";
+                }
+                
+                window.notify(shortMsg);
+                appendChatMessageToAll('ai', `⚠️ <strong>No pude responder.</strong><br><span class="text-[10px] opacity-70">Detalle técnico: ${debugMsg}</span>`);
             } finally {
-                // ESTA ES LA CLAVE: Siempre eliminar el indicador, pase lo que pase.
                 document.querySelectorAll('.ai-loading-indicator').forEach(el => el.remove());
             }
         };
