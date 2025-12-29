@@ -146,16 +146,33 @@
         // --- LÓGICA DE IA (GEMINI) ---
         let chatHistory = [];
 
-        // Implementación de reintentos exponenciales mandataria
-        async function fetchWithRetry(url, options, retries = 5) {
-            const backoffs = [1000, 2000, 4000, 8000, 16000];
+        // Lógica de fetch más robusta para móviles (timeout + fail fast)
+        async function fetchWithRetry(url, options, retries = 2) {
+            const backoffs = [1000, 2000, 3000]; // Tiempos de espera más cortos
+            
             for (let i = 0; i <= retries; i++) {
+                // Controlador de timeout para evitar que se quede colgado
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s Timeout
+                
                 try {
-                    const response = await fetch(url, options);
+                    const response = await fetch(url, { ...options, signal: controller.signal });
+                    clearTimeout(timeoutId);
+
+                    // Si es un error del cliente (ej: 400 Bad Request), NO reintentar, fallar ya.
+                    if (response.status >= 400 && response.status < 500 && response.status !== 429) {
+                        throw new Error(`Error de solicitud (${response.status})`);
+                    }
+
                     if (!response.ok) throw new Error(`HTTP ${response.status}`);
                     return await response.json();
                 } catch (error) {
-                    if (i === retries) throw error;
+                    clearTimeout(timeoutId);
+                    // Si es el último intento o es un error que no se debe reintentar (como abort)
+                    if (i === retries || error.name === 'AbortError' || (error.message.includes('solicitud'))) {
+                        throw error;
+                    }
+                    // Esperar antes de reintentar
                     await new Promise(r => setTimeout(r, backoffs[i]));
                 }
             }
@@ -167,7 +184,7 @@
             let html = text.replace(/\*\*(.*?)\*\*/g, '<strong class="font-bold text-slate-900">$1</strong>');
             html = html.replace(/\*(.*?)\*/g, '<em class="italic text-slate-600">$1</em>');
             html = html.replace(/\[([^\]]+)\]\(function:([a-zA-Z0-9-]+)\)/g, 
-                `<button onclick="window.handleAIAction('$2')" class="mt-3 flex items-center gap-2 bg-[#2E4982]/10 text-[#2E4982] px-5 py-3 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-[#2E4982] hover:text-white transition-all shadow-sm w-full md:w-auto justify-center md:justify-start">
+                `<button type="button" onclick="window.handleAIAction('$2')" class="mt-3 flex items-center gap-2 bg-[#2E4982]/10 text-[#2E4982] px-5 py-3 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-[#2E4982] hover:text-white transition-all shadow-sm w-full md:w-auto justify-center md:justify-start">
                     <span>$1</span>
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
                 </button>`
@@ -193,7 +210,10 @@
             const isMobile = window.innerWidth < 768; 
             if (isMobile) {
                 window.showView('mobile-ai-view');
-                setTimeout(() => document.getElementById('ai-input-mobile').focus(), 300);
+                setTimeout(() => {
+                    const el = document.getElementById('ai-input-mobile');
+                    if(el) el.focus();
+                }, 300);
             } else {
                 window.openDesktopAIModal();
             }
@@ -227,8 +247,12 @@
             if (!userMessage) return;
 
             input.value = '';
+            // Blur en mobile para evitar saltos raros del teclado, opcional
+            if(source === 'mobile') input.blur();
+
             appendChatMessageToAll('user', userMessage);
             
+            // Añadir indicador
             const loadingHtml = `<div class="ai-loading-indicator flex justify-start mb-4"><div class="bg-slate-100 text-slate-400 px-4 py-2 rounded-2xl text-[11px] animate-pulse italic">Analizando...</div></div>`;
             document.getElementById('ai-messages-mobile').insertAdjacentHTML('beforeend', loadingHtml);
             document.getElementById('ai-messages-desktop').insertAdjacentHTML('beforeend', loadingHtml);
@@ -255,7 +279,6 @@
             try {
                 const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
                 
-                // Formato de payload optimizado para IA Gemini
                 const payload = {
                     contents: [{ parts: [{ text: userMessage }] }],
                     systemInstruction: { parts: [{ text: systemPrompt }] }
@@ -268,12 +291,18 @@
                 });
 
                 const aiText = data.candidates?.[0]?.content?.parts?.[0]?.text || "Lo siento, no pude procesar tu mensaje. Inténtalo de nuevo.";
-                document.querySelectorAll('.ai-loading-indicator').forEach(el => el.remove());
                 appendChatMessageToAll('ai', aiText);
                 chatHistory.push({ role: 'user', text: userMessage }, { role: 'ai', text: aiText });
+
             } catch (error) {
+                console.error("AI Error:", error);
+                let msg = "Error de conexión. Intenta de nuevo.";
+                if(error.name === 'AbortError') msg = "La conexión tardó demasiado.";
+                window.notify(msg);
+                appendChatMessageToAll('ai', "⚠️ " + msg);
+            } finally {
+                // ESTA ES LA CLAVE: Siempre eliminar el indicador, pase lo que pase.
                 document.querySelectorAll('.ai-loading-indicator').forEach(el => el.remove());
-                window.notify("Error de conexión. Por favor revisa tu internet.");
             }
         };
 
@@ -292,7 +321,6 @@
         }
 
         function scrollToBottom() {
-            // Un pequeño delay ayuda a que el scroll calcule bien la altura en iOS Safari
             setTimeout(() => {
                 const mob = document.getElementById('ai-messages-mobile');
                 const desk = document.getElementById('ai-messages-desktop');
@@ -586,7 +614,7 @@
     </div>
 
     <!-- MÓVIL CHAT VIEW (SE COMPORTA COMO OTRA PÁGINA) -->
-    <section id="mobile-ai-view" class="min-h-screen hidden bg-[#FBFBFC] text-left flex flex-col fixed inset-0 z-[2000]">
+    <section id="mobile-ai-view" class="h-[100dvh] hidden bg-[#FBFBFC] text-left flex flex-col fixed inset-0 z-[2000]">
         <header class="h-24 flex items-center px-6 border-b border-slate-50 justify-between sticky top-0 bg-white z-50 shrink-0">
             <button onclick="window.showView('patient-view')" class="flex items-center gap-2 text-slate-400 hover:text-[#2E4982] font-bold text-xs uppercase tracking-widest transition-colors"><svg class="w-4 h-4 transform group-hover:-translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path d="M15 19l-7-7 7-7"></path></svg> Volver</button>
             <div class="flex flex-col items-center">
@@ -614,12 +642,12 @@
         </div>
 
         <div class="p-4 bg-white border-t border-slate-50 shrink-0">
-            <div class="relative flex items-center gap-3 bg-slate-50 border border-slate-200 rounded-[1.5rem] px-2 py-2 shadow-inner focus-within:ring-2 focus-within:ring-blue-100 transition-all">
-                <input id="ai-input-mobile" type="text" placeholder="Escribe tu consulta..." class="flex-1 bg-transparent border-none outline-none px-4 py-3 text-slate-700 placeholder:text-slate-400 text-[15px]" onkeydown="if(event.key==='Enter' || event.keyCode===13) { event.preventDefault(); window.sendMessageToAI('mobile'); }">
-                <button onclick="window.sendMessageToAI('mobile')" class="w-12 h-12 bg-[#2E4982] text-white rounded-2xl flex items-center justify-center shadow-lg active:scale-95 transition-transform">
+            <form onsubmit="event.preventDefault(); window.sendMessageToAI('mobile')" class="relative flex items-center gap-3 bg-slate-50 border border-slate-200 rounded-[1.5rem] px-2 py-2 shadow-inner focus-within:ring-2 focus-within:ring-blue-100 transition-all">
+                <input id="ai-input-mobile" type="text" placeholder="Escribe tu consulta..." class="flex-1 bg-transparent border-none outline-none px-4 py-3 text-slate-700 placeholder:text-slate-400 text-[15px]">
+                <button type="submit" class="w-12 h-12 bg-[#2E4982] text-white rounded-2xl flex items-center justify-center shadow-lg active:scale-95 transition-transform">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M12 5l7 7-7 7"></path></svg>
                 </button>
-            </div>
+            </form>
         </div>
     </section>
 
@@ -657,12 +685,12 @@
 
             <!-- Input Area -->
             <div class="p-6 bg-white shrink-0">
-                <div class="relative flex items-center gap-3 bg-slate-50 border border-slate-200 rounded-[1.5rem] px-2 py-2 shadow-inner focus-within:ring-2 focus-within:ring-blue-100 transition-all">
-                    <input id="ai-input-desktop" type="text" placeholder="Pregúntame sobre recetas, ayuno o tu progreso..." class="flex-1 bg-transparent border-none outline-none px-4 py-3 text-slate-700 placeholder:text-slate-400 text-[15px]" onkeydown="if(event.key==='Enter' || event.keyCode===13) { event.preventDefault(); window.sendMessageToAI('desktop'); }">
-                    <button onclick="window.sendMessageToAI('desktop')" class="w-12 h-12 bg-[#2E4982] hover:bg-[#1e315a] text-white rounded-2xl flex items-center justify-center shadow-lg shadow-blue-900/10 transition-transform active:scale-95">
+                <form onsubmit="event.preventDefault(); window.sendMessageToAI('desktop')" class="relative flex items-center gap-3 bg-slate-50 border border-slate-200 rounded-[1.5rem] px-2 py-2 shadow-inner focus-within:ring-2 focus-within:ring-blue-100 transition-all">
+                    <input id="ai-input-desktop" type="text" placeholder="Pregúntame sobre recetas, ayuno o tu progreso..." class="flex-1 bg-transparent border-none outline-none px-4 py-3 text-slate-700 placeholder:text-slate-400 text-[15px]">
+                    <button type="submit" class="w-12 h-12 bg-[#2E4982] hover:bg-[#1e315a] text-white rounded-2xl flex items-center justify-center shadow-lg shadow-blue-900/10 transition-transform active:scale-95">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M12 5l7 7-7 7"></path></svg>
                     </button>
-                </div>
+                </form>
             </div>
         </div>
     </div>
