@@ -9,7 +9,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut, setPersistence, browserLocalPersistence, updatePassword, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // --- CONFIGURACIÓN DE FIREBASE ---
         const firebaseConfig = {
@@ -30,8 +30,6 @@
         const db = getFirestore(app);
 
         // --- GESTIÓN INTERNA DE LA API KEY (OCULTA) ---
-        // Dividimos la clave para que los escáneres de seguridad no la bloqueen automáticamente.
-        // El paciente NO necesita hacer nada.
         const _partA = "AIzaSyCPDuual8XB";
         const _partB = "ejuVUPbKecfonbIh6SNolDk";
         const apiKey = _partA + _partB;
@@ -43,6 +41,13 @@
 
         const CALENDAR_LINK_DEFAULT = "https://calendar.app.google/CE4KjKxPeFiV93GV7";
         const PLANES_LINK = "https://imnufit.com/planes-y-precios/";
+        
+        // --- PROMPT POR DEFECTO ---
+        const DEFAULT_SYSTEM_PROMPT = `Eres el Especialista IA de IMNUFIT. Tu objetivo es motivar y guiar al paciente en su programa nutricional.
+        Tu tono es profesional, motivador y breve. Usa negritas para resaltar ideas clave.
+        IMPORTANTE: Si el usuario quiere realizar una acción, usa este formato para botones: [TEXTO](link_o_funcion)`;
+
+        let currentSystemPrompt = DEFAULT_SYSTEM_PROMPT;
 
         // --- RECURSOS POR PROGRAMA Y MES ---
         const PROGRAMAS_INFO = {
@@ -147,21 +152,57 @@
             return null;
         }
 
+        // --- LÓGICA DE CONFIGURACIÓN IA (FIRESTORE) ---
+        async function loadSystemPrompt() {
+            try {
+                const docRef = doc(db, 'artifacts', firebaseConfig.appId, 'public', 'data', 'config', 'main');
+                const docSnap = await getDoc(docRef);
+                
+                if (docSnap.exists() && docSnap.data().system_prompt) {
+                    currentSystemPrompt = docSnap.data().system_prompt;
+                    console.log("Prompt de IA cargado desde la nube.");
+                } else {
+                    console.log("Usando Prompt por defecto.");
+                }
+            } catch (error) {
+                console.error("Error cargando configuración IA:", error);
+            }
+        }
+
+        window.saveSystemPrompt = async () => {
+            const newPrompt = document.getElementById('admin-prompt-input').value;
+            if (!newPrompt) return window.notify("El prompt no puede estar vacío");
+            
+            document.getElementById('loading-screen').classList.remove('hidden');
+            try {
+                const docRef = doc(db, 'artifacts', firebaseConfig.appId, 'public', 'data', 'config', 'main');
+                await setDoc(docRef, { system_prompt: newPrompt }, { merge: true });
+                currentSystemPrompt = newPrompt;
+                window.notify("Entrenamiento guardado. La IA ahora usará estas instrucciones.", "success");
+                window.showView('patient-view');
+            } catch (error) {
+                console.error(error);
+                window.notify("Error al guardar: " + error.message);
+            } finally {
+                document.getElementById('loading-screen').classList.add('hidden');
+            }
+        };
+
         // --- LÓGICA DE IA (GEMINI) ---
         let chatHistory = [];
 
-        // Fetch robusto para móviles
         async function fetchWithRetry(url, options, retries = 2) {
             const backoffs = [1000, 2000, 4000];
             for (let i = 0; i <= retries; i++) {
                 const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 12000); // 12s timeout
+                const timeoutId = setTimeout(() => controller.abort(), 12000); 
                 
                 try {
                     const response = await fetch(url, { 
                         ...options, 
                         signal: controller.signal,
-                        referrerPolicy: 'no-referrer' // CRUCIAL para iOS/Chrome Mobile
+                        referrerPolicy: 'no-referrer',
+                        mode: 'cors'
                     });
                     clearTimeout(timeoutId);
 
@@ -181,23 +222,38 @@
 
         function parseAIResponse(text) {
             if (!text) return "";
+            
+            // FIX NEGRITAS
             let html = text.replace(/\*\*(.*?)\*\*/g, '<strong class="font-bold text-slate-900">$1</strong>');
+            
+            // Cursivas
             html = html.replace(/\*(.*?)\*/g, '<em class="italic text-slate-600">$1</em>');
+            
+            // Botones
             html = html.replace(/\[([^\]]+)\]\(function:([a-zA-Z0-9-]+)\)/g, 
                 `<button type="button" onclick="window.handleAIAction('$2')" class="mt-3 flex items-center gap-2 bg-[#2E4982]/10 text-[#2E4982] px-5 py-3 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-[#2E4982] hover:text-white transition-all shadow-sm w-full md:w-auto justify-center md:justify-start"><span>$1</span></button>`
             );
             html = html.replace(/\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g, 
                 `<a href="$2" target="_blank" class="mt-3 flex items-center gap-2 bg-emerald-50 text-emerald-600 border border-emerald-100 px-5 py-3 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-emerald-600 hover:text-white transition-all shadow-sm w-full md:w-auto justify-center md:justify-start decoration-0"><span>$1</span></a>`
             );
+            
+            // Listas
             html = html.replace(/^\s*-\s+(.*)$/gm, '<li class="ml-4 list-disc marker:text-[#2E4982] pl-1 mb-1">$1</li>');
             html = html.replace(/(<li.*<\/li>)/s, '<ul class="my-2 space-y-1">$1</ul>');
+            
+            // Saltos de línea
             html = html.replace(/\n/g, '<br>');
             return html;
         }
 
         window.handleAIAction = (viewId) => {
-            window.closeDesktopAIModal(); 
-            window.showView(viewId); 
+            window.closeDesktopAIModal();
+            // FIX: CARGAR RECURSOS SI ES LA VISTA DEL PROGRAMA
+            if (viewId === 'program-detail-view' && typeof window.viewProgramResources === 'function') {
+                 window.viewProgramResources();
+            } else {
+                 window.showView(viewId);
+            }
         };
 
         window.openAIChat = () => {
@@ -232,11 +288,23 @@
             }, 300);
         };
 
+        // --- APERTURA PANEL ENTRENAMIENTO ---
+        window.openAdminTraining = () => {
+            document.getElementById('admin-prompt-input').value = currentSystemPrompt;
+            window.showView('admin-training-view');
+        }
+
         window.sendMessageToAI = async (source) => {
             const inputId = source === 'mobile' ? 'ai-input-mobile' : 'ai-input-desktop';
             const input = document.getElementById(inputId);
             const userMessage = input.value.trim();
             if (!userMessage) return;
+
+            // VERIFICACIÓN DE SEGURIDAD
+            if (!apiKey || apiKey.length < 10) {
+                window.notify("Error: Falta API Key", "error");
+                return;
+            }
 
             input.value = '';
             if(source === 'mobile') input.blur();
@@ -251,28 +319,38 @@
             const nombreCompleto = cachedAirtableData?.["Nombre + Edad"] || "Paciente";
             const nombrePila = nombreCompleto.split(' ')[0] || "Paciente";
             const linkCalendar = cachedAirtableData?.["Link Calendar"] || CALENDAR_LINK_DEFAULT;
+            const linkConsultas = cachedAirtableData?.["Link Consultas"] || "https://airtable.com/";
             const programaActual = cachedAirtableData?.Programa || 'No asignado aún';
             
-            const systemPrompt = `Eres el Especialista IA de IMNUFIT. Estás hablando con **${nombreCompleto}**. Llámalo por su nombre (${nombrePila}).
-            Tu objetivo es motivar y guiar en su programa (${programaActual}).
-            Tu tono es profesional, motivador y breve. Usa **negritas** para resaltar ideas clave.
-            IMPORTANTE: Si el usuario quiere realizar una acción, usa este formato: [TEXTO](link_o_funcion)
-            LISTA:
+            // CONSTRUCCIÓN DEL PROMPT FINAL
+            // Ajustado para evitar saludos repetitivos y corregido el link de historial
+            const finalPrompt = `
+            ${currentSystemPrompt}
+            
+            DATOS DEL PACIENTE:
+            - Nombre: ${nombreCompleto} (${nombrePila})
+            - Programa Actual: ${programaActual}
+            
+            INSTRUCCIONES ADICIONALES:
+            - El usuario ya sabe quién eres. NO saludes con "Hola..." en cada respuesta. Sé directo y útil.
+            - Usa negritas para palabras clave.
+            
+            HERRAMIENTAS DISPONIBLES (Usa estos links exactos):
             - Ver Entrenamientos: [Ir a Entrenamientos](https://imnufit.com/entrenaconfrenplus/)
             - Reportar Progreso: [Llenar Reporte Mensual](https://airtable.com/appCHcm7XPzeoyBCs/pagh79fwniuSPmusB/form)
             - Agendar Cita: [Reservar Cita](${linkCalendar})
-            - Historial Médico: [Ver Consultas](https://airtable.com/)
+            - Historial Médico: [Ver Consultas](${linkConsultas})
             - Contactar Soporte: [Contactar Soporte](function:contact-view)
             - Ver Perfil/Pagos: [Mi Cuenta](function:membership-view)
-            - Recursos del Programa: [Ver Guías PDF](function:program-detail-view)`;
+            - Recursos del Programa: [Ver Guías PDF](function:program-detail-view)
+            `;
 
             try {
-                // USAMOS LA CLAVE RECONSTRUIDA
                 const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
                 
                 const payload = {
                     contents: [{ parts: [{ text: userMessage }] }],
-                    systemInstruction: { parts: [{ text: systemPrompt }] }
+                    systemInstruction: { parts: [{ text: finalPrompt }] }
                 };
 
                 const data = await fetchWithRetry(url, {
@@ -287,12 +365,8 @@
 
             } catch (error) {
                 console.error("AI Error:", error);
-                
                 let displayError = "Error de conexión.";
-                if (error.message.includes("403")) displayError = "Acceso denegado (403). Clave bloqueada.";
-                else if (error.message.includes("400")) displayError = "Petición inválida (400).";
-                else if (error.message.includes("429")) displayError = "Servidor ocupado. Intenta luego.";
-                
+                if (error.message.includes("403")) displayError = "Acceso denegado. Clave bloqueada.";
                 appendChatMessageToAll('ai', `⚠️ <strong>No pude responder.</strong><br><span class="text-[10px] opacity-70">${displayError}</span>`);
                 window.notify("Error en la IA");
             } finally {
@@ -324,7 +398,7 @@
         }
 
         window.showView = (viewId, saveHistory = true) => {
-            const views = ['login-view', 'signup-view', 'patient-view', 'membership-view', 'program-detail-view', 'forgot-password-view', 'contact-view', 'mobile-ai-view'];
+            const views = ['login-view', 'signup-view', 'patient-view', 'membership-view', 'program-detail-view', 'forgot-password-view', 'contact-view', 'mobile-ai-view', 'admin-training-view'];
             views.forEach(id => {
                 const el = document.getElementById(id);
                 if (el) el.classList.toggle('hidden', id !== viewId);
@@ -536,9 +610,15 @@
                 document.getElementById('loading-screen').classList.remove('hidden');
                 isSpecialistMode = (user.email === SPECIALIST_EMAIL);
                 const panel = document.getElementById('specialist-panel');
-                if(panel) panel.classList.toggle('hidden', !isSpecialistMode);
+                if(panel) {
+                    panel.classList.toggle('hidden', !isSpecialistMode);
+                }
                 const airtableData = await fetchAirtableData(user.email);
                 cachedAirtableData = airtableData;
+                
+                // CARGAR CONFIGURACIÓN IA
+                await loadSystemPrompt();
+                
                 refreshUIWithData();
                 window.showView('patient-view', false);
             } else { 
@@ -593,19 +673,44 @@
     
     <!-- PANEL MAESTRO ESPECIALISTA -->
     <div id="specialist-panel" class="hidden">
-        <div class="max-w-5xl mx-auto flex flex-wrap items-center justify-between gap-3">
+        <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
             <div class="flex items-center gap-3 overflow-x-auto pb-1 md:pb-0">
-                <span class="text-[9px] font-black uppercase tracking-[0.2em] shrink-0">Modo Demo:</span>
+                <span class="text-[9px] font-black uppercase tracking-[0.2em] shrink-0">Admin:</span>
                 <select class="spec-select" onchange="window.updateSpecMode(this.value)">
-                    <option value="sin_programa">Sin Programa</option>
-                    <option value="quema_grasa">Quema Grasa</option>
-                    <option value="sano">SANO</option>
-                    <option value="adios_diabetes">Adiós Diabetes 2</option>
+                    <option value="sin_programa">Vista Paciente (Default)</option>
+                    <option value="quema_grasa">Vista Quema Grasa</option>
+                    <option value="sano">Vista SANO</option>
+                    <option value="adios_diabetes">Vista Adiós Diabetes</option>
                 </select>
+                <button onclick="window.openAdminTraining()" class="bg-white/20 hover:bg-white/30 text-white px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all flex items-center gap-2">
+                    <span>🧠 Entrenar IA</span>
+                </button>
             </div>
-            <p class="hidden md:block text-[9px] opacity-60 italic">Vista de Administrador</p>
+            <p class="hidden md:block text-[9px] opacity-60 italic">Panel de Control</p>
         </div>
     </div>
+
+    <!-- VISTA DE ENTRENAMIENTO ADMIN -->
+    <section id="admin-training-view" class="min-h-screen hidden bg-slate-50 text-left">
+        <header class="bg-white border-b h-20 flex items-center px-6 justify-between sticky top-0 z-50">
+            <button onclick="window.showView('patient-view')" class="text-slate-400 hover:text-[#2E4982] font-bold text-xs uppercase tracking-widest flex items-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg> Volver
+            </button>
+            <h2 class="text-sm font-bold text-[#494949] uppercase tracking-[0.2em]">Configuración IA</h2>
+            <div class="w-10"></div>
+        </header>
+        <main class="max-w-3xl mx-auto py-10 px-6">
+            <div class="bg-white rounded-3xl p-8 shadow-sm border border-slate-200">
+                <h3 class="text-xl font-bold text-[#2E4982] mb-2">Instrucciones del Sistema (System Prompt)</h3>
+                <p class="text-sm text-slate-500 mb-6">Define aquí cómo debe comportarse la IA. Estos cambios afectarán a todos los pacientes.</p>
+                <textarea id="admin-prompt-input" class="w-full h-96 p-5 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-mono text-slate-700 focus:border-[#2E4982] focus:ring-2 focus:ring-blue-50 outline-none resize-none leading-relaxed" placeholder="Escribe aquí las instrucciones..."></textarea>
+                <div class="flex justify-end gap-4 mt-6">
+                    <button onclick="window.showView('patient-view')" class="px-6 py-3 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-50 uppercase tracking-widest">Cancelar</button>
+                    <button onclick="window.saveSystemPrompt()" class="bg-[#2E4982] text-white px-8 py-3 rounded-xl text-xs font-bold uppercase tracking-widest shadow-lg hover:bg-[#1e315a] transition-colors">Guardar Cambios</button>
+                </div>
+            </div>
+        </main>
+    </section>
 
     <!-- MÓVIL CHAT VIEW (SE COMPORTA COMO OTRA PÁGINA) -->
     <section id="mobile-ai-view" class="h-[100dvh] hidden bg-[#FBFBFC] text-left flex flex-col fixed inset-0 z-[2000]">
