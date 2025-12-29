@@ -146,53 +146,41 @@
         // --- LÓGICA DE IA (GEMINI) ---
         let chatHistory = [];
 
-        async function fetchWithRetry(url, options, retries = 5, backoff = 1000) {
-            try {
-                const response = await fetch(url, options);
-                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-                return await response.json();
-            } catch (error) {
-                if (retries > 0) {
-                    await new Promise(resolve => setTimeout(resolve, backoff));
-                    return fetchWithRetry(url, options, retries - 1, backoff * 2);
+        // Implementación de reintentos exponenciales mandataria
+        async function fetchWithRetry(url, options, retries = 5) {
+            const backoffs = [1000, 2000, 4000, 8000, 16000];
+            for (let i = 0; i <= retries; i++) {
+                try {
+                    const response = await fetch(url, options);
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                    return await response.json();
+                } catch (error) {
+                    if (i === retries) throw error;
+                    await new Promise(r => setTimeout(r, backoffs[i]));
                 }
-                throw error;
             }
         }
 
         // --- PARSER DE MARKDOWN E INTENCIONES ---
         function parseAIResponse(text) {
             if (!text) return "";
-            
-            // 1. Negritas: **texto** -> <strong>
             let html = text.replace(/\*\*(.*?)\*\*/g, '<strong class="font-bold text-slate-900">$1</strong>');
-            
-            // 2. Cursivas: *texto* -> <em>
             html = html.replace(/\*(.*?)\*/g, '<em class="italic text-slate-600">$1</em>');
-
-            // 3. Botones de Acción (Internos): [Label](function:viewId)
             html = html.replace(/\[([^\]]+)\]\(function:([a-zA-Z0-9-]+)\)/g, 
                 `<button onclick="window.handleAIAction('$2')" class="mt-3 flex items-center gap-2 bg-[#2E4982]/10 text-[#2E4982] px-5 py-3 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-[#2E4982] hover:text-white transition-all shadow-sm w-full md:w-auto justify-center md:justify-start">
                     <span>$1</span>
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
                 </button>`
             );
-
-            // 4. Botones de Acción (Externos): [Label](https://...)
             html = html.replace(/\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g, 
                 `<a href="$2" target="_blank" class="mt-3 flex items-center gap-2 bg-emerald-50 text-emerald-600 border border-emerald-100 px-5 py-3 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-emerald-600 hover:text-white transition-all shadow-sm w-full md:w-auto justify-center md:justify-start decoration-0">
                     <span>$1</span>
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
                 </a>`
             );
-
-            // 5. Listas (simple)
             html = html.replace(/^\s*-\s+(.*)$/gm, '<li class="ml-4 list-disc marker:text-[#2E4982] pl-1 mb-1">$1</li>');
             html = html.replace(/(<li.*<\/li>)/s, '<ul class="my-2 space-y-1">$1</ul>');
-
-            // 6. Saltos de línea
             html = html.replace(/\n/g, '<br>');
-            
             return html;
         }
 
@@ -201,22 +189,20 @@
             window.showView(viewId); 
         };
 
-        // LÓGICA HÍBRIDA DE APERTURA DE CHAT
         window.openAIChat = () => {
             const isMobile = window.innerWidth < 768; 
             if (isMobile) {
                 window.showView('mobile-ai-view');
-                setTimeout(() => document.getElementById('ai-input-mobile').focus(), 100);
+                setTimeout(() => document.getElementById('ai-input-mobile').focus(), 300);
             } else {
                 window.openDesktopAIModal();
             }
         };
 
-        // Lógica Modal Desktop
         window.openDesktopAIModal = () => {
             const modal = document.getElementById('ai-modal-overlay');
             modal.classList.remove('hidden');
-            modal.classList.add('flex'); // AÑADIMOS FLEX SOLO AL ABRIR
+            modal.classList.add('flex');
             void modal.offsetWidth; 
             modal.classList.remove('opacity-0');
             modal.querySelector('div').classList.remove('scale-95', 'opacity-0');
@@ -225,11 +211,12 @@
 
         window.closeDesktopAIModal = () => {
             const modal = document.getElementById('ai-modal-overlay');
+            if(!modal) return;
             modal.classList.add('opacity-0');
-            modal.querySelector('div').classList.add('scale-95', 'opacity-0');
+            modal.querySelector('div')?.classList.add('scale-95', 'opacity-0');
             setTimeout(() => {
                 modal.classList.add('hidden');
-                modal.classList.remove('flex'); // QUITAMOS FLEX AL CERRAR
+                modal.classList.remove('flex');
             }, 300);
         };
 
@@ -239,9 +226,7 @@
             const userMessage = input.value.trim();
             if (!userMessage) return;
 
-            document.getElementById('ai-input-mobile').value = '';
-            document.getElementById('ai-input-desktop').value = '';
-
+            input.value = '';
             appendChatMessageToAll('user', userMessage);
             
             const loadingHtml = `<div class="ai-loading-indicator flex justify-start mb-4"><div class="bg-slate-100 text-slate-400 px-4 py-2 rounded-2xl text-[11px] animate-pulse italic">Analizando...</div></div>`;
@@ -249,44 +234,46 @@
             document.getElementById('ai-messages-desktop').insertAdjacentHTML('beforeend', loadingHtml);
             scrollToBottom();
 
-            // PREPARAR DATOS
             const nombreCompleto = cachedAirtableData?.["Nombre + Edad"] || "Paciente";
             const nombrePila = nombreCompleto.split(' ')[0] || "Paciente";
             const linkCalendar = cachedAirtableData?.["Link Calendar"] || CALENDAR_LINK_DEFAULT;
             const programaActual = cachedAirtableData?.Programa || 'No asignado aún';
             
-            const systemPrompt = `Eres el Especialista IA de IMNUFIT. Estás hablando con **${nombreCompleto}**. Llámalo por su nombre (${nombrePila}) para ser cercano y amable.
+            const systemPrompt = `Eres el Especialista IA de IMNUFIT. Estás hablando con **${nombreCompleto}**. Llámalo por su nombre (${nombrePila}).
             Tu objetivo es motivar y guiar en su programa (${programaActual}).
             Tu tono es profesional, motivador y breve. Usa **negritas** para resaltar ideas clave.
-            IMPORTANTE: Si el usuario quiere realizar una acción disponible en la app, DEBES facilitar el botón usando este formato exacto de Markdown:
-            [TEXTO DEL BOTÓN](link_o_funcion)
-            LISTA DE ACCIONES DISPONIBLES:
+            IMPORTANTE: Si el usuario quiere realizar una acción, usa este formato: [TEXTO](link_o_funcion)
+            LISTA:
             - Ver Entrenamientos: [Ir a Entrenamientos](https://imnufit.com/entrenaconfrenplus/)
             - Reportar Progreso: [Llenar Reporte Mensual](https://airtable.com/appCHcm7XPzeoyBCs/pagh79fwniuSPmusB/form)
             - Agendar Cita: [Reservar Cita](${linkCalendar})
             - Historial Médico: [Ver Consultas](https://airtable.com/)
             - Contactar Soporte: [Contactar Soporte](function:contact-view)
             - Ver Perfil/Pagos: [Mi Cuenta](function:membership-view)
-            - Recursos del Programa: [Ver Guías PDF](function:program-detail-view)
-            `;
+            - Recursos del Programa: [Ver Guías PDF](function:program-detail-view)`;
 
             try {
                 const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+                
+                // Formato de payload optimizado para IA Gemini
                 const payload = {
-                    contents: [{ parts: [{ text: `CONTEXTO DEL SISTEMA: ${systemPrompt}\n\nHISTORIAL: ${JSON.stringify(chatHistory)}\n\nUSUARIO: ${userMessage}` }] }]
+                    contents: [{ parts: [{ text: userMessage }] }],
+                    systemInstruction: { parts: [{ text: systemPrompt }] }
                 };
+
                 const data = await fetchWithRetry(url, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
                 });
-                const aiText = data.candidates?.[0]?.content?.parts?.[0]?.text || "No pude procesar eso ahora.";
+
+                const aiText = data.candidates?.[0]?.content?.parts?.[0]?.text || "Lo siento, no pude procesar tu mensaje. Inténtalo de nuevo.";
                 document.querySelectorAll('.ai-loading-indicator').forEach(el => el.remove());
                 appendChatMessageToAll('ai', aiText);
                 chatHistory.push({ role: 'user', text: userMessage }, { role: 'ai', text: aiText });
             } catch (error) {
                 document.querySelectorAll('.ai-loading-indicator').forEach(el => el.remove());
-                window.notify("Error con la IA: " + error.message);
+                window.notify("Error de conexión. Por favor revisa tu internet.");
             }
         };
 
@@ -305,10 +292,13 @@
         }
 
         function scrollToBottom() {
-            const mob = document.getElementById('ai-messages-mobile');
-            const desk = document.getElementById('ai-messages-desktop');
-            if(mob) mob.scrollTo(0, mob.scrollHeight);
-            if(desk) desk.scrollTo(0, desk.scrollHeight);
+            // Un pequeño delay ayuda a que el scroll calcule bien la altura en iOS Safari
+            setTimeout(() => {
+                const mob = document.getElementById('ai-messages-mobile');
+                const desk = document.getElementById('ai-messages-desktop');
+                if(mob) mob.scrollTop = mob.scrollHeight;
+                if(desk) desk.scrollTop = desk.scrollHeight;
+            }, 50);
         }
 
         window.showView = (viewId, saveHistory = true) => {
@@ -625,7 +615,7 @@
 
         <div class="p-4 bg-white border-t border-slate-50 shrink-0">
             <div class="relative flex items-center gap-3 bg-slate-50 border border-slate-200 rounded-[1.5rem] px-2 py-2 shadow-inner focus-within:ring-2 focus-within:ring-blue-100 transition-all">
-                <input id="ai-input-mobile" type="text" placeholder="Escribe tu consulta..." class="flex-1 bg-transparent border-none outline-none px-4 py-3 text-slate-700 placeholder:text-slate-400 text-[15px]" onkeypress="if(event.key==='Enter') window.sendMessageToAI('mobile')">
+                <input id="ai-input-mobile" type="text" placeholder="Escribe tu consulta..." class="flex-1 bg-transparent border-none outline-none px-4 py-3 text-slate-700 placeholder:text-slate-400 text-[15px]" onkeydown="if(event.key==='Enter' || event.keyCode===13) { event.preventDefault(); window.sendMessageToAI('mobile'); }">
                 <button onclick="window.sendMessageToAI('mobile')" class="w-12 h-12 bg-[#2E4982] text-white rounded-2xl flex items-center justify-center shadow-lg active:scale-95 transition-transform">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M12 5l7 7-7 7"></path></svg>
                 </button>
@@ -668,7 +658,7 @@
             <!-- Input Area -->
             <div class="p-6 bg-white shrink-0">
                 <div class="relative flex items-center gap-3 bg-slate-50 border border-slate-200 rounded-[1.5rem] px-2 py-2 shadow-inner focus-within:ring-2 focus-within:ring-blue-100 transition-all">
-                    <input id="ai-input-desktop" type="text" placeholder="Pregúntame sobre recetas, ayuno o tu progreso..." class="flex-1 bg-transparent border-none outline-none px-4 py-3 text-slate-700 placeholder:text-slate-400 text-[15px]" onkeypress="if(event.key==='Enter') window.sendMessageToAI('desktop')">
+                    <input id="ai-input-desktop" type="text" placeholder="Pregúntame sobre recetas, ayuno o tu progreso..." class="flex-1 bg-transparent border-none outline-none px-4 py-3 text-slate-700 placeholder:text-slate-400 text-[15px]" onkeydown="if(event.key==='Enter' || event.keyCode===13) { event.preventDefault(); window.sendMessageToAI('desktop'); }">
                     <button onclick="window.sendMessageToAI('desktop')" class="w-12 h-12 bg-[#2E4982] hover:bg-[#1e315a] text-white rounded-2xl flex items-center justify-center shadow-lg shadow-blue-900/10 transition-transform active:scale-95">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M12 5l7 7-7 7"></path></svg>
                     </button>
@@ -756,7 +746,6 @@
                             </div>
                         </div>
                     </div>
-                    <!-- Decorative blurred orb -->
                     <div class="absolute -bottom-10 -right-10 w-48 h-48 bg-gradient-to-tr from-blue-200 to-violet-200 rounded-full blur-[60px] opacity-60 pointer-events-none"></div>
                 </section>
 
@@ -891,7 +880,7 @@
     </section>
 
     <!-- LOGIN -->
-    <section id="login-view" class="min-h-screen flex flex-col items-center justify-center p-8 hidden text-center">
+    <section id="login-view" class="min-h-screen hidden flex flex-col items-center justify-center p-8 text-center">
         <div class="max-w-[340px] w-full space-y-12 fade-in text-center text-left">
             <img src="https://imnufit.com/wp-content/uploads/2025/05/cropped-logo-y-nombre-AZUL.png" class="mx-auto h-11 object-contain mix-blend-multiply text-center">
             <div class="space-y-2 text-center">
@@ -915,7 +904,7 @@
     </section>
 
     <!-- FORGOT PASSWORD -->
-    <section id="forgot-password-view" class="min-h-screen flex flex-col items-center justify-center p-8 hidden text-center">
+    <section id="forgot-password-view" class="min-h-screen hidden flex flex-col items-center justify-center p-8 text-center">
         <div class="max-w-[340px] w-full space-y-10 fade-in text-center text-left">
             <img src="https://imnufit.com/wp-content/uploads/2025/05/cropped-logo-y-nombre-AZUL.png" class="mx-auto h-11 object-contain mix-blend-multiply">
             <div class="space-y-2 text-center">
@@ -932,7 +921,7 @@
     </section>
 
     <!-- SIGNUP -->
-    <section id="signup-view" class="min-h-screen flex flex-col items-center justify-center p-8 hidden text-center">
+    <section id="signup-view" class="min-h-screen hidden flex flex-col items-center justify-center p-8 text-center">
         <div class="max-w-[340px] w-full space-y-12 fade-in text-center text-left">
             <img src="https://imnufit.com/wp-content/uploads/2025/05/cropped-logo-y-nombre-AZUL.png" class="mx-auto h-11 object-contain mix-blend-multiply text-center">
             <div class="space-y-2 text-center">
