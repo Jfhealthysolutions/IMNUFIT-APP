@@ -11,7 +11,7 @@
         import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut, setPersistence, browserLocalPersistence, updatePassword, sendPasswordResetEmail, signInWithCustomToken, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // --- CONFIGURACIÓN DE FIREBASE ---
+        // --- 1. CONFIGURACIÓN ---
         const firebaseConfig = {
             apiKey: "AIzaSyAJBf7TbP1GuAoA3GsrCG0EJOifEt4YodY",
             authDomain: "imnufit-cad14.firebaseapp.com",
@@ -30,10 +30,12 @@
         const db = getFirestore(app);
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'imnufit-official';
 
+        // Clave API Gemini Reconstruida
         const _partA = "AIzaSyCPDuual8XB";
         const _partB = "ejuVUPbKecfonbIh6SNolDk";
         const apiKey = _partA + _partB;
 
+        // Variables de Estado Globales
         const SPECIALIST_EMAIL = "imnufit@gmail.com";
         let isSpecialistMode = false;
         let specModeSelection = "sin_programa";
@@ -41,6 +43,7 @@
         let cachedAirtableData = null;
         let currentAppData = null; 
         let chatHistory = [];
+        let notificationTimer = null;
 
         const CALENDAR_LINK_DEFAULT = "https://calendar.app.google/CE4KjKxPeFiV93GV7";
         const PLANES_LINK = "https://imnufit.com/planes-y-precios/";
@@ -89,72 +92,90 @@
         };
 
         const frasesCreyentes = [
-            "Todo lo puedo en Cristo que me fortalece.",
-            "Su amor es constante y nuevo cada mañana.",
-            "El Señor es mi pastor, nada me faltará.",
-            "Jehová es mi fortaleza y mi escudo.",
-            "Confía en el Señor de todo corazón.",
-            "Mira que te mando que te esfuerces y seas valiente."
+            "Todo lo puedo en Cristo que me fortalece.", "Su amor es constante y nuevo cada mañana.", "El Señor es mi pastor, nada me faltará.",
+            "Jehová es mi fortaleza y mi escudo.", "Confía en el Señor de todo corazón.", "Mira que te mando que te esfuerces y seas valiente."
         ];
 
-        // --- DEFINICIÓN DE FUNCIONES GLOBALES ---
+        // --- 2. FUNCIONES DE UTILIDAD (DECLARADAS AL INICIO) ---
         window.safeSetText = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
         window.safeUpdate = (id, fn) => { const el = document.getElementById(id); if (el) fn(el); };
+
+        window.notify = (msg, type = 'error') => {
+            const t = document.getElementById('notification-toast');
+            const c = document.getElementById('notification-content');
+            if (t && c) {
+                if (notificationTimer) clearTimeout(notificationTimer);
+                c.innerHTML = msg;
+                const colorClass = type === 'success' ? 'text-emerald-600 border-emerald-100' : 'text-red-600 border-red-100';
+                t.className = `fixed top-8 left-1/2 -translate-x-1/2 z-[9999] px-8 py-4 rounded-full shadow-2xl text-[13px] font-semibold bg-white border transform transition-all duration-300 ${colorClass}`;
+                t.classList.remove('hidden', 'opacity-0', '-translate-y-10');
+                t.classList.add('opacity-100', 'translate-y-0');
+                notificationTimer = setTimeout(() => {
+                    t.classList.remove('opacity-100', 'translate-y-0');
+                    t.classList.add('opacity-0', '-translate-y-10');
+                    setTimeout(() => t.classList.add('hidden'), 300);
+                }, 4000);
+            } else { alert(msg); }
+        };
+
+        window.showView = (id, save = true) => {
+            const views = ['login-view', 'signup-view', 'patient-view', 'membership-view', 'program-detail-view', 'forgot-password-view', 'contact-view', 'mobile-ai-view'];
+            views.forEach(v => { const el = document.getElementById(v); if (el) el.classList.toggle('hidden', v !== id); });
+            window.scrollTo(0, 0);
+            if (save) history.pushState({ viewId: id }, "", "");
+        };
+
+        window.resetUI = () => {
+            cachedAirtableData = null; currentAppData = null; chatHistory = []; isSpecialistMode = false;
+            window.safeSetText('display-nombre', "..."); window.safeSetText('display-estatus', "...");
+            window.safeSetText('display-frase', "..."); window.safeSetText('plan-banner-title', "...");
+            window.safeSetText('acc-nombre', "..."); window.safeSetText('acc-email', "--");
+            window.safeSetText('acc-pais', "--"); window.safeSetText('acc-telefono', "--"); window.safeSetText('acc-nacimiento', "--");
+            document.getElementById('specialist-panel')?.classList.add('hidden');
+            document.getElementById('featured-plan-banner')?.classList.add('hidden');
+            document.getElementById('restricted-banner')?.classList.add('hidden');
+            document.getElementById('card-ai')?.classList.remove('hidden'); 
+            window.clearChat();
+        };
 
         window.formatDateMDY = (dateString) => {
             if (!dateString) return "--";
             const date = new Date(dateString);
             if (isNaN(date.getTime())) return dateString; 
-            const mm = String(date.getUTCMonth() + 1).padStart(2, '0');
-            const dd = String(date.getUTCDate()).padStart(2, '0');
-            const yyyy = date.getUTCFullYear();
-            return `${mm}/${dd}/${yyyy}`;
+            return `${String(date.getUTCMonth() + 1).padStart(2, '0')}/${String(date.getUTCDate()).padStart(2, '0')}/${date.getUTCFullYear()}`;
         };
 
         window.getGreeting = () => {
-            const hour = new Date().getHours();
-            if (hour >= 6 && hour < 12) return { text: "Buenos días", icon: "☀️" };
-            if (hour >= 12 && hour < 18) return { text: "Buenas tardes", icon: "☀️" };
+            const h = new Date().getHours();
+            if (h >= 6 && h < 12) return { text: "Buenos días", icon: "☀️" };
+            if (h >= 12 && h < 18) return { text: "Buenas tardes", icon: "☀️" };
             return { text: "Buenas noches", icon: "🌙" };
         };
 
-        window.getStatusClass = (status) => {
-            if (!status) return "bg-slate-50 text-slate-400 border-slate-100";
-            const s = String(status).toLowerCase();
-            if (s.includes("inactivo")) return "bg-rose-50 text-red-600 border-rose-200";
-            if (s.includes("activo") || s.includes("actívo")) return "bg-emerald-50 text-emerald-600 border-emerald-100";
+        window.getStatusClass = (s) => {
+            if (!s) return "bg-slate-50 text-slate-400 border-slate-100";
+            const sl = String(s).toLowerCase();
+            if (sl.includes("inactivo")) return "bg-rose-50 text-red-600 border-rose-200";
+            if (sl.includes("activo") || sl.includes("actívo")) return "bg-emerald-50 text-emerald-600 border-emerald-100";
             return "bg-amber-50 text-amber-600 border-amber-100";
         };
 
-        window.getProgramKey = (programName) => {
-            if (!programName) return null;
-            const p = programName.toLowerCase();
-            if (p.includes("quema grasa")) return "Quema Grasa";
-            if (p.includes("sano")) return "SANO";
-            if (p.includes("adiós diabetes 2") || p.includes("adios diabetes 2")) return "Adiós Diabetes 2";
+        window.getProgramKey = (p) => {
+            if (!p) return null;
+            const pl = p.toLowerCase();
+            if (pl.includes("quema grasa")) return "Quema Grasa";
+            if (pl.includes("sano")) return "SANO";
+            if (pl.includes("adiós diabetes 2") || pl.includes("adios diabetes 2")) return "Adiós Diabetes 2";
             return null;
         };
 
-        window.showView = (id, save = true) => {
-            const views = ['login-view', 'signup-view', 'patient-view', 'membership-view', 'program-detail-view', 'forgot-password-view', 'contact-view', 'mobile-ai-view'];
-            views.forEach(v => {
-                const el = document.getElementById(v);
-                if (el) el.classList.toggle('hidden', v !== id);
-            });
-            window.scrollTo(0,0);
-            if (save) history.pushState({ viewId: id }, "", "");
-        };
-
+        // --- 3. LÓGICA DE IA Y CHAT ---
         window.parseAIResponse = (text) => {
             if (!text) return "";
             let html = text.replace(/\*\*(.*?)\*\*/g, '<strong class="font-bold text-slate-900">$1</strong>');
             html = html.replace(/\*(.*?)\*/g, '<em class="italic text-slate-600">$1</em>');
-            html = html.replace(/\[([^\]]+)\]\(function:([a-zA-Z0-9-]+)\)/g, 
-                `<button type="button" onclick="window.handleAIAction('$2')" class="mt-3 flex items-center gap-2 bg-[#2E4982]/10 text-[#2E4982] px-5 py-3 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-[#2E4982] hover:text-white transition-all shadow-sm w-full md:w-auto justify-center md:justify-start"><span>$1</span></button>`
-            );
-            html = html.replace(/\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g, 
-                `<a href="$2" target="_blank" class="mt-3 flex items-center gap-2 bg-emerald-50 text-emerald-600 border border-emerald-100 px-5 py-3 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-emerald-600 hover:text-white transition-all shadow-sm w-full md:w-auto justify-center md:justify-start decoration-0"><span>$1</span></a>`
-            );
+            html = html.replace(/\[([^\]]+)\]\(function:([a-zA-Z0-9-]+)\)/g, `<button type="button" onclick="window.handleAIAction('$2')" class="mt-3 flex items-center gap-2 bg-[#2E4982]/10 text-[#2E4982] px-5 py-3 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-[#2E4982] hover:text-white transition-all shadow-sm w-full md:w-auto justify-center md:justify-start"><span>$1</span></button>`);
+            html = html.replace(/\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g, `<a href="$2" target="_blank" class="mt-3 flex items-center gap-2 bg-emerald-50 text-emerald-600 border border-emerald-100 px-5 py-3 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-emerald-600 hover:text-white transition-all shadow-sm w-full md:w-auto justify-center md:justify-start decoration-0"><span>$1</span></a>`);
             html = html.replace(/^\s*-\s+(.*)$/gm, '<li class="ml-4 list-disc marker:text-[#2E4982] pl-1 mb-1">$1</li>');
             html = html.replace(/(<li.*<\/li>)/s, '<ul class="my-2 space-y-1 text-left">$1</ul>');
             html = html.replace(/\n/g, '<br>');
@@ -162,30 +183,241 @@
         };
 
         window.scrollToBottom = () => {
-            const mob = document.getElementById('ai-messages-mobile');
-            const desk = document.getElementById('ai-messages-desktop');
-            if(mob) mob.scrollTop = mob.scrollHeight; 
-            if(desk) desk.scrollTop = desk.scrollHeight;
+            const m = document.getElementById('ai-messages-mobile'), d = document.getElementById('ai-messages-desktop');
+            if(m) m.scrollTop = m.scrollHeight; if(d) d.scrollTop = d.scrollHeight;
         };
 
         window.appendChatMessageToAll = (role, text) => {
-            const contentHtml = role === 'ai' ? window.parseAIResponse(text) : text.replace(/\n/g, '<br>');
-            const msgHtml = `<div class="flex ${role === 'user' ? 'justify-end' : 'justify-start'} mb-6 fade-in text-left"><div class="max-w-[85%] px-5 py-4 rounded-[1.4rem] text-[14px] leading-relaxed ${role === 'user' ? 'bg-[#2E4982] text-white rounded-tr-sm' : 'bg-white border border-slate-100 text-slate-600 rounded-tl-sm shadow-sm'}">${contentHtml}</div></div>`;
-            document.getElementById('ai-messages-mobile')?.insertAdjacentHTML('beforeend', msgHtml);
-            document.getElementById('ai-messages-desktop')?.insertAdjacentHTML('beforeend', msgHtml);
+            const content = role === 'ai' ? window.parseAIResponse(text) : text.replace(/\n/g, '<br>');
+            const html = `<div class="flex ${role === 'user' ? 'justify-end' : 'justify-start'} mb-6 fade-in text-left"><div class="max-w-[85%] px-5 py-4 rounded-[1.4rem] text-[14px] leading-relaxed ${role === 'user' ? 'bg-[#2E4982] text-white rounded-tr-sm' : 'bg-white border border-slate-100 text-slate-600 rounded-tl-sm shadow-sm'}">${content}</div></div>`;
+            document.getElementById('ai-messages-mobile')?.insertAdjacentHTML('beforeend', html);
+            document.getElementById('ai-messages-desktop')?.insertAdjacentHTML('beforeend', html);
             window.scrollToBottom();
         };
 
         window.clearChat = () => {
             chatHistory = [];
             const info = currentAppData?.["Nombre + Edad"] || "Paciente";
-            const welcomeMsg = `Hola <strong>${info.split(' ')[0]}</strong>, soy tu asistente personal de nutrición. ¿En qué puedo guiarte hoy?`;
-            const html = `<div class="flex justify-center mb-8"><p class="text-xs text-slate-400 font-medium uppercase tracking-widest">Hoy</p></div><div class="flex justify-start fade-in"><div class="max-w-[90%] bg-white border border-slate-100 px-6 py-4 rounded-[1.5rem] rounded-tl-sm text-[15px] leading-relaxed text-slate-600 shadow-sm">${welcomeMsg}</div></div>`;
-            if(document.getElementById('ai-messages-mobile')) document.getElementById('ai-messages-mobile').innerHTML = html;
-            if(document.getElementById('ai-messages-desktop')) document.getElementById('ai-messages-desktop').innerHTML = html;
+            const welcome = `Hola <strong>${info.split(' ')[0]}</strong>, soy tu asistente personal. ¿En qué puedo guiarte hoy?`;
+            const html = `<div class="flex justify-center mb-8"><p class="text-xs text-slate-400 font-medium uppercase tracking-widest">Hoy</p></div><div class="flex justify-start fade-in"><div class="max-w-[90%] bg-white border border-slate-100 px-6 py-4 rounded-[1.5rem] rounded-tl-sm text-[15px] leading-relaxed text-slate-600 shadow-sm">${welcome}</div></div>`;
+            const m = document.getElementById('ai-messages-mobile'), d = document.getElementById('ai-messages-desktop');
+            if(m) m.innerHTML = html; if(d) d.innerHTML = html;
         };
 
-        // --- FUNCIONES ASÍNCRONAS ---
+        async function fetchWithRetry(url, options, retries = 3) {
+            const backoffs = [1000, 2000, 4000, 8000];
+            for (let i = 0; i <= retries; i++) {
+                try {
+                    const res = await fetch(url, options);
+                    if (res.status === 429) { if (i === retries) throw new Error("quota-exceeded"); await new Promise(r => setTimeout(r, backoffs[i])); continue; }
+                    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                    return await res.json();
+                } catch (e) { if (i === retries || e.message === "quota-exceeded") throw e; await new Promise(r => setTimeout(r, backoffs[i])); }
+            }
+        }
+
+        window.sendMessageToAI = async (source) => {
+            const input = document.getElementById(source === 'mobile' ? 'ai-input-mobile' : 'ai-input-desktop');
+            const msg = input?.value.trim();
+            if (!msg) return;
+            input.value = ''; if(source === 'mobile') input.blur();
+
+            window.appendChatMessageToAll('user', msg);
+            const loader = `<div class="ai-loading-indicator flex justify-start mb-4"><div class="bg-slate-100 text-slate-400 px-4 py-2 rounded-2xl text-[11px] animate-pulse italic">Analizando...</div></div>`;
+            document.getElementById('ai-messages-mobile')?.insertAdjacentHTML('beforeend', loader);
+            document.getElementById('ai-messages-desktop')?.insertAdjacentHTML('beforeend', loader);
+            window.scrollToBottom();
+
+            const info = currentAppData || {};
+            const patientData = JSON.stringify(info, null, 2);
+            
+            // CEREBRO CORREGIDO: Prioridad Airtable, Prohibido PDF para plan
+            const sysPrompt = `Eres el Asistente Personal AI de IMNUFIT. Hablas con **${info["Nombre + Edad"] || "Paciente"}**. 
+            
+            --- DATOS DEL PACIENTE (AIRTABLE) ---
+            Usa estos datos (especialmente lo referente al PLAN NUTRICIONAL/DIETA) como tu única fuente de verdad para preguntas personales.
+            ${patientData}
+            -------------------------------------
+
+            INSTRUCCIONES CLAVE DEL ADMINISTRADOR: ${aiCustomInstructions}
+            
+            DIRECTRICES ESTRICTAS:
+            1. Si te preguntan por su **dieta, plan nutricional o qué dijo el especialista**, RESPONDE EXCLUSIVAMENTE CON LA INFORMACIÓN DE AIRTABLE (Arriba).
+            2. **PROHIBIDO** sugerir la "Guía PDF" como respuesta al plan diario. La Guía PDF es solo material genérico/educativo.
+            3. Sé breve, limpio y usa botones.
+
+            REGLAS DE ACCIÓN OBLIGATORIAS:
+            - **Reportarse**: Muestra [Llenar Reporte Mensual](https://airtable.com/appCHcm7XPzeoyBCs/pagh79fwniuSPmusB/form).
+            - **Entrenar**: Muestra [Ver Entrenamientos](https://imnufit.com/entrenaconfrenplus/).
+            - **Agendar Cita**: MUESTRA DOS BOTONES: [Reservar Cita](${info["Link Calendar"] || CALENDAR_LINK_DEFAULT}) Y [Llenar Reporte Mensual](https://airtable.com/appCHcm7XPzeoyBCs/pagh79fwniuSPmusB/form) (Recuérdale reportarse antes).
+            - **Ver Recursos/Manual**: SOLO si piden manuales o material de apoyo, muestra [Ver Guías PDF](function:program-detail-view).
+            - **Ver Consultas**: Muestra [Historial de Consultas](${info["Link Consultas"] || "#"}).
+            - **Contactar**: Muestra [Contactar Soporte](function:contact-view).
+            - **Cancelar Membresía/Clave**: Muestra [Mi Cuenta](function:membership-view).
+            - **Precios/Web**: Muestra [Visitar Web](https://imnufit.com).`;
+
+            try {
+                const history = chatHistory.map(m => ({ role: m.role === 'user' ? 'user' : 'model', parts: [{ text: m.text }] }));
+                const res = await fetchWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ contents: [...history, { role: 'user', parts: [{ text: msg }] }], systemInstruction: { parts: [{ text: sysPrompt }] } })
+                });
+                const aiText = res.candidates?.[0]?.content?.parts?.[0]?.text || "No pude procesar.";
+                window.appendChatMessageToAll('ai', aiText);
+                chatHistory.push({ role: 'user', text: msg }, { role: 'ai', text: aiText });
+            } catch (e) { window.appendChatMessageToAll('ai', `⚠️ El coach está saturado. Reintenta en 1 min.`); }
+            finally { document.querySelectorAll('.ai-loading-indicator').forEach(el => el.remove()); }
+        };
+
+        // --- 4. LÓGICA DE PROGRAMA Y RECURSOS ---
+        window.viewProgramResources = () => {
+            const data = currentAppData;
+            if (!data) return;
+            const progKey = window.getProgramKey(data["Programa"] || "");
+            if (!progKey || !PROGRAMAS_INFO[progKey]) { window.notify("Sin programa asignado"); return; }
+            
+            const progInfo = PROGRAMAS_INFO[progKey];
+            const container = document.getElementById('program-guias-list');
+            let mes = 1;
+            if (data["Programa"].includes("Mes 2")) mes = 2;
+            else if (data["Programa"].includes("Mes 3")) mes = 3;
+            else if (data["Programa"].includes("Mes 4")) mes = 4;
+
+            if (container) {
+                container.innerHTML = "";
+                for (let i = 1; i <= mes; i++) {
+                    if (!progInfo.meses[i]) continue;
+                    const card = document.createElement('div');
+                    card.className = "w-full bg-white rounded-[2rem] p-6 border border-slate-100 shadow-sm mb-6 fade-in text-left";
+                    card.innerHTML = `<h4 class="text-xs font-extrabold text-slate-400 uppercase tracking-[0.2em] mb-4 text-center">${progInfo.monthTitles?.[i] || 'MES ' + i}</h4>`;
+                    const list = document.createElement('div'); list.className = "flex flex-col gap-3";
+                    [...progInfo.meses[i]].sort((a,b) => a.type === 'VIDEO' ? 1 : -1).forEach(guia => {
+                        const isVideo = guia.type === "VIDEO";
+                        list.innerHTML += `<a href="${guia.url}" target="_blank" class="group flex items-start gap-4 p-4 rounded-2xl bg-slate-50 border border-slate-100 hover:bg-[#DEE9FA]/30 transition-all text-left"><div class="w-12 h-12 rounded-xl ${isVideo ? 'bg-rose-100 text-rose-500' : 'bg-blue-100 text-[#2E4982]'} flex items-center justify-center shrink-0 text-center">${isVideo ? '<svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>' : '<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>'}</div><div class="text-left"><h4 class="text-sm font-bold text-slate-800">${guia.label}</h4><p class="text-xs text-slate-500 font-medium mt-1 leading-relaxed">${guia.desc}</p></div></a>`;
+                    });
+                    card.appendChild(list); container.appendChild(card);
+                }
+            }
+            const imgEl = document.getElementById('program-img-main');
+            if (imgEl) { 
+                imgEl.src = progInfo.img; 
+                document.getElementById('program-img-container').className = `flex justify-center mb-10 transition-transform duration-500 ${progInfo.imgWidth || 'w-32'}`;
+                document.getElementById('program-img-container')?.classList.remove('hidden'); 
+            }
+            window.showView('program-detail-view');
+        };
+
+        // --- 5. DATA FETCHING & AUTH ---
+        window.refreshData = async () => {
+            if(!auth.currentUser) return;
+            const loader = document.getElementById('loading-screen');
+            if(loader) loader.classList.remove('hidden');
+            try {
+                const f = encodeURIComponent(`(LOWER({Email})=LOWER('${auth.currentUser.email}'))`);
+                const u = `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${AIRTABLE_TABLE_NAME}?filterByFormula=${f}`;
+                const res = await fetch(u, { headers: { Authorization: `Bearer ${AIRTABLE_PAT}` } });
+                const d = await res.json();
+                cachedAirtableData = d.records?.[0]?.fields || null;
+                window.refreshUIWithData();
+                setTimeout(() => { if(loader) loader.classList.add('hidden'); window.notify("Página actualizada correctamente", "success"); }, 600);
+            } catch(e) {
+                if(loader) loader.classList.add('hidden'); window.notify("Error al actualizar");
+            }
+        };
+
+        window.refreshUIWithData = () => {
+            if (isSpecialistMode) {
+                let mockProg = specModeSelection === "adios_diabetes" ? "Adiós Diabetes 2 (Mes 3)" : (specModeSelection === "quema_grasa" ? "Quema Grasa (Mes 4)" : (specModeSelection === "sano" ? "SANO (Mes 2)" : ""));
+                updateDashboardUI({ ...cachedAirtableData, "Nombre + Edad": "Especialista (Demo)", "Programa": mockProg, "Estatus": "Activo", "Link Calendar": CALENDAR_LINK_DEFAULT, "Link Consultas": "https://airtable.com/" });
+            } else updateDashboardUI(cachedAirtableData);
+        };
+
+        async function fetchAirtableData(email) {
+            const f = encodeURIComponent(`(LOWER({Email})=LOWER('${email}'))`), u = `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${AIRTABLE_TABLE_NAME}?filterByFormula=${f}`;
+            try { const res = await fetch(u, { headers: { Authorization: `Bearer ${AIRTABLE_PAT}` } }); const data = await res.json(); return data.records?.[0]?.fields || null; } catch (e) { return null; }
+        }
+
+        function updateDashboardUI(data) {
+            if (!data) return;
+            currentAppData = data;
+            window.safeSetText('display-nombre', data["Nombre + Edad"] || "Usuario IMNUFIT");
+            if (chatHistory.length === 0) window.clearChat();
+            const g = window.getGreeting(); window.safeUpdate('display-greeting', (el) => el.innerHTML = `<span class="text-xl mr-2">${g.icon}</span> ${g.text}`);
+            const st = data["Estatus"] || "Activo";
+            window.safeUpdate('display-estatus', (el) => { el.textContent = st; el.className = `px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-widest border inline-block mt-2 ${window.getStatusClass(st)}`; });
+            const sLow = st.toLowerCase(), isR = (sLow.includes("inactivo") || sLow.includes("por asignar") || sLow.includes("pausa")) && !isSpecialistMode;
+            document.getElementById('featured-plan-banner')?.classList.toggle('hidden', isR || !data.Programa);
+            document.getElementById('restricted-banner')?.classList.toggle('hidden', !isR);
+            document.getElementById('card-ai')?.classList.toggle('hidden', isR);
+            if (data.Programa) window.safeSetText('plan-banner-title', data.Programa);
+            if (isR) { window.safeSetText('restricted-banner-title', sLow.includes("por asignar") ? "Plan en Preparación" : "Portal de Seguimiento"); window.safeSetText('restricted-banner-body', sLow.includes("por asignar") ? "Estamos diseñando tu estrategia." : "Suscripción inactiva."); }
+            const hide = (sLow.includes("inactivo") || sLow.includes("por asignar")) && !isSpecialistMode;
+            ['card-entrenamientos', 'card-reporte', 'card-citas', 'card-consultas'].forEach(id => window.safeUpdate(id, el => el.classList.toggle('hidden', hide)));
+            window.safeUpdate('calendar-action-container', el => el.innerHTML = `<a href="${data["Link Calendar"] || CALENDAR_LINK_DEFAULT}" target="_blank" class="btn-ghost-sm text-center">Ir al Calendario</a>`);
+            const bh = document.getElementById('btn-consultas-action'); if (bh) { bh.href = data["Link Consultas"] || "#"; bh.style.opacity = bh.href.includes("#") ? "0.4" : "1"; }
+            window.safeSetText('acc-nombre', data["Nombre + Edad"] || "---"); window.safeSetText('acc-email', auth.currentUser?.email || "--"); window.safeSetText('display-frase', frasesCreyentes[Math.floor(Math.random() * frasesCreyentes.length)]);
+            window.safeSetText('acc-pais', data["País"] || "--"); window.safeSetText('acc-telefono', data["Telefono"] || "--"); window.safeSetText('acc-nacimiento', window.formatDateMDY(data["Fecha de Nacimiento"]));
+            const genero = String(data["Género"] || "");
+            window.safeUpdate('acc-genero', el => {
+                el.textContent = genero;
+                if (genero.toLowerCase().includes("masculino")) el.className = "px-4 py-1.5 rounded-full text-[10px] font-extrabold bg-sky-50 text-sky-600 border border-sky-100 uppercase tracking-widest inline-block shadow-sm";
+                else if (genero.toLowerCase().includes("femenino")) el.className = "px-4 py-1.5 rounded-full text-[10px] font-extrabold bg-rose-50 text-rose-600 border border-rose-100 uppercase tracking-widest shadow-sm inline-block";
+                else el.className = "hidden";
+            });
+        }
+
+        // --- AUTH & EVENT HANDLERS ---
+        onAuthStateChanged(auth, async (user) => {
+            const loader = document.getElementById('loading-screen');
+            if(loader) loader.classList.remove('hidden');
+            if (user) {
+                window.resetUI();
+                isSpecialistMode = (user.email === SPECIALIST_EMAIL);
+                const sp = document.getElementById('specialist-panel'); if(sp) sp.classList.toggle('hidden', !isSpecialistMode);
+                cachedAirtableData = await fetchAirtableData(user.email);
+                if (!cachedAirtableData && !isSpecialistMode) window.notify("Usuario no encontrado en base de datos.");
+                window.refreshUIWithData(); window.syncAIInstructions(); window.showView('patient-view', false);
+            } else { 
+                window.resetUI();
+                const sp = document.getElementById('specialist-panel'); if(sp) sp.classList.add('hidden');
+                isSpecialistMode = false; window.showView('login-view', false); 
+            }
+            if(loader) loader.classList.add('hidden');
+        });
+
+        window.handleLogin = async (e) => {
+            e.preventDefault();
+            const email = e.target.email.value;
+            const pass = e.target.pass.value;
+            const loader = document.getElementById('loading-screen');
+            try {
+                if(loader) loader.classList.remove('hidden');
+                await signInWithEmailAndPassword(auth, email, pass);
+            } catch (error) {
+                console.log("Login fail:", error.code);
+                if(loader) loader.classList.add('hidden');
+                let msg = "Error al iniciar sesión.";
+                if (['auth/invalid-credential', 'auth/user-not-found', 'auth/wrong-password', 'auth/invalid-email'].includes(error.code)) msg = "Correo o contraseña incorrectos.";
+                else if (error.code === 'auth/too-many-requests') msg = "Demasiados intentos. Espera un momento.";
+                window.notify(msg, 'error');
+            }
+        };
+
+        window.handleSignup = async (e) => { e.preventDefault(); const { email, pass, confirmPass } = e.target; if (pass.value !== confirmPass.value) { window.notify("Contraseñas no coinciden"); return; } try { document.getElementById('loading-screen')?.classList.remove('hidden'); await createUserWithEmailAndPassword(auth, email.value, pass.value); window.notify("Cuenta creada", "success"); } catch (err) { window.notify("Error: " + err.code); } finally { document.getElementById('loading-screen')?.classList.add('hidden'); } };
+        window.handlePasswordReset = async (e) => { e.preventDefault(); try { document.getElementById('loading-screen')?.classList.remove('hidden'); await sendPasswordResetEmail(auth, e.target.resetEmail.value); window.notify("Correo enviado", "success"); window.showView('login-view'); } catch (err) { window.notify("Error: " + err.code); } finally { document.getElementById('loading-screen')?.classList.add('hidden'); } };
+        window.cerrarSesion = () => signOut(auth);
+        window.updateAppPassword = async (e) => { e.preventDefault(); if(!auth.currentUser) return; try { document.getElementById('loading-screen')?.classList.remove('hidden'); await updatePassword(auth.currentUser, e.target.newPassword.value); window.notify("Clave actualizada", "success"); e.target.reset(); } catch (err) { window.notify("Sesión expirada"); } finally { document.getElementById('loading-screen')?.classList.add('hidden'); } };
+        
+        window.handleAIAction = (viewId) => { window.closeDesktopAIModal(); if (viewId === 'program-detail-view') window.viewProgramResources(); else window.showView(viewId); };
+        window.openDesktopAIModal = () => { const m = document.getElementById('ai-modal-overlay'); if(!m) return; m.classList.remove('hidden'); m.classList.add('flex'); setTimeout(() => { m.classList.remove('opacity-0'); m.querySelector('div')?.classList.remove('scale-95', 'opacity-0'); document.getElementById('ai-input-desktop')?.focus(); }, 10); };
+        window.closeDesktopAIModal = () => { const m = document.getElementById('ai-modal-overlay'); if(!m) return; m.classList.add('opacity-0'); m.querySelector('div')?.classList.add('scale-95', 'opacity-0'); setTimeout(() => { m.classList.add('hidden'); m.classList.remove('flex'); window.clearChat(); }, 300); };
+        window.openAIChat = () => { if (window.innerWidth < 768) { window.showView('mobile-ai-view'); setTimeout(() => document.getElementById('ai-input-mobile')?.focus(), 300); } else window.openDesktopAIModal(); };
+        window.closeMobileChat = () => { window.showView('patient-view'); window.clearChat(); };
+        window.openAITrainingModal = () => { document.getElementById('ai-training-modal')?.classList.remove('hidden'); document.getElementById('ai-training-modal')?.classList.add('flex'); };
+        window.closeAITrainingModal = () => { document.getElementById('ai-training-modal')?.classList.add('hidden'); };
+        window.updateSpecMode = (val) => { specModeSelection = val; window.refreshUIWithData(); window.showView('patient-view'); };
+
         window.syncAIInstructions = async () => {
             if (!auth.currentUser) return;
             const aiDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'ai_config', 'instructions');
@@ -201,221 +433,20 @@
                         const user = data.updatedBy || "Sistema";
                         infoEl.innerHTML = `Última modificación: <strong>${date}</strong><br>Por: ${user}`;
                     }
-                } else {
-                    if(infoEl) infoEl.textContent = "Sin instrucciones previas.";
                 }
-            }, (err) => console.log("AI Sync Active"));
+            });
         };
-
         window.saveAITraining = async () => {
             const text = document.getElementById('ai-training-text').value;
             const btn = document.getElementById('btn-save-ai-training');
             if (!auth.currentUser) return;
             btn.disabled = true; btn.textContent = "Guardando...";
-            try {
-                await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'ai_config', 'instructions'), { 
-                    content: text, 
-                    updatedBy: auth.currentUser?.email, 
-                    timestamp: new Date() 
-                });
-                window.notify("Entrenamiento guardado", "success"); 
-                window.closeAITrainingModal();
-            } catch (e) { window.notify("Error al guardar"); }
+            try { await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'ai_config', 'instructions'), { content: text, updatedBy: auth.currentUser?.email, timestamp: new Date() }); window.notify("Entrenamiento guardado", "success"); window.closeAITrainingModal(); } catch (e) { window.notify("Error al guardar"); }
             finally { btn.disabled = false; btn.textContent = "Guardar Cambios"; }
         };
 
-        async function fetchWithRetry(url, options, retries = 3) {
-            const backoffs = [1000, 2000, 4000, 8000];
-            for (let i = 0; i <= retries; i++) {
-                try {
-                    const response = await fetch(url, options);
-                    if (response.status === 429) {
-                        if (i === retries) throw new Error("quota-exceeded");
-                        await new Promise(r => setTimeout(r, backoffs[i]));
-                        continue;
-                    }
-                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-                    return await response.json();
-                } catch (error) {
-                    if (i === retries || error.message === "quota-exceeded") throw error;
-                    await new Promise(r => setTimeout(r, backoffs[i]));
-                }
-            }
-        }
-
-        window.sendMessageToAI = async (source) => {
-            const input = document.getElementById(source === 'mobile' ? 'ai-input-mobile' : 'ai-input-desktop');
-            const userMsg = input?.value.trim();
-            if (!userMsg) return;
-            input.value = ''; if(source === 'mobile') input.blur();
-
-            window.appendChatMessageToAll('user', userMsg);
-            const loader = `<div class="ai-loading-indicator flex justify-start mb-4"><div class="bg-slate-100 text-slate-400 px-4 py-2 rounded-2xl text-[11px] animate-pulse italic">Analizando...</div></div>`;
-            document.getElementById('ai-messages-mobile')?.insertAdjacentHTML('beforeend', loader);
-            document.getElementById('ai-messages-desktop')?.insertAdjacentHTML('beforeend', loader);
-            window.scrollToBottom();
-
-            const info = currentAppData || {};
-            
-            // --- CEREBRO ACTUALIZADO CON TUS REGLAS ---
-            const sysPrompt = `Eres el Asistente Personal AI de IMNUFIT. Hablas con **${info["Nombre + Edad"] || "Paciente"}**. 
-            INSTRUCCIONES CLAVE DEL ADMINISTRADOR: ${aiCustomInstructions}
-            
-            DIRECTRICES DE RESPUESTA:
-            1. Sé breve, limpio, directo y respetuoso.
-            2. NO uses caracteres extraños. Usa negritas **solo** para resaltar lo importante.
-            3. NO des URLs sueltas. SIEMPRE usa el formato de botón: [Texto del Botón](url_o_funcion).
-            4. Tu rol es asistir y motivar, no diagnosticar.
-
-            REGLAS DE ACCIÓN OBLIGATORIAS:
-            - **Reportarse**: Muestra [Llenar Reporte Mensual](https://airtable.com/appCHcm7XPzeoyBCs/pagh79fwniuSPmusB/form).
-            - **Entrenar**: Muestra [Ver Entrenamientos](https://imnufit.com/entrenaconfrenplus/).
-            - **Agendar Cita**: MUESTRA DOS BOTONES: [Reservar Cita](${info["Link Calendar"] || CALENDAR_LINK_DEFAULT}) Y [Llenar Reporte Mensual](https://airtable.com/appCHcm7XPzeoyBCs/pagh79fwniuSPmusB/form) (Recuérdale reportarse antes).
-            - **Ver Plan/Recursos**: Muestra [Ver Guías PDF](function:program-detail-view).
-            - **Ver Consultas**: Muestra [Historial Médico](${info["Link Consultas"] || "#"}).
-            - **Contactar**: Muestra [Contactar Soporte](function:contact-view).
-            - **Cancelar Membresía/Clave**: Muestra [Mi Cuenta](function:membership-view). (NO ofrecer pausar).
-            - **Precios/Web**: Muestra [Visitar Web](https://imnufit.com).`;
-
-            try {
-                const historyContents = chatHistory.map(msg => ({ role: msg.role === 'user' ? 'user' : 'model', parts: [{ text: msg.text }] }));
-                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
-                const res = await fetchWithRetry(url, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        contents: [...historyContents, { role: 'user', parts: [{ text: userMsg }] }],
-                        systemInstruction: { parts: [{ text: sysPrompt }] }
-                    })
-                });
-                
-                const aiText = res.candidates?.[0]?.content?.parts?.[0]?.text || "No pude procesar tu solicitud.";
-                window.appendChatMessageToAll('ai', aiText);
-                chatHistory.push({ role: 'user', text: userMsg }, { role: 'ai', text: aiText });
-            } catch (e) { 
-                window.appendChatMessageToAll('ai', `⚠️ El coach está saturado o hubo un error. Reintenta en 1 min.`); 
-            } finally { 
-                document.querySelectorAll('.ai-loading-indicator').forEach(el => el.remove()); 
-            }
-        };
-
-        window.viewProgramResources = () => {
-            const airtableData = currentAppData;
-            if (!airtableData) return;
-            const rawProgramName = airtableData["Programa"] || "";
-            const progKey = window.getProgramKey(rawProgramName);
-            if (!progKey || !PROGRAMAS_INFO[progKey]) { window.notify("Sin programa asignado"); return; }
-
-            const data = PROGRAMAS_INFO[progKey];
-            const container = document.getElementById('program-guias-list');
-            let currentMesNum = 1;
-            if (rawProgramName.includes("Mes 2")) currentMesNum = 2;
-            else if (rawProgramName.includes("Mes 3")) currentMesNum = 3;
-            else if (rawProgramName.includes("Mes 4")) currentMesNum = 4;
-
-            if (container) {
-                container.innerHTML = "";
-                for (let i = 1; i <= currentMesNum; i++) {
-                    if (!data.meses[i]) continue;
-                    const monthCard = document.createElement('div');
-                    monthCard.className = "w-full bg-white rounded-[2rem] p-6 border border-slate-100 shadow-sm mb-6 fade-in text-left";
-                    monthCard.innerHTML = `<h4 class="text-xs font-extrabold text-slate-400 uppercase tracking-[0.2em] mb-4 text-center text-slate-400">${data.monthTitles?.[i] || 'MES ' + i}</h4>`;
-                    const list = document.createElement('div');
-                    list.className = "flex flex-col gap-3";
-                    [...data.meses[i]].sort((a,b) => a.type === 'VIDEO' ? 1 : -1).forEach(guia => {
-                        const isVideo = guia.type === "VIDEO";
-                        list.innerHTML += `<a href="${guia.url}" target="_blank" class="group flex items-start gap-4 p-4 rounded-2xl bg-slate-50 border border-slate-100 hover:bg-[#DEE9FA]/30 transition-all text-left"><div class="w-12 h-12 rounded-xl ${isVideo ? 'bg-rose-100 text-rose-500' : 'bg-blue-100 text-[#2E4982]'} flex items-center justify-center shrink-0 text-center">${isVideo ? '<svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>' : '<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>'}</div><div class="text-left"><h4 class="text-sm font-bold text-slate-800">${guia.label}</h4><p class="text-xs text-slate-500 font-medium mt-1 leading-relaxed">${guia.desc}</p></div></a>`;
-                    });
-                    monthCard.appendChild(list);
-                    container.appendChild(monthCard);
-                }
-            }
-            const imgMain = document.getElementById('program-img-main');
-            if (imgMain) { 
-                imgMain.src = data.img; 
-                // Restore original size class
-                document.getElementById('program-img-container').className = `flex justify-center mb-10 transition-transform duration-500 ${data.imgWidth || 'w-32'}`;
-                document.getElementById('program-img-container')?.classList.remove('hidden'); 
-            }
-            window.showView('program-detail-view');
-        };
-
-        // --- HANDLERS ---
-        window.handleAIAction = (viewId) => { window.closeDesktopAIModal(); if (viewId === 'program-detail-view') window.viewProgramResources(); else window.showView(viewId); };
-        window.updateSpecMode = (val) => { specModeSelection = val; window.refreshUIWithData(); window.showView('patient-view'); };
-        window.refreshUIWithData = () => {
-            if (isSpecialistMode) {
-                let mockProg = specModeSelection === "adios_diabetes" ? "Adiós Diabetes 2 (Mes 3)" : (specModeSelection === "quema_grasa" ? "Quema Grasa (Mes 4)" : (specModeSelection === "sano" ? "SANO (Mes 2)" : ""));
-                let mockData = { ...cachedAirtableData, "Nombre + Edad": "Especialista (Demo)", "Programa": mockProg, "Estatus": "Activo", "Link Calendar": CALENDAR_LINK_DEFAULT, "Link Consultas": "https://airtable.com/" };
-                updateDashboardUI(mockData);
-            } else updateDashboardUI(cachedAirtableData);
-        };
-        window.handleLogin = async (e) => { e.preventDefault(); const { email, pass } = e.target; try { document.getElementById('loading-screen')?.classList.remove('hidden'); await signInWithEmailAndPassword(auth, email.value, pass.value); } catch (err) { window.notify("Credenciales incorrectas"); document.getElementById('loading-screen')?.classList.add('hidden'); } };
-        window.handleSignup = async (e) => { e.preventDefault(); const { email, pass, confirmPass } = e.target; if (pass.value !== confirmPass.value) { window.notify("Contraseñas no coinciden"); return; } try { document.getElementById('loading-screen')?.classList.remove('hidden'); await createUserWithEmailAndPassword(auth, email.value, pass.value); window.notify("Cuenta creada", "success"); } catch (err) { window.notify("Error"); } finally { document.getElementById('loading-screen')?.classList.add('hidden'); } };
-        window.handlePasswordReset = async (e) => { e.preventDefault(); try { document.getElementById('loading-screen')?.classList.remove('hidden'); await sendPasswordResetEmail(auth, e.target.resetEmail.value); window.notify("Correo enviado", "success"); window.showView('login-view'); } catch (err) { window.notify("Error"); } finally { document.getElementById('loading-screen')?.classList.add('hidden'); } };
-        window.cerrarSesion = () => signOut(auth);
-        window.updateAppPassword = async (e) => { e.preventDefault(); if(!auth.currentUser) return; try { document.getElementById('loading-screen')?.classList.remove('hidden'); await updatePassword(auth.currentUser, e.target.newPassword.value); window.notify("Clave actualizada", "success"); e.target.reset(); } catch (err) { window.notify("Sesión expirada"); } finally { document.getElementById('loading-screen')?.classList.add('hidden'); } };
-
-        window.refreshData = async () => { if(auth.currentUser) { document.getElementById('loading-screen')?.classList.remove('hidden'); const f = encodeURIComponent(`({Email}='${auth.currentUser.email}')`), u = `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${AIRTABLE_TABLE_NAME}?filterByFormula=${f}`; const res = await fetch(u, { headers: { Authorization: `Bearer ${AIRTABLE_PAT}` } }); const d = await res.json(); cachedAirtableData = d.records?.[0]?.fields || null; window.refreshUIWithData(); document.getElementById('loading-screen')?.classList.add('hidden'); window.notify("Actualizado", "success"); } };
-        window.notify = (msg, type = 'error') => { const t = document.getElementById('notification-toast'), c = document.getElementById('notification-content'); if(t && c) { c.textContent = msg; t.className = `fixed top-8 left-1/2 -translate-x-1/2 z-[800] px-8 py-4 rounded-full shadow-2xl text-[13px] font-semibold bg-white border ${type === 'success' ? 'text-emerald-600 border-emerald-100' : 'text-red-600 border-red-100'}`; t.classList.remove('hidden'); setTimeout(() => t.classList.add('hidden'), 3500); } };
-
-        async function fetchAirtableData(email) {
-            const f = encodeURIComponent(`({Email}='${email}')`), u = `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${AIRTABLE_TABLE_NAME}?filterByFormula=${f}`;
-            try { const res = await fetch(u, { headers: { Authorization: `Bearer ${AIRTABLE_PAT}` } }); const data = await res.json(); return data.records?.[0]?.fields || null; } catch (e) { return null; }
-        }
-
-        function updateDashboardUI(data) {
-            if (!data) return;
-            currentAppData = data; 
-            window.safeSetText('display-nombre', data["Nombre + Edad"] || "Usuario IMNUFIT");
-            if (chatHistory.length === 0) window.clearChat();
-            const g = window.getGreeting(); window.safeUpdate('display-greeting', (el) => el.innerHTML = `<span class="text-xl mr-2">${g.icon}</span> ${g.text}`);
-            const st = data["Estatus"] || "Activo";
-            window.safeUpdate('display-estatus', (el) => { el.textContent = st; el.className = `px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-widest border inline-block mt-2 ${window.getStatusClass(st)}`; });
-            const sLow = st.toLowerCase(), isR = (sLow.includes("inactivo") || sLow.includes("por asignar") || sLow.includes("pausa")) && !isSpecialistMode;
-            
-            document.getElementById('featured-plan-banner')?.classList.toggle('hidden', isR || !data.Programa);
-            document.getElementById('restricted-banner')?.classList.toggle('hidden', !isR);
-            document.getElementById('card-ai')?.classList.toggle('hidden', isR);
-            if (data.Programa) window.safeSetText('plan-banner-title', data.Programa);
-            if (isR) { window.safeSetText('restricted-banner-title', sLow.includes("por asignar") ? "Plan en Preparación" : "Portal de Seguimiento"); window.safeSetText('restricted-banner-body', sLow.includes("por asignar") ? "Estamos diseñando tu estrategia." : "Suscripción inactiva."); }
-            const hide = (sLow.includes("inactivo") || sLow.includes("por asignar")) && !isSpecialistMode;
-            ['card-entrenamientos', 'card-reporte', 'card-citas', 'card-consultas'].forEach(id => window.safeUpdate(id, el => el.classList.toggle('hidden', hide)));
-            window.safeUpdate('calendar-action-container', el => el.innerHTML = `<a href="${data["Link Calendar"] || CALENDAR_LINK_DEFAULT}" target="_blank" class="btn-ghost-sm text-center">Ir al Calendario</a>`);
-            const bh = document.getElementById('btn-consultas-action'); if (bh) { bh.href = data["Link Consultas"] || "#"; bh.style.opacity = bh.href.includes("#") ? "0.4" : "1"; }
-            
-            window.safeSetText('acc-nombre', data["Nombre + Edad"] || "---"); window.safeSetText('acc-email', auth.currentUser?.email || "--"); window.safeSetText('display-frase', frasesCreyentes[Math.floor(Math.random() * frasesCreyentes.length)]);
-            window.safeSetText('acc-pais', data["País"] || "--"); window.safeSetText('acc-telefono', data["Telefono"] || "--");
-        }
-
-        // --- NAVEGACIÓN MODALES ---
-        window.closeDesktopAIModal = () => { const m = document.getElementById('ai-modal-overlay'); if(!m) return; m.classList.add('opacity-0'); m.querySelector('div')?.classList.add('scale-95', 'opacity-0'); setTimeout(() => { m.classList.add('hidden'); m.classList.remove('flex'); window.clearChat(); }, 300); };
-        window.closeMobileChat = () => { window.showView('patient-view'); window.clearChat(); };
-        window.openAITrainingModal = () => { document.getElementById('ai-training-modal')?.classList.remove('hidden'); document.getElementById('ai-training-modal')?.classList.add('flex'); };
-        window.closeAITrainingModal = () => { document.getElementById('ai-training-modal')?.classList.add('hidden'); };
-        window.openDesktopAIModal = () => { const m = document.getElementById('ai-modal-overlay'); if(!m) return; m.classList.remove('hidden'); m.classList.add('flex'); setTimeout(() => { m.classList.remove('opacity-0'); m.querySelector('div')?.classList.remove('scale-95', 'opacity-0'); document.getElementById('ai-input-desktop')?.focus(); }, 10); };
-        window.openAIChat = () => { if (window.innerWidth < 768) { window.showView('mobile-ai-view'); setTimeout(() => document.getElementById('ai-input-mobile')?.focus(), 300); } else window.openDesktopAIModal(); };
-
-        // --- AUTH OBSERVER ---
-        onAuthStateChanged(auth, async (user) => {
-            const loader = document.getElementById('loading-screen');
-            loader?.classList.remove('hidden');
-            if (user) {
-                isSpecialistMode = (user.email === SPECIALIST_EMAIL);
-                const sp = document.getElementById('specialist-panel'); if(sp) sp.classList.toggle('hidden', !isSpecialistMode);
-                cachedAirtableData = await fetchAirtableData(user.email);
-                window.refreshUIWithData(); window.syncAIInstructions(); window.showView('patient-view', false);
-            } else { 
-                const sp = document.getElementById('specialist-panel'); if(sp) sp.classList.add('hidden');
-                isSpecialistMode = false; window.showView('login-view', false); 
-            }
-            loader?.classList.add('hidden');
-        });
-
         // --- INIT ---
-        (async () => {
-            try { if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) await signInWithCustomToken(auth, __initial_auth_token).catch(() => signInAnonymously(auth)); else if (!auth.currentUser) await signInAnonymously(auth).catch(() => {}); } catch (e) {}
-        })();
+        setPersistence(auth, browserLocalPersistence).then(() => {});
     </script>
     <style>
         :root { --primary: #2E4982; --apple-bg: #FBFBFC; }
@@ -594,7 +625,7 @@
     <section id="membership-view" class="min-h-screen hidden bg-slate-50/50 pb-20 text-left">
         <header class="bg-white/40 backdrop-blur-xl border-b h-24 flex items-center px-8 justify-between sticky top-0 z-40 text-left"><button onclick="window.showView('patient-view')" class="flex items-center gap-2 text-slate-400 hover:text-[#2E4982] font-bold text-xs uppercase tracking-widest transition-colors text-left"><svg class="w-4 h-4 transform group-hover:-translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path d="M15 19l-7-7 7-7"></path></svg> Volver</button><h2 class="text-sm font-bold text-[#494949] uppercase tracking-[0.2em] text-left">Mi Cuenta</h2><div class="w-10"></div></header>
         <main class="max-w-2xl mx-auto py-12 px-6 space-y-10 text-left">
-            <section class="bg-white rounded-[2.5rem] p-10 shadow-sm border border-slate-50 text-left"><div class="flex items-center gap-4 mb-12 text-left"><div class="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center text-[#2E4982] shadow-sm text-center"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg></div><div class="text-left"><h3 class="text-xl font-bold">Perfil Personal</h3><p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest text-left">Identidad en Consulta</p></div></div><div class="space-y-0 text-left"><div class="profile-line text-left"><span class="profile-label-text">Paciente:</span><span id="acc-nombre" class="profile-value-text">...</span></div><div class="profile-line text-left"><span class="profile-label-text">Email:</span><span id="acc-email" class="profile-value-text">--</span></div></div></section>
+            <section class="bg-white rounded-[2.5rem] p-10 shadow-sm border border-slate-50 text-left"><div class="flex items-center gap-4 mb-12 text-left"><div class="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center text-[#2E4982] shadow-sm text-center"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg></div><div class="text-left"><h3 class="text-xl font-bold">Perfil Personal</h3><p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest text-left">Identidad en Consulta</p></div></div><div class="space-y-0 text-left"><div class="profile-line text-left"><span class="profile-label-text">Paciente:</span><span id="acc-nombre" class="profile-value-text">...</span></div><div class="profile-line flex items-center justify-start !py-6 text-left"><span id="acc-genero">--</span></div><div class="profile-line text-left"><span class="profile-label-text">Nacimiento:</span><span id="acc-nacimiento" class="profile-value-text">--</span></div><div class="profile-line text-left"><span class="profile-label-text">País:</span><span id="acc-pais" class="profile-value-text">--</span></div><div class="profile-line border-0 text-left"><span class="profile-label-text">Teléfono:</span><span id="acc-telefono" class="profile-value-text">--</span></div><div class="mt-4 pt-10 border-t border-slate-50 text-left"><span class="profile-label-text !mb-1 text-left">Email de acceso</span><div class="h-1 text-left"></div><span id="acc-email" class="text-[14px] font-medium text-slate-500">--</span></div></div></section>
             
             <section class="bg-white rounded-[2.5rem] p-10 shadow-sm border border-slate-50 text-left"><div class="flex items-center gap-4 mb-8 text-left"><div class="w-12 h-12 bg-slate-50 rounded-2xl flex items-center justify-center text-slate-500 shadow-sm text-left"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" /></svg></div><div class="text-left"><h3 class="text-xl font-bold text-[#494949]">Seguridad</h3><p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest text-left">Cambio de Acceso</p></div></div><form onsubmit="window.updateAppPassword(event)" class="space-y-6 text-left"><div><label class="text-[11px] font-bold text-slate-400 uppercase tracking-widest ml-1 text-left">Nueva Contraseña</label><input type="password" name="newPassword" required minlength="6" placeholder="Nueva contraseña (mín. 6 caracteres)" class="input-apple mt-2 text-left"></div><button type="submit" class="btn-ingresar !bg-slate-800 text-center">Actualizar Contraseña</button></form></section>
             
@@ -605,7 +636,7 @@
                 </div>
                 <p class="text-[14px] text-slate-500 mb-8 leading-relaxed text-left">Utilizamos una plataforma segura para tus suscripciones. Desde aquí podrás actualizar tu tarjeta o <strong>cancelar tu membresía</strong>.</p>
                 <div class="w-full">
-                    <a href="https://billing.stripe.com/p/login/bIY9CF3un99T2XefYY" target="_blank" class="btn-secure-portal w-full justify-center">
+                    <a href="https://billing.stripe.com/p/login/bIY9CF3un99T2XefYY" target="_blank" class="btn-secure-portal w-full justify-center text-center">
                         Gestionar Membresía y Pagos 
                         <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
                     </a>
@@ -674,6 +705,16 @@
             <button onclick="window.showView('login-view')" class="text-[12px] font-bold text-[#2E4982] uppercase tracking-widest w-full text-center text-left">Volver al inicio</button>
         </div>
     </section>
+
+    <!-- NOTIFICATION TOAST -->
+    <div id="notification-toast" class="hidden fixed top-8 left-1/2 -translate-x-1/2 z-[9999] px-8 py-4 rounded-full shadow-2xl text-[13px] font-semibold bg-white border transform transition-all duration-300">
+        <span id="notification-content"></span>
+    </div>
+    
+    <!-- LOADING SCREEN -->
+    <div id="loading-screen" class="fixed inset-0 bg-white z-[9000] flex items-center justify-center hidden">
+        <div class="h-8 w-8 border-[3px] border-[#2E4982] border-t-transparent rounded-full animate-spin"></div>
+    </div>
 
 </body>
 </html>
