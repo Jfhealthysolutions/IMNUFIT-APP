@@ -8,8 +8,8 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut, setPersistence, browserLocalPersistence, updatePassword, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut, setPersistence, browserLocalPersistence, updatePassword, sendPasswordResetEmail, signInWithCustomToken, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // --- CONFIGURACIÓN DE FIREBASE ---
         const firebaseConfig = {
@@ -28,23 +28,20 @@
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'imnufit-official';
 
-        // --- GESTIÓN INTERNA DE LA API KEY (OCULTA) ---
-        // Dividimos la clave para que los escáneres de seguridad no la bloqueen automáticamente.
-        // El paciente NO necesita hacer nada.
         const _partA = "AIzaSyCPDuual8XB";
         const _partB = "ejuVUPbKecfonbIh6SNolDk";
         const apiKey = _partA + _partB;
 
-        // --- CONFIGURACIÓN MODO ESPECIALISTA ---
         const SPECIALIST_EMAIL = "imnufit@gmail.com";
         let isSpecialistMode = false;
         let specModeSelection = "sin_programa";
+        let aiCustomInstructions = ""; 
 
         const CALENDAR_LINK_DEFAULT = "https://calendar.app.google/CE4KjKxPeFiV93GV7";
         const PLANES_LINK = "https://imnufit.com/planes-y-precios/";
 
-        // --- RECURSOS POR PROGRAMA Y MES ---
         const PROGRAMAS_INFO = {
             "Adiós Diabetes 2": {
                 img: "https://imnufit.com/wp-content/uploads/2024/04/Imagen-de-WhatsApp-2024-04-30-a-las-18.35.48_16bb1ed2.jpg",
@@ -109,7 +106,50 @@
 
         setPersistence(auth, browserLocalPersistence);
 
-        // --- UTILIDADES ---
+        let aiUnsubscribe = null;
+        async function syncAIInstructions() {
+            if (!auth.currentUser) return;
+            if (aiUnsubscribe) aiUnsubscribe();
+
+            const aiDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'ai_config', 'instructions');
+            aiUnsubscribe = onSnapshot(aiDocRef, (snap) => {
+                if (snap.exists()) {
+                    aiCustomInstructions = snap.data().content || "";
+                    const textarea = document.getElementById('ai-training-text');
+                    if(textarea) textarea.value = aiCustomInstructions;
+                }
+            }, (err) => console.log("Firestore sync active."));
+        }
+
+        window.saveAITraining = async () => {
+            const text = document.getElementById('ai-training-text').value;
+            const btn = document.getElementById('btn-save-ai-training');
+            if (!auth.currentUser) {
+                window.notify("Debe estar autenticado");
+                return;
+            }
+            
+            btn.disabled = true;
+            btn.textContent = "Guardando...";
+            
+            try {
+                const aiDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'ai_config', 'instructions');
+                await setDoc(aiDocRef, { 
+                    content: text, 
+                    updatedBy: auth.currentUser?.email || 'admin', 
+                    timestamp: new Date() 
+                });
+                window.notify("Entrenamiento actualizado", "success");
+                window.closeAITrainingModal();
+            } catch (error) {
+                console.error("Error saving:", error);
+                window.notify("Error al guardar en la nube");
+            } finally {
+                btn.disabled = false;
+                btn.textContent = "Guardar Cambios";
+            }
+        };
+
         const safeSetText = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
         const safeUpdate = (id, fn) => { const el = document.getElementById(id); if (el) fn(el); };
 
@@ -147,33 +187,26 @@
             return null;
         }
 
-        // --- LÓGICA DE IA (GEMINI) ---
         let chatHistory = [];
 
-        // Fetch robusto para móviles
         async function fetchWithRetry(url, options, retries = 2) {
             const backoffs = [1000, 2000, 4000];
             for (let i = 0; i <= retries; i++) {
                 const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 12000); // 12s timeout
+                const timeoutId = setTimeout(() => controller.abort(), 12000); 
                 
                 try {
                     const response = await fetch(url, { 
                         ...options, 
                         signal: controller.signal,
-                        referrerPolicy: 'no-referrer' // CRUCIAL para iOS/Chrome Mobile
+                        referrerPolicy: 'no-referrer'
                     });
                     clearTimeout(timeoutId);
-
-                    if (response.status >= 400 && response.status < 500 && response.status !== 429) {
-                        throw new Error(`Error API (${response.status})`);
-                    }
-
                     if (!response.ok) throw new Error(`HTTP ${response.status}`);
                     return await response.json();
                 } catch (error) {
                     clearTimeout(timeoutId);
-                    if (i === retries || error.message.includes('Error API')) throw error;
+                    if (i === retries) throw error;
                     await new Promise(r => setTimeout(r, backoffs[i]));
                 }
             }
@@ -194,6 +227,30 @@
             html = html.replace(/\n/g, '<br>');
             return html;
         }
+
+        window.clearChat = () => {
+            chatHistory = [];
+            const infoPaciente = cachedAirtableData?.["Nombre + Edad"] || "Paciente";
+            const nombrePila = infoPaciente.split(' ')[0] || "Paciente";
+            const welcomeMsg = `Hola <strong>${nombrePila}</strong>, soy tu asistente personal de nutrición. Conozco cada detalle de tu plan en IMNUFIT. ¿En qué puedo guiarte hoy?`;
+            
+            const resetHtml = `
+                <div class="flex justify-center mb-8">
+                    <p class="text-xs text-slate-400 font-medium uppercase tracking-widest">Hoy</p>
+                </div>
+                <div class="flex justify-start fade-in">
+                    <div class="max-w-[90%] bg-white border border-slate-100 px-6 py-4 rounded-[1.5rem] rounded-tl-sm text-[15px] leading-relaxed text-slate-600 shadow-sm">
+                        ${welcomeMsg}
+                    </div>
+                </div>
+            `;
+
+            const mobMessages = document.getElementById('ai-messages-mobile');
+            const deskMessages = document.getElementById('ai-messages-desktop');
+            
+            if(mobMessages) mobMessages.innerHTML = resetHtml;
+            if(deskMessages) deskMessages.innerHTML = resetHtml;
+        };
 
         window.handleAIAction = (viewId) => {
             window.closeDesktopAIModal(); 
@@ -229,7 +286,25 @@
             setTimeout(() => {
                 modal.classList.add('hidden');
                 modal.classList.remove('flex');
+                window.clearChat(); 
             }, 300);
+        };
+
+        window.closeMobileChat = () => {
+            window.showView('patient-view');
+            window.clearChat(); 
+        };
+
+        window.openAITrainingModal = () => {
+            const modal = document.getElementById('ai-training-modal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        };
+
+        window.closeAITrainingModal = () => {
+            const modal = document.getElementById('ai-training-modal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
         };
 
         window.sendMessageToAI = async (source) => {
@@ -251,27 +326,37 @@
             const nombreCompleto = cachedAirtableData?.["Nombre + Edad"] || "Paciente";
             const nombrePila = nombreCompleto.split(' ')[0] || "Paciente";
             const linkCalendar = cachedAirtableData?.["Link Calendar"] || CALENDAR_LINK_DEFAULT;
+            const linkConsultas = cachedAirtableData?.["Link Consultas"] || "#";
             const programaActual = cachedAirtableData?.Programa || 'No asignado aún';
             
             const systemPrompt = `Eres el Especialista IA de IMNUFIT. Estás hablando con **${nombreCompleto}**. Llámalo por su nombre (${nombrePila}).
             Tu objetivo es motivar y guiar en su programa (${programaActual}).
             Tu tono es profesional, motivador y breve. Usa **negritas** para resaltar ideas clave.
-            IMPORTANTE: Si el usuario quiere realizar una acción, usa este formato: [TEXTO](link_o_funcion)
-            LISTA:
-            - Ver Entrenamientos: [Ir a Entrenamientos](https://imnufit.com/entrenaconfrenplus/)
-            - Reportar Progreso: [Llenar Reporte Mensual](https://airtable.com/appCHcm7XPzeoyBCs/pagh79fwniuSPmusB/form)
-            - Agendar Cita: [Reservar Cita](${linkCalendar})
-            - Historial Médico: [Ver Consultas](https://airtable.com/)
-            - Contactar Soporte: [Contactar Soporte](function:contact-view)
-            - Ver Perfil/Pagos: [Mi Cuenta](function:membership-view)
-            - Recursos del Programa: [Ver Guías PDF](function:program-detail-view)`;
+            
+            INSTRUCCIONES DE ENTRENAMIENTO ACTUALES:
+            ${aiCustomInstructions}
+
+            HISTORIAL DE ACCIONES (Formato [Texto](función)):
+            - [Ir a Entrenamientos](https://imnufit.com/entrenaconfrenplus/)
+            - [Llenar Reporte Mensual](https://airtable.com/appCHcm7XPzeoyBCs/pagh79fwniuSPmusB/form)
+            - [Reservar Cita](${linkCalendar})
+            - [Ver Consultas](${linkConsultas})
+            - [Contactar Soporte](function:contact-view)
+            - [Mi Cuenta](function:membership-view)
+            - [Ver Guías PDF](function:program-detail-view)`;
 
             try {
-                // USAMOS LA CLAVE RECONSTRUIDA
+                const historyContents = chatHistory.map(msg => ({
+                    role: msg.role === 'user' ? 'user' : 'model',
+                    parts: [{ text: msg.text }]
+                }));
+
                 const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
-                
                 const payload = {
-                    contents: [{ parts: [{ text: userMessage }] }],
+                    contents: [
+                        ...historyContents, 
+                        { role: 'user', parts: [{ text: userMessage }] }
+                    ],
                     systemInstruction: { parts: [{ text: systemPrompt }] }
                 };
 
@@ -284,17 +369,9 @@
                 const aiText = data.candidates?.[0]?.content?.parts?.[0]?.text || "Lo siento, no pude procesar tu mensaje.";
                 appendChatMessageToAll('ai', aiText);
                 chatHistory.push({ role: 'user', text: userMessage }, { role: 'ai', text: aiText });
-
+                
             } catch (error) {
-                console.error("AI Error:", error);
-                
-                let displayError = "Error de conexión.";
-                if (error.message.includes("403")) displayError = "Acceso denegado (403). Clave bloqueada.";
-                else if (error.message.includes("400")) displayError = "Petición inválida (400).";
-                else if (error.message.includes("429")) displayError = "Servidor ocupado. Intenta luego.";
-                
-                appendChatMessageToAll('ai', `⚠️ <strong>No pude responder.</strong><br><span class="text-[10px] opacity-70">${displayError}</span>`);
-                window.notify("Error en la IA");
+                appendChatMessageToAll('ai', `⚠️ <strong>Error al procesar.</strong><br><span class="text-[10px] opacity-70">Verifica tu conexión.</span>`);
             } finally {
                 document.querySelectorAll('.ai-loading-indicator').forEach(el => el.remove());
             }
@@ -304,7 +381,7 @@
             const contentHtml = role === 'ai' ? parseAIResponse(text) : text.replace(/\n/g, '<br>');
             const msgHtml = `
                 <div class="flex ${role === 'user' ? 'justify-end' : 'justify-start'} mb-6 fade-in">
-                    <div class="max-w-[85%] px-5 py-4 rounded-[1.4rem] text-[14px] leading-relaxed ${role === 'user' ? 'bg-[#2E4982] text-white rounded-tr-sm' : 'bg-white border border-slate-100 text-slate-600 rounded-tl-sm shadow-sm'}">
+                    <div class="max-w-[85%] px-5 py-4 rounded-[1.4rem] text-[14px] font-medium leading-relaxed ${role === 'user' ? 'bg-[#2E4982] text-white rounded-tr-sm' : 'bg-white border border-slate-100 text-slate-600 rounded-tl-sm shadow-sm'}">
                         ${contentHtml}
                     </div>
                 </div>
@@ -377,7 +454,7 @@
                     "Programa": mockProgram,
                     "Estatus": "Activo",
                     "Link Calendar": CALENDAR_LINK_DEFAULT,
-                    "Link Consultas": "#"
+                    "Link Consultas": "https://airtable.com/"
                 };
                 updateDashboardUI(mock);
             } else {
@@ -402,10 +479,11 @@
             safeSetText('display-nombre', infoPaciente);
             const nombrePila = infoPaciente.split(' ')[0] || "Paciente";
             const welcomeMsg = `Hola <strong>${nombrePila}</strong>, soy tu asistente personal de nutrición. Conozco cada detalle de tu plan en IMNUFIT. ¿En qué puedo guiarte hoy?`;
-            const mobWel = document.getElementById('ai-welcome-text-mobile');
-            const deskWel = document.getElementById('ai-welcome-text-desktop');
-            if (mobWel) mobWel.innerHTML = welcomeMsg;
-            if (deskWel) deskWel.innerHTML = welcomeMsg;
+            
+            if (chatHistory.length === 0) {
+                window.clearChat();
+            }
+
             const g = getGreeting();
             safeUpdate('display-greeting', (el) => el.innerHTML = `<span class="text-xl mr-2">${g.icon}</span> ${g.text}`);
             const status = airtableData["Estatus"] || "Activo";
@@ -494,7 +572,7 @@
                 safeUpdate(id, el => el.classList.toggle('hidden', hideCards));
             });
             if (isPausa && !isSpecialistMode) {
-                ['card-entrenamientos', 'card-reporte', 'card-citas', 'card-ai'].forEach(id => safeUpdate(id, el => el.classList.add('hidden')));
+                ['card-entrenamientos', 'card-reporte', 'card-citas', 'card-consultas', 'card-ai'].forEach(id => safeUpdate(id, el => el.classList.add('hidden')));
                 safeUpdate('card-consultas', el => el.classList.remove('hidden'));
             }
             const calLink = airtableData["Link Calendar"] || CALENDAR_LINK_DEFAULT;
@@ -531,15 +609,33 @@
             }
         };
 
+        const initApp = async () => {
+            try {
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    try {
+                        await signInWithCustomToken(auth, __initial_auth_token);
+                    } catch (tokenErr) {
+                        if (!auth.currentUser) await signInAnonymously(auth).catch(() => {});
+                    }
+                } else if (!auth.currentUser) {
+                    await signInAnonymously(auth).catch(() => {});
+                }
+            } catch (error) {
+                console.error("Auth error:", error);
+            }
+        };
+
         onAuthStateChanged(auth, async (user) => {
             if (user) {
                 document.getElementById('loading-screen').classList.remove('hidden');
                 isSpecialistMode = (user.email === SPECIALIST_EMAIL);
                 const panel = document.getElementById('specialist-panel');
                 if(panel) panel.classList.toggle('hidden', !isSpecialistMode);
+                
                 const airtableData = await fetchAirtableData(user.email);
                 cachedAirtableData = airtableData;
                 refreshUIWithData();
+                syncAIInstructions();
                 window.showView('patient-view', false);
             } else { 
                 const panel = document.getElementById('specialist-panel');
@@ -549,6 +645,8 @@
             }
             document.getElementById('loading-screen').classList.add('hidden');
         });
+
+        initApp();
 
         window.handleLogin = async (e) => { e.preventDefault(); const { email, pass } = e.target; try { document.getElementById('loading-screen').classList.remove('hidden'); await signInWithEmailAndPassword(auth, email.value, pass.value); } catch (err) { window.notify("Credenciales incorrectas"); document.getElementById('loading-screen').classList.add('hidden'); } };
         window.handleSignup = async (e) => { e.preventDefault(); const { email, pass, confirmPass } = e.target; if (pass.value !== confirmPass.value) { window.notify("Contraseñas no coinciden"); return; } try { document.getElementById('loading-screen').classList.remove('hidden'); await createUserWithEmailAndPassword(auth, email.value, pass.value); window.notify("Cuenta creada", "success"); } catch (err) { window.notify("Error al registrar"); } finally { document.getElementById('loading-screen').classList.add('hidden'); } };
@@ -577,7 +675,6 @@
         #specialist-panel { background: #2E4982; border-bottom: 2px solid #1e315a; position: sticky; top: 0; z-index: 500; color: white; padding: 10px 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
         .spec-select { background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; font-size: 10px; font-weight: 700; padding: 6px 12px; outline: none; color: white; cursor: pointer; text-transform: uppercase; letter-spacing: 0.05em; }
         .spec-select option { color: #333; }
-        /* APPLE INTELLIGENCE GLOW EFFECT */
         @keyframes ai-breathing {
             0%, 100% { box-shadow: 0 0 20px rgba(139, 92, 246, 0.2), 0 0 40px rgba(59, 130, 246, 0.1); border-color: rgba(139, 92, 246, 0.3); }
             50% { box-shadow: 0 0 30px rgba(139, 92, 246, 0.4), 0 0 60px rgba(59, 130, 246, 0.2); border-color: rgba(59, 130, 246, 0.5); }
@@ -591,26 +688,48 @@
 
     <div class="bg-mesh"></div>
     
-    <!-- PANEL MAESTRO ESPECIALISTA -->
     <div id="specialist-panel" class="hidden">
         <div class="max-w-5xl mx-auto flex flex-wrap items-center justify-between gap-3">
-            <div class="flex items-center gap-3 overflow-x-auto pb-1 md:pb-0">
-                <span class="text-[9px] font-black uppercase tracking-[0.2em] shrink-0">Modo Demo:</span>
-                <select class="spec-select" onchange="window.updateSpecMode(this.value)">
-                    <option value="sin_programa">Sin Programa</option>
-                    <option value="quema_grasa">Quema Grasa</option>
-                    <option value="sano">SANO</option>
-                    <option value="adios_diabetes">Adiós Diabetes 2</option>
-                </select>
+            <div class="flex items-center gap-4">
+                <div class="flex items-center gap-2">
+                    <span class="text-[9px] font-black uppercase tracking-[0.2em]">Modo Demo:</span>
+                    <select class="spec-select" onchange="window.updateSpecMode(this.value)">
+                        <option value="sin_programa">Sin Programa</option>
+                        <option value="quema_grasa">Quema Grasa</option>
+                        <option value="sano">SANO</option>
+                        <option value="adios_diabetes">Adiós Diabetes 2</option>
+                    </select>
+                </div>
+                <button onclick="window.openAITrainingModal()" class="bg-white/20 hover:bg-white/30 text-white text-[9px] font-black uppercase tracking-widest px-4 py-2 rounded-lg border border-white/20 transition-all flex items-center gap-2">
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                    Entrenar IA
+                </button>
             </div>
-            <p class="hidden md:block text-[9px] opacity-60 italic">Vista de Administrador</p>
+            <p class="hidden md:block text-[9px] opacity-60 italic">Administrador: imnufit@gmail.com</p>
         </div>
     </div>
 
-    <!-- MÓVIL CHAT VIEW (SE COMPORTA COMO OTRA PÁGINA) -->
+    <div id="ai-training-modal" class="fixed inset-0 z-[3000] bg-slate-900/40 backdrop-blur-sm hidden items-center justify-center p-4">
+        <div class="bg-white w-full max-w-lg rounded-[2.5rem] shadow-2xl overflow-hidden fade-in flex flex-col max-h-[90vh]">
+            <div class="p-8 border-b border-slate-50 flex justify-between items-center bg-[#2E4982] text-white">
+                <div>
+                    <h3 class="text-xl font-bold">Cerebro de IMNUFIT IA</h3>
+                    <p class="text-[10px] uppercase font-black tracking-widest opacity-60">Entrenamiento dinámico</p>
+                </div>
+                <button onclick="window.closeAITrainingModal()" class="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path d="M6 18L18 6M6 6l18 18"></path></svg>
+                </button>
+            </div>
+            <div class="p-8 space-y-6 overflow-y-auto">
+                <textarea id="ai-training-text" rows="10" placeholder="Escribe instrucciones nuevas..." class="w-full p-6 bg-slate-50 border border-slate-100 rounded-3xl outline-none focus:ring-2 focus:ring-[#2E4982]/20 text-[14px] text-slate-700 leading-relaxed custom-scrollbar"></textarea>
+                <button id="btn-save-ai-training" onclick="window.saveAITraining()" class="w-full bg-[#2E4982] text-white py-5 rounded-full font-bold uppercase tracking-widest text-xs shadow-xl active:scale-95 transition-all">Guardar Cambios</button>
+            </div>
+        </div>
+    </div>
+
     <section id="mobile-ai-view" class="h-[100dvh] hidden bg-[#FBFBFC] text-left flex flex-col fixed inset-0 z-[2000]">
         <header class="h-24 flex items-center px-6 border-b border-slate-50 justify-between sticky top-0 bg-white z-50 shrink-0">
-            <button onclick="window.showView('patient-view')" class="flex items-center gap-2 text-slate-400 hover:text-[#2E4982] font-bold text-xs uppercase tracking-widest transition-colors"><svg class="w-4 h-4 transform group-hover:-translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path d="M15 19l-7-7 7-7"></path></svg> Volver</button>
+            <button onclick="window.closeMobileChat()" class="flex items-center gap-2 text-slate-400 hover:text-[#2E4982] font-bold text-xs uppercase tracking-widest transition-colors"><svg class="w-4 h-4 transform group-hover:-translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path d="M15 19l-7-7 7-7"></path></svg> Volver</button>
             <div class="flex flex-col items-center">
                 <span class="text-[10px] font-bold text-[#2E4982] uppercase tracking-[0.3em]">Asistente</span>
                 <div class="flex items-center gap-1.5">
@@ -623,18 +742,7 @@
             </div>
             <div class="w-10"></div>
         </header>
-        
-        <div id="ai-messages-mobile" class="flex-1 overflow-y-auto p-6 space-y-6 scroll-smooth">
-            <div class="flex justify-center mb-8">
-                <p class="text-xs text-slate-400 font-medium uppercase tracking-widest">Hoy</p>
-            </div>
-            <div class="flex justify-start fade-in">
-                <div id="ai-welcome-text-mobile" class="max-w-[90%] bg-white border border-slate-100 px-6 py-4 rounded-[1.5rem] rounded-tl-sm text-[15px] leading-relaxed text-slate-600 shadow-sm">
-                    Hola, soy tu asistente personal.
-                </div>
-            </div>
-        </div>
-
+        <div id="ai-messages-mobile" class="flex-1 overflow-y-auto p-6 space-y-6 scroll-smooth"></div>
         <div class="p-4 bg-white border-t border-slate-50 shrink-0">
             <form onsubmit="event.preventDefault(); window.sendMessageToAI('mobile')" class="relative flex items-center gap-3 bg-slate-50 border border-slate-200 rounded-[1.5rem] px-2 py-2 shadow-inner focus-within:ring-2 focus-within:ring-blue-100 transition-all">
                 <input id="ai-input-mobile" type="text" placeholder="Escribe tu consulta..." class="flex-1 bg-transparent border-none outline-none px-4 py-3 text-slate-700 placeholder:text-slate-400 text-[15px]">
@@ -645,10 +753,8 @@
         </div>
     </section>
 
-    <!-- DESKTOP MODAL (ESTILO SPOTLIGHT) - SOLO VISIBLE EN PANTALLAS GRANDES -->
     <div id="ai-modal-overlay" class="fixed inset-0 z-[2000] bg-white/30 backdrop-blur-xl hidden opacity-0 transition-opacity duration-300 items-center justify-center p-4">
         <div class="bg-white w-full max-w-2xl h-[70vh] rounded-[2.5rem] shadow-2xl border border-white/60 flex flex-col overflow-hidden scale-95 opacity-0 transition-all duration-300 relative pointer-events-auto">
-            <!-- Header Modal -->
             <div class="h-16 flex items-center justify-between px-8 border-b border-slate-50 shrink-0 bg-white/80 backdrop-blur-md z-10">
                 <div class="flex flex-col">
                     <span class="font-bold text-sm text-slate-800">Asistente IMNUFIT</span>
@@ -664,24 +770,11 @@
                     <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l18 18"></path></svg>
                 </button>
             </div>
-
-            <!-- Chat Area -->
-            <div id="ai-messages-desktop" class="flex-1 overflow-y-auto p-8 space-y-6 scroll-smooth bg-[#FBFBFC]">
-                <div class="flex justify-center mb-8">
-                    <p class="text-xs text-slate-400 font-medium uppercase tracking-widest">Hoy</p>
-                </div>
-                <div class="flex justify-start fade-in">
-                    <div id="ai-welcome-text-desktop" class="max-w-[85%] bg-white border border-slate-100 px-6 py-4 rounded-[1.5rem] rounded-tl-sm text-[15px] leading-relaxed text-slate-600 shadow-sm">
-                        Hola, soy tu asistente personal.
-                    </div>
-                </div>
-            </div>
-
-            <!-- Input Area -->
+            <div id="ai-messages-desktop" class="flex-1 overflow-y-auto p-8 space-y-6 scroll-smooth bg-[#FBFBFC]"></div>
             <div class="p-6 bg-white shrink-0">
                 <form onsubmit="event.preventDefault(); window.sendMessageToAI('desktop')" class="relative flex items-center gap-3 bg-slate-50 border border-slate-200 rounded-[1.5rem] px-2 py-2 shadow-inner focus-within:ring-2 focus-within:ring-blue-100 transition-all">
                     <input id="ai-input-desktop" type="text" placeholder="Pregúntame sobre recetas, ayuno o tu progreso..." class="flex-1 bg-transparent border-none outline-none px-4 py-3 text-slate-700 placeholder:text-slate-400 text-[15px]">
-                    <button type="submit" class="w-12 h-12 bg-[#2E4982] hover:bg-[#1e315a] text-white rounded-2xl flex items-center justify-center shadow-lg shadow-blue-900/10 transition-transform active:scale-95">
+                    <button type="submit" class="w-12 h-12 bg-[#2E4982] hover:bg-[#1e315a] text-white rounded-2xl flex items-center justify-center shadow-lg transition-transform active:scale-95">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M12 5l7 7-7 7"></path></svg>
                     </button>
                 </form>
@@ -696,7 +789,6 @@
         <div class="h-8 w-8 border-[3px] border-[#2E4982] border-t-transparent rounded-full animate-spin"></div>
     </div>
 
-    <!-- DASHBOARD -->
     <section id="patient-view" class="min-h-screen hidden text-left">
         <header class="bg-white/40 backdrop-blur-xl border-b h-24 flex items-center px-8 justify-between sticky top-0 z-40 text-left">
             <button onclick="window.showView('patient-view')" class="hover:opacity-80 transition-opacity">
@@ -710,7 +802,6 @@
                 <button onclick="window.cerrarSesion()" class="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest hover:text-red-500 ml-2">Salir</button>
             </div>
         </header>
-
         <main class="max-w-5xl mx-auto py-12 px-6 space-y-12">
             <div class="space-y-6 text-left">
                 <div>
@@ -719,7 +810,6 @@
                     <div class="pt-2 text-left"><span id="display-estatus" class="px-3 py-1 rounded-full text-[10px] font-bold uppercase border inline-block text-left">Cargando...</span></div>
                 </div>
                 <div class="bg-white/60 p-6 rounded-[2rem] border border-white/60 shadow-sm backdrop-blur-md max-w-3xl text-slate-600 text-left"><p id="display-frase" class="italic text-[15px] leading-relaxed">...</p></div>
-                
                 <div id="featured-plan-banner" class="hidden fade-in text-left">
                     <div class="bg-[#2E4982] rounded-[2.5rem] p-8 md:p-12 text-white shadow-2xl relative overflow-hidden group cursor-pointer" onclick="window.viewProgramResources()">
                         <div class="absolute -right-16 -top-16 w-64 h-64 bg-white/10 rounded-full blur-3xl text-left"></div>
@@ -733,7 +823,6 @@
                         </div>
                     </div>
                 </div>
-
                 <div id="restricted-banner" class="hidden fade-in text-left">
                     <div class="bg-[#2E4982] rounded-[2.5rem] p-10 md:p-12 text-white shadow-2xl relative overflow-hidden text-center flex flex-col items-center">
                         <div class="absolute -right-16 -top-16 w-64 h-64 bg-white/10 rounded-full blur-3xl text-left"></div>
@@ -746,9 +835,7 @@
                     </div>
                 </div>
             </div>
-
             <div id="dashboard-grid" class="grid grid-cols-1 md:grid-cols-2 gap-8 text-left">
-                <!-- TARJETA IA REDISEÑADA (ESTILO APPLE INTELLIGENCE) -->
                 <section id="card-ai" class="ai-card-glow rounded-[2.5rem] p-8 border border-white/50 relative overflow-hidden cursor-pointer group transition-transform hover:-translate-y-1" onclick="window.openAIChat()">
                     <div class="relative z-10 flex flex-col justify-between h-full min-h-[220px]">
                         <div class="flex items-start justify-between">
@@ -770,7 +857,6 @@
                     </div>
                     <div class="absolute -bottom-10 -right-10 w-48 h-48 bg-gradient-to-tr from-blue-200 to-violet-200 rounded-full blur-[60px] opacity-60 pointer-events-none"></div>
                 </section>
-
                 <section id="card-entrenamientos" class="bento-card min-h-[300px]">
                     <div class="w-14 h-14 bg-[#DEE9FA] rounded-2xl flex items-center justify-center mb-6 shrink-0"><img src="https://imnufit.com/wp-content/uploads/2022/01/iuiuo.png" class="w-11 h-11 object-contain text-left"></div>
                     <div class="text-left"><h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-1">Entrenaconfren+</h4><h3 class="text-2xl font-bold text-[#494949]">Entrenamientos</h3><p class="text-[14px] text-slate-500 mt-2 leading-relaxed text-left">Accede a tus rutinas y guías.</p></div>
@@ -795,7 +881,6 @@
         </main>
     </section>
 
-    <!-- PROGRAM DETAIL -->
     <section id="program-detail-view" class="min-h-screen hidden bg-[#FBFBFC] text-left">
         <header class="h-24 flex items-center px-4 md:px-8 border-b border-slate-50 justify-between sticky top-0 bg-white z-50 text-left">
             <button onclick="window.showView('patient-view')" class="flex items-center gap-2 text-slate-400 hover:text-[#2E4982] font-bold text-xs uppercase tracking-widest transition-colors group text-left flex-shrink-0"><svg class="w-4 h-4 transform group-hover:-translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path d="M15 19l-7-7 7-7"></path></svg> Volver</button>
@@ -815,7 +900,6 @@
         </main>
     </section>
 
-    <!-- CONTACT VIEW -->
     <section id="contact-view" class="min-h-screen hidden bg-white text-left">
         <header class="h-24 flex items-center px-8 border-b border-slate-50 justify-between sticky top-0 bg-white z-50 text-left">
             <button onclick="window.showView('patient-view')" class="flex items-center gap-2 text-slate-400 hover:text-[#2E4982] font-bold text-xs uppercase tracking-widest transition-colors text-left"><svg class="w-4 h-4 transform group-hover:-translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path d="M15 19l-7-7 7-7"></path></svg> Volver</button>
@@ -862,7 +946,6 @@
         </main>
     </section>
 
-    <!-- MI CUENTA -->
     <section id="membership-view" class="min-h-screen hidden bg-slate-50/50 pb-20 text-left">
         <header class="bg-white/40 backdrop-blur-xl border-b h-24 flex items-center px-8 justify-between sticky top-0 z-40 text-left">
             <button onclick="window.showView('patient-view')" class="flex items-center gap-2 text-slate-400 hover:text-[#2E4982] font-bold text-xs uppercase tracking-widest transition-colors text-left"><svg class="w-4 h-4 transform group-hover:-translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path d="M15 19l-7-7 7-7"></path></svg> Volver</button>
@@ -884,9 +967,7 @@
                     </div>
                 </div>
             </section>
-            
             <section class="bg-white rounded-[2.5rem] p-10 shadow-sm border border-slate-50 text-left"><div class="flex items-center gap-4 mb-8 text-left"><div class="w-12 h-12 bg-slate-50 rounded-2xl flex items-center justify-center text-slate-500 shadow-sm text-left"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M12 15v2m-6 4h12a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg></div><div class="text-left"><h3 class="text-xl font-bold text-[#494949]">Seguridad</h3><p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest text-left">Cambio de Acceso</p></div></div><form onsubmit="window.updateAppPassword(event)" class="space-y-6 text-left"><div><label class="text-[11px] font-bold text-slate-400 uppercase tracking-widest ml-1 text-left">Nueva Contraseña</label><input type="password" name="newPassword" required minlength="6" class="input-apple mt-2 text-left"></div><button type="submit" class="btn-ingresar !bg-slate-800 text-center">Actualizar Contraseña</button></form></section>
-            
             <section class="bg-white rounded-[2.5rem] p-10 shadow-sm border border-slate-50 text-left">
                 <div class="flex items-center gap-4 mb-8 text-left">
                     <div class="w-12 h-12 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-600 shadow-sm text-left"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg></div>
@@ -901,7 +982,6 @@
         </main>
     </section>
 
-    <!-- LOGIN -->
     <section id="login-view" class="min-h-screen hidden flex flex-col items-center justify-center p-8 text-center">
         <div class="max-w-[340px] w-full space-y-12 fade-in text-center text-left">
             <img src="https://imnufit.com/wp-content/uploads/2025/05/cropped-logo-y-nombre-AZUL.png" class="mx-auto h-11 object-contain mix-blend-multiply text-center">
@@ -925,7 +1005,6 @@
         </div>
     </section>
 
-    <!-- FORGOT PASSWORD -->
     <section id="forgot-password-view" class="min-h-screen hidden flex flex-col items-center justify-center p-8 text-center">
         <div class="max-w-[340px] w-full space-y-10 fade-in text-center text-left">
             <img src="https://imnufit.com/wp-content/uploads/2025/05/cropped-logo-y-nombre-AZUL.png" class="mx-auto h-11 object-contain mix-blend-multiply">
@@ -942,7 +1021,6 @@
         </div>
     </section>
 
-    <!-- SIGNUP -->
     <section id="signup-view" class="min-h-screen hidden flex flex-col items-center justify-center p-8 text-center">
         <div class="max-w-[340px] w-full space-y-12 fade-in text-center text-left">
             <img src="https://imnufit.com/wp-content/uploads/2025/05/cropped-logo-y-nombre-AZUL.png" class="mx-auto h-11 object-contain mix-blend-multiply text-center">
