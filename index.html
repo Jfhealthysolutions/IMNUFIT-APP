@@ -30,12 +30,11 @@
         const db = getFirestore(app);
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'imnufit-official';
 
-        // Clave API Gemini Reconstruida
         const _partA = "AIzaSyCPDuual8XB";
         const _partB = "ejuVUPbKecfonbIh6SNolDk";
         const apiKey = _partA + _partB;
 
-        // Variables de Estado Globales
+        // Variables Globales
         const SPECIALIST_EMAIL = "imnufit@gmail.com";
         let isSpecialistMode = false;
         let specModeSelection = "sin_programa";
@@ -96,7 +95,9 @@
             "Jehová es mi fortaleza y mi escudo.", "Confía en el Señor de todo corazón.", "Mira que te mando que te esfuerces y seas valiente."
         ];
 
-        // --- 2. FUNCIONES DE UTILIDAD (DECLARADAS AL INICIO) ---
+        // --- DEFINICIÓN DE FUNCIONES GLOBALES (AL PRINCIPIO PARA EVITAR ERRORES) ---
+        
+        // 1. Utilidades básicas
         window.safeSetText = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
         window.safeUpdate = (id, fn) => { const el = document.getElementById(id); if (el) fn(el); };
 
@@ -116,26 +117,6 @@
                     setTimeout(() => t.classList.add('hidden'), 300);
                 }, 4000);
             } else { alert(msg); }
-        };
-
-        window.showView = (id, save = true) => {
-            const views = ['login-view', 'signup-view', 'patient-view', 'membership-view', 'program-detail-view', 'forgot-password-view', 'contact-view', 'mobile-ai-view'];
-            views.forEach(v => { const el = document.getElementById(v); if (el) el.classList.toggle('hidden', v !== id); });
-            window.scrollTo(0, 0);
-            if (save) history.pushState({ viewId: id }, "", "");
-        };
-
-        window.resetUI = () => {
-            cachedAirtableData = null; currentAppData = null; chatHistory = []; isSpecialistMode = false;
-            window.safeSetText('display-nombre', "..."); window.safeSetText('display-estatus', "...");
-            window.safeSetText('display-frase', "..."); window.safeSetText('plan-banner-title', "...");
-            window.safeSetText('acc-nombre', "..."); window.safeSetText('acc-email', "--");
-            window.safeSetText('acc-pais', "--"); window.safeSetText('acc-telefono', "--"); window.safeSetText('acc-nacimiento', "--");
-            document.getElementById('specialist-panel')?.classList.add('hidden');
-            document.getElementById('featured-plan-banner')?.classList.add('hidden');
-            document.getElementById('restricted-banner')?.classList.add('hidden');
-            document.getElementById('card-ai')?.classList.remove('hidden'); 
-            window.clearChat();
         };
 
         window.formatDateMDY = (dateString) => {
@@ -169,7 +150,28 @@
             return null;
         };
 
-        // --- 3. LÓGICA DE IA Y CHAT ---
+        // 2. Navegación y UI
+        window.showView = (id, save = true) => {
+            const views = ['login-view', 'signup-view', 'patient-view', 'membership-view', 'program-detail-view', 'forgot-password-view', 'contact-view', 'mobile-ai-view'];
+            views.forEach(v => { const el = document.getElementById(v); if (el) el.classList.toggle('hidden', v !== id); });
+            window.scrollTo(0, 0);
+            if (save) history.pushState({ viewId: id }, "", "");
+        };
+
+        window.resetUI = () => {
+            cachedAirtableData = null; currentAppData = null; chatHistory = []; isSpecialistMode = false;
+            window.safeSetText('display-nombre', "..."); window.safeSetText('display-estatus', "...");
+            window.safeSetText('display-frase', "..."); window.safeSetText('plan-banner-title', "...");
+            window.safeSetText('acc-nombre', "..."); window.safeSetText('acc-email', "--");
+            window.safeSetText('acc-pais', "--"); window.safeSetText('acc-telefono', "--"); window.safeSetText('acc-nacimiento', "--");
+            document.getElementById('specialist-panel')?.classList.add('hidden');
+            document.getElementById('featured-plan-banner')?.classList.add('hidden');
+            document.getElementById('restricted-banner')?.classList.add('hidden');
+            document.getElementById('card-ai')?.classList.remove('hidden'); 
+            window.clearChat();
+        };
+
+        // 3. Lógica del Chat AI
         window.parseAIResponse = (text) => {
             if (!text) return "";
             let html = text.replace(/\*\*(.*?)\*\*/g, '<strong class="font-bold text-slate-900">$1</strong>');
@@ -190,9 +192,19 @@
         window.appendChatMessageToAll = (role, text) => {
             const content = role === 'ai' ? window.parseAIResponse(text) : text.replace(/\n/g, '<br>');
             const html = `<div class="flex ${role === 'user' ? 'justify-end' : 'justify-start'} mb-6 fade-in text-left"><div class="max-w-[85%] px-5 py-4 rounded-[1.4rem] text-[14px] leading-relaxed ${role === 'user' ? 'bg-[#2E4982] text-white rounded-tr-sm' : 'bg-white border border-slate-100 text-slate-600 rounded-tl-sm shadow-sm'}">${content}</div></div>`;
-            document.getElementById('ai-messages-mobile')?.insertAdjacentHTML('beforeend', html);
-            document.getElementById('ai-messages-desktop')?.insertAdjacentHTML('beforeend', html);
-            window.scrollToBottom();
+            const m = document.getElementById('ai-messages-mobile');
+            const d = document.getElementById('ai-messages-desktop');
+            
+            if (m) {
+                m.insertAdjacentHTML('beforeend', html);
+                if(role === 'user') m.scrollTop = m.scrollHeight;
+                else { const last = m.lastElementChild; if(last) requestAnimationFrame(() => last.scrollIntoView({behavior:'smooth', block:'start'})); }
+            }
+            if (d) {
+                d.insertAdjacentHTML('beforeend', html);
+                if(role === 'user') d.scrollTop = d.scrollHeight;
+                else { const last = d.lastElementChild; if(last) requestAnimationFrame(() => last.scrollIntoView({behavior:'smooth', block:'start'})); }
+            }
         };
 
         window.clearChat = () => {
@@ -204,56 +216,111 @@
             if(m) m.innerHTML = html; if(d) d.innerHTML = html;
         };
 
+        // 4. Modal Handlers (AQUÍ ESTÁ LA SOLUCIÓN AL ERROR)
+        window.handleAIAction = (viewId) => { window.closeDesktopAIModal(); if (viewId === 'program-detail-view') window.viewProgramResources(); else window.showView(viewId); };
+        window.openAIChat = () => { if (window.innerWidth < 768) { window.showView('mobile-ai-view'); setTimeout(() => document.getElementById('ai-input-mobile')?.focus(), 300); } else window.openDesktopAIModal(); };
+        window.openDesktopAIModal = () => { const m = document.getElementById('ai-modal-overlay'); if(m){ m.classList.remove('hidden'); m.classList.add('flex'); setTimeout(() => { m.classList.remove('opacity-0'); m.querySelector('div')?.classList.remove('scale-95', 'opacity-0'); document.getElementById('ai-input-desktop')?.focus(); }, 10); }};
+        window.closeDesktopAIModal = () => { const m = document.getElementById('ai-modal-overlay'); if(!m) return; m.classList.add('opacity-0'); m.querySelector('div')?.classList.add('scale-95', 'opacity-0'); setTimeout(() => { m.classList.add('hidden'); m.classList.remove('flex'); window.clearChat(); }, 300); };
+        window.closeMobileChat = () => { window.showView('patient-view'); window.clearChat(); };
+        window.openAITrainingModal = () => { const m = document.getElementById('ai-training-modal'); if(m){ m.classList.remove('hidden'); m.classList.add('flex'); }};
+        window.closeAITrainingModal = () => { document.getElementById('ai-training-modal')?.classList.add('hidden'); };
+
+        // 5. Data & Sync
+        window.syncAIInstructions = async () => {
+            if (!auth.currentUser) return;
+            const aiDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'ai_config', 'instructions');
+            onSnapshot(aiDocRef, (snap) => {
+                const textEl = document.getElementById('ai-training-text');
+                const infoEl = document.getElementById('ai-last-update');
+                if (snap.exists()) {
+                    const data = snap.data();
+                    aiCustomInstructions = data.content || "";
+                    if(textEl && document.activeElement !== textEl) textEl.value = aiCustomInstructions;
+                    if(infoEl) {
+                        const date = data.timestamp ? new Date(data.timestamp.seconds * 1000).toLocaleString() : "Desconocido";
+                        const user = data.updatedBy || "Sistema";
+                        infoEl.innerHTML = `Última modificación: <strong>${date}</strong><br>Por: ${user}`;
+                    }
+                }
+            }, (err) => console.log("AI Sync Active"));
+        };
+
+        window.saveAITraining = async () => {
+            const text = document.getElementById('ai-training-text').value;
+            const btn = document.getElementById('btn-save-ai-training');
+            if (!auth.currentUser) return;
+            btn.disabled = true; btn.textContent = "Guardando...";
+            try {
+                await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'ai_config', 'instructions'), { 
+                    content: text, 
+                    updatedBy: auth.currentUser?.email, 
+                    timestamp: new Date() 
+                });
+                window.notify("Entrenamiento guardado", "success"); 
+                window.closeAITrainingModal();
+            } catch (e) { window.notify("Error al guardar"); }
+            finally { btn.disabled = false; btn.textContent = "Guardar Cambios"; }
+        };
+
         async function fetchWithRetry(url, options, retries = 3) {
             const backoffs = [1000, 2000, 4000, 8000];
             for (let i = 0; i <= retries; i++) {
                 try {
-                    const res = await fetch(url, options);
-                    if (res.status === 429) { if (i === retries) throw new Error("quota-exceeded"); await new Promise(r => setTimeout(r, backoffs[i])); continue; }
-                    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                    return await res.json();
-                } catch (e) { if (i === retries || e.message === "quota-exceeded") throw e; await new Promise(r => setTimeout(r, backoffs[i])); }
+                    const response = await fetch(url, options);
+                    if (response.status === 429) {
+                        if (i === retries) throw new Error("quota-exceeded");
+                        await new Promise(r => setTimeout(r, backoffs[i]));
+                        continue;
+                    }
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                    return await response.json();
+                } catch (error) {
+                    if (i === retries || error.message === "quota-exceeded") throw error;
+                    await new Promise(r => setTimeout(r, backoffs[i]));
+                }
             }
         }
 
         window.sendMessageToAI = async (source) => {
             const input = document.getElementById(source === 'mobile' ? 'ai-input-mobile' : 'ai-input-desktop');
-            const msg = input?.value.trim();
-            if (!msg) return;
+            const userMsg = input?.value.trim();
+            if (!userMsg) return;
             input.value = ''; if(source === 'mobile') input.blur();
 
-            window.appendChatMessageToAll('user', msg);
+            window.appendChatMessageToAll('user', userMsg);
             const loader = `<div class="ai-loading-indicator flex justify-start mb-4"><div class="bg-slate-100 text-slate-400 px-4 py-2 rounded-2xl text-[11px] animate-pulse italic">Analizando...</div></div>`;
             document.getElementById('ai-messages-mobile')?.insertAdjacentHTML('beforeend', loader);
             document.getElementById('ai-messages-desktop')?.insertAdjacentHTML('beforeend', loader);
             window.scrollToBottom();
 
             const info = currentAppData || {};
+            // SOLO USAMOS DATOS DE PERFIL (PACIENTES) - SIN CONSULTAS
             const patientData = JSON.stringify(info, null, 2);
-            
-            // CEREBRO CORREGIDO: Prioridad Airtable, Prohibido PDF para plan
+
             const sysPrompt = `Eres el Asistente Personal AI de IMNUFIT. Hablas con **${info["Nombre + Edad"] || "Paciente"}**. 
             
             --- DATOS DEL PACIENTE (AIRTABLE) ---
-            Usa estos datos (especialmente lo referente al PLAN NUTRICIONAL/DIETA) como tu única fuente de verdad para preguntas personales.
+            Usa estos datos como tu única fuente de verdad para preguntas personales.
             ${patientData}
             -------------------------------------
 
             INSTRUCCIONES CLAVE DEL ADMINISTRADOR: ${aiCustomInstructions}
             
             DIRECTRICES ESTRICTAS:
-            1. Si te preguntan por su **dieta, plan nutricional o qué dijo el especialista**, RESPONDE EXCLUSIVAMENTE CON LA INFORMACIÓN DE AIRTABLE (Arriba).
-            2. **PROHIBIDO** sugerir la "Guía PDF" como respuesta al plan diario. La Guía PDF es solo material genérico/educativo.
-            3. Sé breve, limpio y usa botones.
+            1. **Estilo**: Responde de forma clara, precisa, amable y fluida. NO uses caracteres extraños. Respeta el formato de **negritas** y signos de puntuación.
+            2. **Formato Enlaces**: Cuando des un enlace, MUESTRA UN BOTÓN usando el formato Markdown: [Texto del Botón](URL o funcion).
+            3. **Alcance**: NUNCA respondas preguntas que no tengan nada que ver con IMNUFIT o la salud del paciente.
+            4. **Prioridad Datos**: Para preguntas sobre dieta o plan, usa SOLO la información de Airtable (arriba).
+            5. **Prohibido**: NO sugerir la "Guía PDF" como respuesta al plan diario.
 
             REGLAS DE ACCIÓN OBLIGATORIAS:
             - **Reportarse**: Muestra [Llenar Reporte Mensual](https://airtable.com/appCHcm7XPzeoyBCs/pagh79fwniuSPmusB/form).
             - **Entrenar**: Muestra [Ver Entrenamientos](https://imnufit.com/entrenaconfrenplus/).
-            - **Agendar Cita**: MUESTRA DOS BOTONES: [Reservar Cita](${info["Link Calendar"] || CALENDAR_LINK_DEFAULT}) Y [Llenar Reporte Mensual](https://airtable.com/appCHcm7XPzeoyBCs/pagh79fwniuSPmusB/form) (Recuérdale reportarse antes).
+            - **Agendar Cita**: MUESTRA DOS BOTONES: [Reservar Cita](${info["Link Calendar"] || CALENDAR_LINK_DEFAULT}) Y [Llenar Reporte Mensual](https://airtable.com/appCHcm7XPzeoyBCs/pagh79fwniuSPmusB/form) (Solo si piden cita o reportarse).
             - **Ver Recursos/Manual**: SOLO si piden manuales o material de apoyo, muestra [Ver Guías PDF](function:program-detail-view).
             - **Ver Consultas**: Muestra [Historial de Consultas](${info["Link Consultas"] || "#"}).
             - **Contactar**: Muestra [Contactar Soporte](function:contact-view).
-            - **Cancelar Membresía/Clave**: Muestra [Mi Cuenta](function:membership-view).
+            - **Cancelar Membresía/Clave**: Muestra [Mi Cuenta](function:membership-view). (NO ofrecer pausar).
             - **Precios/Web**: Muestra [Visitar Web](https://imnufit.com).`;
 
             try {
@@ -261,22 +328,21 @@
                 const res = await fetchWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ contents: [...history, { role: 'user', parts: [{ text: msg }] }], systemInstruction: { parts: [{ text: sysPrompt }] } })
+                    body: JSON.stringify({ contents: [...history, { role: 'user', parts: [{ text: userMsg }] }], systemInstruction: { parts: [{ text: sysPrompt }] } })
                 });
                 const aiText = res.candidates?.[0]?.content?.parts?.[0]?.text || "No pude procesar.";
                 window.appendChatMessageToAll('ai', aiText);
-                chatHistory.push({ role: 'user', text: msg }, { role: 'ai', text: aiText });
+                chatHistory.push({ role: 'user', text: userMsg }, { role: 'ai', text: aiText });
             } catch (e) { window.appendChatMessageToAll('ai', `⚠️ El coach está saturado. Reintenta en 1 min.`); }
             finally { document.querySelectorAll('.ai-loading-indicator').forEach(el => el.remove()); }
         };
 
-        // --- 4. LÓGICA DE PROGRAMA Y RECURSOS ---
         window.viewProgramResources = () => {
             const data = currentAppData;
             if (!data) return;
             const progKey = window.getProgramKey(data["Programa"] || "");
             if (!progKey || !PROGRAMAS_INFO[progKey]) { window.notify("Sin programa asignado"); return; }
-            
+
             const progInfo = PROGRAMAS_INFO[progKey];
             const container = document.getElementById('program-guias-list');
             let mes = 1;
@@ -308,84 +374,15 @@
             window.showView('program-detail-view');
         };
 
-        // --- 5. DATA FETCHING & AUTH ---
-        window.refreshData = async () => {
-            if(!auth.currentUser) return;
-            const loader = document.getElementById('loading-screen');
-            if(loader) loader.classList.remove('hidden');
-            try {
-                const f = encodeURIComponent(`(LOWER({Email})=LOWER('${auth.currentUser.email}'))`);
-                const u = `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${AIRTABLE_TABLE_NAME}?filterByFormula=${f}`;
-                const res = await fetch(u, { headers: { Authorization: `Bearer ${AIRTABLE_PAT}` } });
-                const d = await res.json();
-                cachedAirtableData = d.records?.[0]?.fields || null;
-                window.refreshUIWithData();
-                setTimeout(() => { if(loader) loader.classList.add('hidden'); window.notify("Página actualizada correctamente", "success"); }, 600);
-            } catch(e) {
-                if(loader) loader.classList.add('hidden'); window.notify("Error al actualizar");
-            }
-        };
-
+        window.updateSpecMode = (val) => { specModeSelection = val; window.refreshUIWithData(); window.showView('patient-view'); };
         window.refreshUIWithData = () => {
             if (isSpecialistMode) {
                 let mockProg = specModeSelection === "adios_diabetes" ? "Adiós Diabetes 2 (Mes 3)" : (specModeSelection === "quema_grasa" ? "Quema Grasa (Mes 4)" : (specModeSelection === "sano" ? "SANO (Mes 2)" : ""));
-                updateDashboardUI({ ...cachedAirtableData, "Nombre + Edad": "Especialista (Demo)", "Programa": mockProg, "Estatus": "Activo", "Link Calendar": CALENDAR_LINK_DEFAULT, "Link Consultas": "https://airtable.com/" });
+                let mockData = { ...cachedAirtableData, "Nombre + Edad": "Especialista (Demo)", "Programa": mockProg, "Estatus": "Activo", "Link Calendar": CALENDAR_LINK_DEFAULT, "Link Consultas": "https://airtable.com/" };
+                updateDashboardUI(mockData);
             } else updateDashboardUI(cachedAirtableData);
         };
-
-        async function fetchAirtableData(email) {
-            const f = encodeURIComponent(`(LOWER({Email})=LOWER('${email}'))`), u = `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${AIRTABLE_TABLE_NAME}?filterByFormula=${f}`;
-            try { const res = await fetch(u, { headers: { Authorization: `Bearer ${AIRTABLE_PAT}` } }); const data = await res.json(); return data.records?.[0]?.fields || null; } catch (e) { return null; }
-        }
-
-        function updateDashboardUI(data) {
-            if (!data) return;
-            currentAppData = data;
-            window.safeSetText('display-nombre', data["Nombre + Edad"] || "Usuario IMNUFIT");
-            if (chatHistory.length === 0) window.clearChat();
-            const g = window.getGreeting(); window.safeUpdate('display-greeting', (el) => el.innerHTML = `<span class="text-xl mr-2">${g.icon}</span> ${g.text}`);
-            const st = data["Estatus"] || "Activo";
-            window.safeUpdate('display-estatus', (el) => { el.textContent = st; el.className = `px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-widest border inline-block mt-2 ${window.getStatusClass(st)}`; });
-            const sLow = st.toLowerCase(), isR = (sLow.includes("inactivo") || sLow.includes("por asignar") || sLow.includes("pausa")) && !isSpecialistMode;
-            document.getElementById('featured-plan-banner')?.classList.toggle('hidden', isR || !data.Programa);
-            document.getElementById('restricted-banner')?.classList.toggle('hidden', !isR);
-            document.getElementById('card-ai')?.classList.toggle('hidden', isR);
-            if (data.Programa) window.safeSetText('plan-banner-title', data.Programa);
-            if (isR) { window.safeSetText('restricted-banner-title', sLow.includes("por asignar") ? "Plan en Preparación" : "Portal de Seguimiento"); window.safeSetText('restricted-banner-body', sLow.includes("por asignar") ? "Estamos diseñando tu estrategia." : "Suscripción inactiva."); }
-            const hide = (sLow.includes("inactivo") || sLow.includes("por asignar")) && !isSpecialistMode;
-            ['card-entrenamientos', 'card-reporte', 'card-citas', 'card-consultas'].forEach(id => window.safeUpdate(id, el => el.classList.toggle('hidden', hide)));
-            window.safeUpdate('calendar-action-container', el => el.innerHTML = `<a href="${data["Link Calendar"] || CALENDAR_LINK_DEFAULT}" target="_blank" class="btn-ghost-sm text-center">Ir al Calendario</a>`);
-            const bh = document.getElementById('btn-consultas-action'); if (bh) { bh.href = data["Link Consultas"] || "#"; bh.style.opacity = bh.href.includes("#") ? "0.4" : "1"; }
-            window.safeSetText('acc-nombre', data["Nombre + Edad"] || "---"); window.safeSetText('acc-email', auth.currentUser?.email || "--"); window.safeSetText('display-frase', frasesCreyentes[Math.floor(Math.random() * frasesCreyentes.length)]);
-            window.safeSetText('acc-pais', data["País"] || "--"); window.safeSetText('acc-telefono', data["Telefono"] || "--"); window.safeSetText('acc-nacimiento', window.formatDateMDY(data["Fecha de Nacimiento"]));
-            const genero = String(data["Género"] || "");
-            window.safeUpdate('acc-genero', el => {
-                el.textContent = genero;
-                if (genero.toLowerCase().includes("masculino")) el.className = "px-4 py-1.5 rounded-full text-[10px] font-extrabold bg-sky-50 text-sky-600 border border-sky-100 uppercase tracking-widest inline-block shadow-sm";
-                else if (genero.toLowerCase().includes("femenino")) el.className = "px-4 py-1.5 rounded-full text-[10px] font-extrabold bg-rose-50 text-rose-600 border border-rose-100 uppercase tracking-widest shadow-sm inline-block";
-                else el.className = "hidden";
-            });
-        }
-
-        // --- AUTH & EVENT HANDLERS ---
-        onAuthStateChanged(auth, async (user) => {
-            const loader = document.getElementById('loading-screen');
-            if(loader) loader.classList.remove('hidden');
-            if (user) {
-                window.resetUI();
-                isSpecialistMode = (user.email === SPECIALIST_EMAIL);
-                const sp = document.getElementById('specialist-panel'); if(sp) sp.classList.toggle('hidden', !isSpecialistMode);
-                cachedAirtableData = await fetchAirtableData(user.email);
-                if (!cachedAirtableData && !isSpecialistMode) window.notify("Usuario no encontrado en base de datos.");
-                window.refreshUIWithData(); window.syncAIInstructions(); window.showView('patient-view', false);
-            } else { 
-                window.resetUI();
-                const sp = document.getElementById('specialist-panel'); if(sp) sp.classList.add('hidden');
-                isSpecialistMode = false; window.showView('login-view', false); 
-            }
-            if(loader) loader.classList.add('hidden');
-        });
-
+        
         window.handleLogin = async (e) => {
             e.preventDefault();
             const email = e.target.email.value;
@@ -408,45 +405,96 @@
         window.handlePasswordReset = async (e) => { e.preventDefault(); try { document.getElementById('loading-screen')?.classList.remove('hidden'); await sendPasswordResetEmail(auth, e.target.resetEmail.value); window.notify("Correo enviado", "success"); window.showView('login-view'); } catch (err) { window.notify("Error: " + err.code); } finally { document.getElementById('loading-screen')?.classList.add('hidden'); } };
         window.cerrarSesion = () => signOut(auth);
         window.updateAppPassword = async (e) => { e.preventDefault(); if(!auth.currentUser) return; try { document.getElementById('loading-screen')?.classList.remove('hidden'); await updatePassword(auth.currentUser, e.target.newPassword.value); window.notify("Clave actualizada", "success"); e.target.reset(); } catch (err) { window.notify("Sesión expirada"); } finally { document.getElementById('loading-screen')?.classList.add('hidden'); } };
-        
-        window.handleAIAction = (viewId) => { window.closeDesktopAIModal(); if (viewId === 'program-detail-view') window.viewProgramResources(); else window.showView(viewId); };
-        window.openDesktopAIModal = () => { const m = document.getElementById('ai-modal-overlay'); if(!m) return; m.classList.remove('hidden'); m.classList.add('flex'); setTimeout(() => { m.classList.remove('opacity-0'); m.querySelector('div')?.classList.remove('scale-95', 'opacity-0'); document.getElementById('ai-input-desktop')?.focus(); }, 10); };
-        window.closeDesktopAIModal = () => { const m = document.getElementById('ai-modal-overlay'); if(!m) return; m.classList.add('opacity-0'); m.querySelector('div')?.classList.add('scale-95', 'opacity-0'); setTimeout(() => { m.classList.add('hidden'); m.classList.remove('flex'); window.clearChat(); }, 300); };
-        window.openAIChat = () => { if (window.innerWidth < 768) { window.showView('mobile-ai-view'); setTimeout(() => document.getElementById('ai-input-mobile')?.focus(), 300); } else window.openDesktopAIModal(); };
-        window.closeMobileChat = () => { window.showView('patient-view'); window.clearChat(); };
-        window.openAITrainingModal = () => { document.getElementById('ai-training-modal')?.classList.remove('hidden'); document.getElementById('ai-training-modal')?.classList.add('flex'); };
-        window.closeAITrainingModal = () => { document.getElementById('ai-training-modal')?.classList.add('hidden'); };
-        window.updateSpecMode = (val) => { specModeSelection = val; window.refreshUIWithData(); window.showView('patient-view'); };
 
-        window.syncAIInstructions = async () => {
-            if (!auth.currentUser) return;
-            const aiDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'ai_config', 'instructions');
-            onSnapshot(aiDocRef, (snap) => {
-                const textEl = document.getElementById('ai-training-text');
-                const infoEl = document.getElementById('ai-last-update');
-                if (snap.exists()) {
-                    const data = snap.data();
-                    aiCustomInstructions = data.content || "";
-                    if(textEl && document.activeElement !== textEl) textEl.value = aiCustomInstructions;
-                    if(infoEl) {
-                        const date = data.timestamp ? new Date(data.timestamp.seconds * 1000).toLocaleString() : "Desconocido";
-                        const user = data.updatedBy || "Sistema";
-                        infoEl.innerHTML = `Última modificación: <strong>${date}</strong><br>Por: ${user}`;
-                    }
-                }
+        window.refreshData = async () => { 
+            if(!auth.currentUser) return;
+            const loader = document.getElementById('loading-screen');
+            if(loader) loader.classList.remove('hidden');
+            
+            try {
+                const f = encodeURIComponent(`(LOWER({Email})=LOWER('${auth.currentUser.email}'))`);
+                const u = `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${AIRTABLE_TABLE_NAME}?filterByFormula=${f}`;
+                const res = await fetch(u, { headers: { Authorization: `Bearer ${AIRTABLE_PAT}` } });
+                const d = await res.json();
+                cachedAirtableData = d.records?.[0]?.fields || null;
+                
+                window.refreshUIWithData();
+                
+                setTimeout(() => {
+                    if(loader) loader.classList.add('hidden');
+                    window.notify("Página actualizada correctamente", "success");
+                }, 600);
+            } catch(e) {
+                if(loader) loader.classList.add('hidden');
+                window.notify("Error al actualizar");
+            }
+        };
+
+        async function fetchAirtableData(email) {
+            const f = encodeURIComponent(`(LOWER({Email})=LOWER('${email}'))`), u = `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${AIRTABLE_TABLE_NAME}?filterByFormula=${f}`;
+            try { const res = await fetch(u, { headers: { Authorization: `Bearer ${AIRTABLE_PAT}` } }); const data = await res.json(); return data.records?.[0]?.fields || null; } catch (e) { return null; }
+        }
+
+        function updateDashboardUI(data) {
+            if (!data) return;
+            currentAppData = data; 
+            window.safeSetText('display-nombre', data["Nombre + Edad"] || "Usuario IMNUFIT");
+            if (chatHistory.length === 0) window.clearChat();
+            const g = window.getGreeting(); window.safeUpdate('display-greeting', (el) => el.innerHTML = `<span class="text-xl mr-2">${g.icon}</span> ${g.text}`);
+            const st = data["Estatus"] || "Activo";
+            window.safeUpdate('display-estatus', (el) => { el.textContent = st; el.className = `px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-widest border inline-block mt-2 ${window.getStatusClass(st)}`; });
+            const sLow = st.toLowerCase(), isR = (sLow.includes("inactivo") || sLow.includes("por asignar") || sLow.includes("pausa")) && !isSpecialistMode;
+            
+            document.getElementById('featured-plan-banner')?.classList.toggle('hidden', isR || !data.Programa);
+            document.getElementById('restricted-banner')?.classList.toggle('hidden', !isR);
+            document.getElementById('card-ai')?.classList.toggle('hidden', isR);
+            if (data.Programa) window.safeSetText('plan-banner-title', data.Programa);
+            if (isR) { window.safeSetText('restricted-banner-title', sLow.includes("por asignar") ? "Plan en Preparación" : "Portal de Seguimiento"); window.safeSetText('restricted-banner-body', sLow.includes("por asignar") ? "Estamos diseñando tu estrategia." : "Suscripción inactiva."); }
+            const hide = (sLow.includes("inactivo") || sLow.includes("por asignar")) && !isSpecialistMode;
+            ['card-entrenamientos', 'card-reporte', 'card-citas', 'card-consultas'].forEach(id => window.safeUpdate(id, el => el.classList.toggle('hidden', hide)));
+            window.safeUpdate('calendar-action-container', el => el.innerHTML = `<a href="${data["Link Calendar"] || CALENDAR_LINK_DEFAULT}" target="_blank" class="btn-ghost-sm text-center">Ir al Calendario</a>`);
+            const bh = document.getElementById('btn-consultas-action'); if (bh) { bh.href = data["Link Consultas"] || "#"; bh.style.opacity = bh.href.includes("#") ? "0.4" : "1"; }
+            
+            window.safeSetText('acc-nombre', data["Nombre + Edad"] || "---"); window.safeSetText('acc-email', auth.currentUser?.email || "--"); window.safeSetText('display-frase', frasesCreyentes[Math.floor(Math.random() * frasesCreyentes.length)]);
+            window.safeSetText('acc-pais', data["País"] || "--"); window.safeSetText('acc-telefono', data["Telefono"] || "--");
+            window.safeSetText('acc-nacimiento', window.formatDateMDY(data["Fecha de Nacimiento"]));
+            
+            const genero = String(data["Género"] || "");
+            window.safeUpdate('acc-genero', el => {
+                el.textContent = genero;
+                if (genero.toLowerCase().includes("masculino")) el.className = "px-4 py-1.5 rounded-full text-[10px] font-extrabold bg-sky-50 text-sky-600 border border-sky-100 uppercase tracking-widest inline-block shadow-sm";
+                else if (genero.toLowerCase().includes("femenino")) el.className = "px-4 py-1.5 rounded-full text-[10px] font-extrabold bg-rose-50 text-rose-600 border border-rose-100 uppercase tracking-widest shadow-sm inline-block";
+                else el.className = "hidden";
             });
-        };
-        window.saveAITraining = async () => {
-            const text = document.getElementById('ai-training-text').value;
-            const btn = document.getElementById('btn-save-ai-training');
-            if (!auth.currentUser) return;
-            btn.disabled = true; btn.textContent = "Guardando...";
-            try { await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'ai_config', 'instructions'), { content: text, updatedBy: auth.currentUser?.email, timestamp: new Date() }); window.notify("Entrenamiento guardado", "success"); window.closeAITrainingModal(); } catch (e) { window.notify("Error al guardar"); }
-            finally { btn.disabled = false; btn.textContent = "Guardar Cambios"; }
-        };
+        }
+
+        // --- AUTH OBSERVER ---
+        onAuthStateChanged(auth, async (user) => {
+            const loader = document.getElementById('loading-screen');
+            loader?.classList.remove('hidden');
+            if (user) {
+                window.resetUI();
+                isSpecialistMode = (user.email === SPECIALIST_EMAIL);
+                const sp = document.getElementById('specialist-panel'); if(sp) sp.classList.toggle('hidden', !isSpecialistMode);
+                cachedAirtableData = await fetchAirtableData(user.email);
+                
+                if (!cachedAirtableData && !isSpecialistMode) {
+                    window.notify("Usuario no encontrado en base de datos.");
+                }
+
+                window.refreshUIWithData(); window.syncAIInstructions(); window.showView('patient-view', false);
+            } else { 
+                window.resetUI(); 
+                const sp = document.getElementById('specialist-panel'); if(sp) sp.classList.add('hidden');
+                isSpecialistMode = false; window.showView('login-view', false); 
+            }
+            loader?.classList.add('hidden');
+        });
 
         // --- INIT ---
-        setPersistence(auth, browserLocalPersistence).then(() => {});
+        (async () => {
+            try { if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) await signInWithCustomToken(auth, __initial_auth_token).catch(() => signInAnonymously(auth)); else if (!auth.currentUser) await signInAnonymously(auth).catch(() => {}); } catch (e) {}
+        })();
     </script>
     <style>
         :root { --primary: #2E4982; --apple-bg: #FBFBFC; }
@@ -706,8 +754,8 @@
         </div>
     </section>
 
-    <!-- NOTIFICATION TOAST -->
-    <div id="notification-toast" class="hidden fixed top-8 left-1/2 -translate-x-1/2 z-[9999] px-8 py-4 rounded-full shadow-2xl text-[13px] font-semibold bg-white border transform transition-all duration-300">
+    <!-- NOTIFICATION TOAST (CORREGIDO Z-INDEX Y POSICION) -->
+    <div id="notification-toast" class="hidden fixed top-8 left-1/2 -translate-x-1/2 z-[9999] px-8 py-4 rounded-full shadow-2xl text-[13px] font-semibold bg-white border transform transition-all duration-300" style="z-index: 10000;">
         <span id="notification-content"></span>
     </div>
     
