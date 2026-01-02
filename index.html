@@ -43,13 +43,14 @@
         let currentAppData = null; 
         let chatHistory = [];
         let notificationTimer = null;
-        
+
         // --- TEMPORIZADOR DE INACTIVIDAD ---
         let inactivityTimeout;
-        const INACTIVITY_LIMIT = 10 * 60 * 1000; // 10 Minutos en milisegundos
+        const INACTIVITY_LIMIT = 10 * 60 * 1000; // 10 Minutos
 
         const CALENDAR_LINK_DEFAULT = "https://calendar.app.google/CE4KjKxPeFiV93GV7";
         const PLANES_LINK = "https://imnufit.com/planes-y-precios/";
+        const WHATSAPP_COMMUNITY_LINK = "https://chat.whatsapp.com/FNoToJXy8HO7iLVhPseQHB";
 
         const PROGRAMAS_INFO = {
             "Adiós Diabetes 2": {
@@ -99,7 +100,7 @@
             "Jehová es mi fortaleza y mi escudo.", "Confía en el Señor de todo corazón.", "Mira que te mando que te esfuerces y seas valiente."
         ];
 
-        // --- DEFINICIÓN DE FUNCIONES GLOBALES ---
+        // --- 2. FUNCIONES DE UTILIDAD (DECLARADAS AL INICIO) ---
         window.safeSetText = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
         window.safeUpdate = (id, fn) => { const el = document.getElementById(id); if (el) fn(el); };
 
@@ -121,10 +122,8 @@
             } else { alert(msg); }
         };
 
-        // --- CONTROL DE INACTIVIDAD ---
         window.resetInactivityTimer = () => {
-            if (!auth.currentUser) return; // Solo monitorear si hay sesión
-            
+            if (!auth.currentUser) return;
             clearTimeout(inactivityTimeout);
             inactivityTimeout = setTimeout(() => {
                 window.notify("Sesión cerrada por inactividad", "error");
@@ -132,7 +131,6 @@
             }, INACTIVITY_LIMIT);
         };
 
-        // Listeners globales para actividad
         ['mousemove', 'mousedown', 'click', 'scroll', 'keypress', 'touchstart'].forEach(evt => {
             document.addEventListener(evt, window.resetInactivityTimer, { passive: true });
         });
@@ -155,9 +153,10 @@
             document.getElementById('restricted-banner')?.classList.add('hidden');
             document.getElementById('card-ai')?.classList.remove('hidden'); 
             window.clearChat();
-            ['card-entrenamientos', 'card-reporte', 'card-citas', 'card-consultas'].forEach(id => { document.getElementById(id)?.classList.add('hidden'); });
-            
-            // Limpiar timer al salir
+            // AÑADIDO: Ocultar card-community también al resetear
+            ['card-entrenamientos', 'card-reporte', 'card-citas', 'card-consultas', 'card-community'].forEach(id => { 
+                document.getElementById(id)?.classList.add('hidden'); 
+            });
             clearTimeout(inactivityTimeout);
         };
 
@@ -192,6 +191,7 @@
             return null;
         };
 
+        // --- 3. CHAT AI ---
         window.parseAIResponse = (text) => {
             if (!text) return "";
             let html = text.replace(/\*\*(.*?)\*\*/g, '<strong class="font-bold text-slate-900">$1</strong>');
@@ -214,7 +214,6 @@
             const html = `<div class="flex ${role === 'user' ? 'justify-end' : 'justify-start'} mb-6 fade-in text-left"><div class="max-w-[85%] px-5 py-4 rounded-[1.4rem] text-[14px] leading-relaxed ${role === 'user' ? 'bg-[#2E4982] text-white rounded-tr-sm' : 'bg-white border border-slate-100 text-slate-600 rounded-tl-sm shadow-sm'}">${content}</div></div>`;
             const m = document.getElementById('ai-messages-mobile');
             const d = document.getElementById('ai-messages-desktop');
-            
             if (m) {
                 m.insertAdjacentHTML('beforeend', html);
                 if(role === 'user') m.scrollTop = m.scrollHeight;
@@ -340,7 +339,8 @@
             - **Ver Consultas**: Muestra [Historial de Consultas](${info["Link Consultas"] || "#"}).
             - **Contactar**: Muestra [Contactar Soporte](function:contact-view).
             - **Cancelar Membresía/Clave**: Muestra [Mi Cuenta](function:membership-view). (NO ofrecer pausar).
-            - **Precios/Web**: Muestra [Visitar Web](https://imnufit.com).`;
+            - **Precios/Web**: Muestra [Visitar Web](https://imnufit.com).
+            - **Comunidad**: [Unirme a la Comunidad](https://chat.whatsapp.com/FNoToJXy8HO7iLVhPseQHB).`;
 
             try {
                 const history = chatHistory.map(m => ({ role: m.role === 'user' ? 'user' : 'model', parts: [{ text: m.text }] }));
@@ -397,7 +397,6 @@
             window.showView('program-detail-view');
         };
 
-        window.updateSpecMode = (val) => { specModeSelection = val; window.refreshUIWithData(); window.showView('patient-view'); };
         window.refreshUIWithData = () => {
             if (isSpecialistMode) {
                 let mockProg = specModeSelection === "adios_diabetes" ? "Adiós Diabetes 2 (Mes 3)" : (specModeSelection === "quema_grasa" ? "Quema Grasa (Mes 4)" : (specModeSelection === "sano" ? "SANO (Mes 2)" : ""));
@@ -444,7 +443,6 @@
                     return; 
                 }
                 
-                // --- VALIDACIÓN DE ESTATUS EN EL REGISTRO ---
                 const status = String(airtableUser["Estatus"] || "").toLowerCase();
                 // REGLA ESTRICTA: SOLO ACTIVO
                 if (!status.includes("activo") && !status.includes("actívo")) {
@@ -471,8 +469,43 @@
         window.cerrarSesion = () => signOut(auth);
         window.updateAppPassword = async (e) => { e.preventDefault(); if(!auth.currentUser) return; try { document.getElementById('loading-screen')?.classList.remove('hidden'); await updatePassword(auth.currentUser, e.target.newPassword.value); window.notify("Clave actualizada", "success"); e.target.reset(); } catch (err) { window.notify("Sesión expirada"); } finally { document.getElementById('loading-screen')?.classList.add('hidden'); } };
 
-        window.refreshData = async () => { if(auth.currentUser) { document.getElementById('loading-screen')?.classList.remove('hidden'); const f = encodeURIComponent(`(LOWER({Email})=LOWER('${auth.currentUser.email}'))`), u = `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${AIRTABLE_TABLE_NAME}?filterByFormula=${f}`; const res = await fetch(u, { headers: { Authorization: `Bearer ${AIRTABLE_PAT}` } }); const d = await res.json(); cachedAirtableData = d.records?.[0]?.fields || null; window.refreshUIWithData(); setTimeout(() => { document.getElementById('loading-screen')?.classList.add('hidden'); window.notify("Datos actualizados", "success"); }, 600); } };
-        window.notify = (msg, type = 'error') => { const t = document.getElementById('notification-toast'), c = document.getElementById('notification-content'); if(t && c) { c.textContent = msg; t.className = `fixed top-8 left-1/2 -translate-x-1/2 z-[3000] px-8 py-4 rounded-full shadow-2xl text-[13px] font-semibold bg-white border ${type === 'success' ? 'text-emerald-600 border-emerald-100' : 'text-red-600 border-red-100'}`; t.classList.remove('hidden'); setTimeout(() => t.classList.add('hidden'), 5000); } };
+        // --- MODIFICACIÓN CLAVE EN REFRESH ---
+        window.refreshData = async () => { 
+            if(!auth.currentUser) return;
+            const loader = document.getElementById('loading-screen');
+            if(loader) loader.classList.remove('hidden');
+            
+            try {
+                const f = encodeURIComponent(`(LOWER({Email})=LOWER('${auth.currentUser.email}'))`);
+                const u = `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${AIRTABLE_TABLE_NAME}?filterByFormula=${f}`;
+                const res = await fetch(u, { headers: { Authorization: `Bearer ${AIRTABLE_PAT}` } });
+                const d = await res.json();
+                cachedAirtableData = d.records?.[0]?.fields || null;
+
+                // VALIDACIÓN DE ESTATUS EN REFRESH
+                if (!isSpecialistMode) {
+                    if (!cachedAirtableData) {
+                        window.notify("Usuario no encontrado en base de datos.");
+                        await signOut(auth);
+                        if(loader) loader.classList.add('hidden');
+                        return;
+                    }
+                    const status = String(cachedAirtableData["Estatus"] || "").toLowerCase();
+                    if (status.includes("inactivo") || (!status.includes("activo") && !status.includes("actívo"))) {
+                        window.notify("Tu cuenta no está activa. Será activada en tu próxima consulta.");
+                        await signOut(auth);
+                        if(loader) loader.classList.add('hidden');
+                        return;
+                    }
+                }
+                
+                window.refreshUIWithData();
+                setTimeout(() => { document.getElementById('loading-screen')?.classList.add('hidden'); window.notify("Datos actualizados", "success"); }, 600); 
+            } catch(e) {
+                if(loader) loader.classList.add('hidden');
+                window.notify("Error al actualizar");
+            }
+        };
 
         async function fetchAirtableData(email) {
             const f = encodeURIComponent(`(LOWER({Email})=LOWER('${email}'))`), u = `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${AIRTABLE_TABLE_NAME}?filterByFormula=${f}`;
@@ -485,43 +518,32 @@
             window.safeSetText('display-nombre', data["Nombre + Edad"] || "Usuario IMNUFIT");
             if (chatHistory.length === 0) window.clearChat();
             const g = window.getGreeting(); window.safeUpdate('display-greeting', (el) => el.innerHTML = `<span class="text-xl mr-2">${g.icon}</span> ${g.text}`);
-            const st = data["Estatus"] || "Activo";
+            
+            const st = data["Estatus"] || "Activo"; // Visual only, logic handled before
             window.safeUpdate('display-estatus', (el) => { el.textContent = st; el.className = `px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-widest border inline-block mt-2 ${window.getStatusClass(st)}`; });
-            const sLow = st.toLowerCase(), isR = (sLow.includes("inactivo") || sLow.includes("por asignar") || sLow.includes("pausa")) && !isSpecialistMode;
             
-            document.getElementById('featured-plan-banner')?.classList.toggle('hidden', isR || !data.Programa);
-            
-            // --- LOGICA REVISADA PARA USUARIOS INACTIVOS ---
-            const restrictedBanner = document.getElementById('restricted-banner');
-            if (restrictedBanner) {
-                restrictedBanner.classList.toggle('hidden', !isR);
-                if (isR) {
-                     window.safeSetText('restricted-banner-title', "Membresía Inactiva");
-                     window.safeSetText('restricted-banner-body', "Tu membresía se encuentra inactiva. Suscríbete nuevamente para acceder a todo el contenido. Si ya te suscribiste, activaremos tu cuenta en tu próxima consulta.");
-                     
-                     const btnContainer = document.getElementById('restricted-btn-container');
-                     if(btnContainer) {
-                         btnContainer.innerHTML = `<a href="https://imnufit.com" target="_blank" class="inline-block mt-6 bg-white text-[#2E4982] px-8 py-4 rounded-full text-[11px] font-extrabold uppercase tracking-widest shadow-xl hover:scale-105 transition-transform no-underline">Suscribirse / Ver Info</a>`;
-                         btnContainer.classList.remove('hidden');
-                     }
-                }
-            }
-            
-            document.getElementById('card-ai')?.classList.toggle('hidden', isR);
+            document.getElementById('featured-plan-banner')?.classList.toggle('hidden', !data.Programa);
             if (data.Programa) window.safeSetText('plan-banner-title', data.Programa);
             
-            // --- HIDE LOGIC FOR CARDS ---
-            ['card-entrenamientos', 'card-reporte', 'card-citas'].forEach(id => {
+            // SHOW ALL CARDS
+            ['card-entrenamientos', 'card-reporte', 'card-citas', 'card-consultas', 'card-community'].forEach(id => {
                 const el = document.getElementById(id);
-                if(el) el.classList.toggle('hidden', isR);
+                if(el) el.classList.remove('hidden');
             });
-            
-            // --- CARD CONSULTAS SIEMPRE VISIBLE ---
-            const consultasCard = document.getElementById('card-consultas');
-            if(consultasCard) consultasCard.classList.remove('hidden');
+
+            // CHECK LINK CONSULTAS
+            const linkCons = data["Link Consultas"];
+            const cardCons = document.getElementById('card-consultas');
+            if (cardCons) {
+                if (!linkCons || linkCons.trim() === "") cardCons.classList.add('hidden');
+                else {
+                    cardCons.classList.remove('hidden');
+                    const btn = document.getElementById('btn-consultas-action');
+                    if (btn) { btn.href = linkCons; btn.style.opacity = "1"; }
+                }
+            }
 
             window.safeUpdate('calendar-action-container', el => el.innerHTML = `<a href="${data["Link Calendar"] || CALENDAR_LINK_DEFAULT}" target="_blank" class="btn-ghost-sm text-center">Ir al Calendario</a>`);
-            const bh = document.getElementById('btn-consultas-action'); if (bh) { bh.href = data["Link Consultas"] || "#"; bh.style.opacity = bh.href.includes("#") ? "0.4" : "1"; }
             
             window.safeSetText('acc-nombre', data["Nombre + Edad"] || "---"); window.safeSetText('acc-email', auth.currentUser?.email || "--"); window.safeSetText('display-frase', frasesCreyentes[Math.floor(Math.random() * frasesCreyentes.length)]);
             window.safeSetText('acc-pais', data["País"] || "--"); window.safeSetText('acc-telefono', data["Telefono"] || "--");
@@ -542,8 +564,7 @@
             if(loader) loader.classList.remove('hidden');
             if (user) {
                 window.resetUI();
-                window.resetInactivityTimer(); // Iniciar timer
-                
+                window.resetInactivityTimer();
                 isSpecialistMode = (user.email === SPECIALIST_EMAIL);
                 const sp = document.getElementById('specialist-panel'); if(sp) sp.classList.toggle('hidden', !isSpecialistMode);
                 cachedAirtableData = await fetchAirtableData(user.email);
@@ -726,6 +747,21 @@
                 <section id="card-reporte" class="bento-card min-h-[300px] text-left"><div class="w-14 h-14 bg-[#FFEDD5] rounded-2xl flex items-center justify-center mb-6 text-[#2E4982] shrink-0 text-center"><svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path></svg></div><div class="text-left"><h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-1 text-left">Seguimiento</h4><h3 class="text-2xl font-bold text-[#494949] text-left">Reporte Mensual</h3><p class="text-[14px] text-slate-500 mt-2 leading-relaxed text-left">Registra tus progresos.</p></div><div class="mt-8 text-center text-left"><a href="https://airtable.com/appCHcm7XPzeoyBCs/pagh79fwniuSPmusB/form" target="_blank" class="btn-ghost-sm text-center">Llenar Reporte</a></div></section>
                 <section id="card-citas" class="bento-card min-h-[300px] text-left"><div class="w-14 h-14 bg-[#D0F0E0] rounded-2xl flex items-center justify-center mb-6 text-[#2E4982] shrink-0 text-center"><svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg></div><div class="text-left"><h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-1 text-left">Citas</h4><h3 class="text-2xl font-bold text-[#494949] text-left">Reservar Consulta</h3><p class="text-[14px] text-slate-500 mt-2 leading-relaxed text-left">Gestiona tu espacio aquí.</p></div><div id="calendar-action-container" class="mt-8 text-center w-full text-center"></div></section>
                 <section id="card-consultas" class="bento-card min-h-[300px] text-left"><div class="w-14 h-14 bg-[#E7E3FB] rounded-2xl flex items-center justify-center mb-6 text-[#2E4982] shrink-0 text-center"><svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg></div><div class="text-left"><h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-1 text-left">Registro</h4><h3 class="text-2xl font-bold text-[#494949] text-left">Consultas Recientes</h3><p class="text-[14px] text-slate-500 mt-2 leading-relaxed text-left">Historial de evaluaciones.</p></div><div class="mt-8 text-center text-center"><a id="btn-consultas-action" href="#" target="_blank" class="btn-ghost-sm text-center">Abrir Historial</a></div></section>
+                
+                <!-- CARD COMUNIDAD (NUEVA) -->
+                <section id="card-community" class="bento-card min-h-[300px] text-left">
+                    <div class="w-14 h-14 bg-[#DCFCE7] rounded-2xl flex items-center justify-center mb-6 text-[#16A34A] shrink-0 text-center">
+                        <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+                    </div>
+                    <div class="text-left">
+                        <h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-1 text-left">Comunidad</h4>
+                        <h3 class="text-2xl font-bold text-[#494949] text-left">Grupo VIP</h3>
+                        <p class="text-[14px] text-slate-500 mt-2 leading-relaxed text-left">Únete a nuestra comunidad exclusiva en WhatsApp.</p>
+                    </div>
+                    <div class="mt-8 text-center text-left">
+                        <a href="https://chat.whatsapp.com/FNoToJXy8HO7iLVhPseQHB" target="_blank" class="btn-ghost-sm text-center">Unirme Ahora</a>
+                    </div>
+                </section>
             </div>
         </main>
     </section>
