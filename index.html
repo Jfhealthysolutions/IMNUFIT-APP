@@ -23,6 +23,26 @@
         import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut, setPersistence, browserLocalPersistence, updatePassword, sendPasswordResetEmail, signInWithCustomToken, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
+        // --- 0. INYECCIÓN DE MANIFIESTO PWA (AYUDA A CHROME A DETECTAR LA APP) ---
+        const manifest = {
+            "name": "IMNUFIT Portal",
+            "short_name": "IMNUFIT",
+            "start_url": ".",
+            "display": "standalone",
+            "background_color": "#FBFBFC",
+            "theme_color": "#FBFBFC",
+            "icons": [{
+                "src": "https://imnufit.com/wp-content/uploads/2025/05/icono_web_512x512.png",
+                "sizes": "512x512",
+                "type": "image/png"
+            }]
+        };
+        const blob = new Blob([JSON.stringify(manifest)], {type: 'application/json'});
+        const link = document.createElement('link');
+        link.rel = 'manifest';
+        link.href = URL.createObjectURL(blob);
+        document.head.appendChild(link);
+
         // --- 1. CONFIGURACIÓN ---
         const firebaseConfig = {
             apiKey: "AIzaSyAJBf7TbP1GuAoA3GsrCG0EJOifEt4YodY",
@@ -55,8 +75,6 @@
         let currentAppData = null; 
         let chatHistory = [];
         let notificationTimer = null;
-        
-        // --- VARIABLES DE INACTIVIDAD ---
         let inactivityTimeout;
         const INACTIVITY_LIMIT = 10 * 60 * 1000; // 10 Minutos
 
@@ -165,7 +183,7 @@
             document.getElementById('restricted-banner')?.classList.add('hidden');
             document.getElementById('card-ai')?.classList.remove('hidden'); 
             window.clearChat();
-            ['card-entrenamientos', 'card-reporte', 'card-citas', 'card-consultas', 'card-community'].forEach(id => { 
+            ['card-entrenamientos', 'card-reporte', 'card-citas', 'card-consultas', 'card-community', 'card-install-app-main'].forEach(id => { 
                 document.getElementById(id)?.classList.add('hidden'); 
             });
             clearTimeout(inactivityTimeout);
@@ -202,7 +220,6 @@
             return null;
         };
 
-        // --- 3. CHAT AI ---
         window.parseAIResponse = (text) => {
             if (!text) return "";
             let html = text.replace(/\*\*(.*?)\*\*/g, '<strong class="font-bold text-slate-900">$1</strong>');
@@ -225,7 +242,6 @@
             const html = `<div class="flex ${role === 'user' ? 'justify-end' : 'justify-start'} mb-6 fade-in text-left"><div class="max-w-[85%] px-5 py-4 rounded-[1.4rem] text-[14px] leading-relaxed ${role === 'user' ? 'bg-[#2E4982] text-white rounded-tr-sm' : 'bg-white border border-slate-100 text-slate-600 rounded-tl-sm shadow-sm'}">${content}</div></div>`;
             const m = document.getElementById('ai-messages-mobile');
             const d = document.getElementById('ai-messages-desktop');
-            
             if (m) {
                 m.insertAdjacentHTML('beforeend', html);
                 if(role === 'user') m.scrollTop = m.scrollHeight;
@@ -247,7 +263,6 @@
             if(m) m.innerHTML = html; if(d) d.innerHTML = html;
         };
 
-        // --- 4. GESTIÓN DE MODALES ---
         window.handleAIAction = (viewId) => { window.closeDesktopAIModal(); if (viewId === 'program-detail-view') window.viewProgramResources(); else window.showView(viewId); };
         window.openDesktopAIModal = () => { const m = document.getElementById('ai-modal-overlay'); if(m){ m.classList.remove('hidden'); m.classList.add('flex'); setTimeout(() => { m.classList.remove('opacity-0'); m.querySelector('div')?.classList.remove('scale-95', 'opacity-0'); document.getElementById('ai-input-desktop')?.focus(); }, 10); }};
         window.closeDesktopAIModal = () => { const m = document.getElementById('ai-modal-overlay'); if(!m) return; m.classList.add('opacity-0'); m.querySelector('div')?.classList.add('scale-95', 'opacity-0'); setTimeout(() => { m.classList.add('hidden'); m.classList.remove('flex'); window.clearChat(); }, 300); };
@@ -256,50 +271,57 @@
         window.openAITrainingModal = () => { document.getElementById('ai-training-modal')?.classList.remove('hidden'); document.getElementById('ai-training-modal')?.classList.add('flex'); };
         window.closeAITrainingModal = () => { document.getElementById('ai-training-modal')?.classList.add('hidden'); };
         window.updateSpecMode = (val) => { specModeSelection = val; window.refreshUIWithData(); window.showView('patient-view'); };
-        
-        // --- 5. LOGICA DE INSTALACION PWA UNIVERSAL ---
+
         window.showInstallInstructions = () => {
             const ua = navigator.userAgent.toLowerCase();
             const isIOS = /ipad|iphone|ipod/.test(ua) && !window.MSStream;
             const isAndroid = /android/.test(ua);
             
             let msg = "";
-            
             if (isIOS) {
                 msg = `
-                <div class="text-center space-y-4">
-                    <div class="flex justify-center"><svg class="w-12 h-12 text-[#2E4982]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg></div>
-                    <h3 class="text-lg font-bold text-slate-800">Instalar en iPhone</h3>
-                    <ol class="text-sm text-slate-600 space-y-2 text-left bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                        <li>1. Toca el botón <strong>Compartir</strong> <span class="text-blue-500 text-lg">⎋</span> abajo.</li>
-                        <li>2. Desliza y selecciona <strong>"Agregar a Inicio"</strong>.</li>
-                        <li>3. Confirma pulsando <strong>Agregar</strong>.</li>
+                <div class="text-center space-y-6">
+                    <div class="bg-slate-50 p-4 rounded-3xl inline-block border border-slate-100 shadow-sm">
+                        <svg class="w-10 h-10 text-[#2E4982]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                    </div>
+                    <div><h3 class="text-xl font-bold text-slate-800">iPhone / iPad</h3></div>
+                    <ol class="text-sm text-slate-600 space-y-3 text-left bg-slate-50 p-5 rounded-2xl border border-slate-100">
+                        <li class="flex gap-3"><span class="bg-white border border-slate-200 rounded-full w-6 h-6 flex items-center justify-center font-bold text-[10px] shrink-0">1</span> <span>Toca el botón <strong>Compartir</strong> <svg class="w-4 h-4 inline text-[#2E4982] align-text-bottom" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"></path></svg> abajo.</span></li>
+                        <li class="flex gap-3"><span class="bg-white border border-slate-200 rounded-full w-6 h-6 flex items-center justify-center font-bold text-[10px] shrink-0">2</span> <span>Selecciona <strong>"Agregar a Inicio"</strong>.</span></li>
                     </ol>
-                    <button onclick="document.getElementById('install-modal').classList.add('hidden')" class="w-full bg-[#2E4982] text-white py-3 rounded-xl font-bold text-xs uppercase shadow-lg">Entendido</button>
+                    <button onclick="document.getElementById('install-modal').classList.add('hidden')" class="w-full bg-[#2E4982] text-white py-4 rounded-xl font-bold text-xs uppercase shadow-xl tracking-widest hover:scale-[1.02] transition-transform">Entendido</button>
                 </div>`;
             } else if (isAndroid) {
                 msg = `
-                <div class="text-center space-y-4">
-                    <div class="flex justify-center"><svg class="w-12 h-12 text-[#2E4982]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg></div>
-                    <h3 class="text-lg font-bold text-slate-800">Instalar en Android</h3>
-                    <ol class="text-sm text-slate-600 space-y-2 text-left bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                        <li>1. Toca el menú de opciones (tres puntos ⋮).</li>
-                        <li>2. Selecciona <strong>"Instalar aplicación"</strong> o "Agregar a pantalla de inicio".</li>
-                        <li>3. Confirma la instalación.</li>
+                 <div class="text-center space-y-6">
+                    <div class="bg-slate-50 p-4 rounded-3xl inline-block border border-slate-100 shadow-sm">
+                        <svg class="w-10 h-10 text-[#2E4982]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>
+                    </div>
+                    <div><h3 class="text-xl font-bold text-slate-800">Android</h3></div>
+                    <ol class="text-sm text-slate-600 space-y-3 text-left bg-slate-50 p-5 rounded-2xl border border-slate-100">
+                         <li class="flex gap-3"><span class="bg-white border border-slate-200 rounded-full w-6 h-6 flex items-center justify-center font-bold text-[10px] shrink-0">1</span> <span>Toca el menú de opciones (los tres puntos <span class="font-bold">⋮</span>).</span></li>
+                         <li class="flex gap-3"><span class="bg-white border border-slate-200 rounded-full w-6 h-6 flex items-center justify-center font-bold text-[10px] shrink-0">2</span> <span>Selecciona <strong>"Instalar aplicación"</strong> o "Añadir a pantalla de inicio".</span></li>
                     </ol>
-                    <button onclick="document.getElementById('install-modal').classList.add('hidden')" class="w-full bg-[#2E4982] text-white py-3 rounded-xl font-bold text-xs uppercase shadow-lg">Entendido</button>
+                    <button onclick="document.getElementById('install-modal').classList.add('hidden')" class="w-full bg-[#2E4982] text-white py-4 rounded-xl font-bold text-xs uppercase shadow-xl tracking-widest hover:scale-[1.02] transition-transform">Entendido</button>
                 </div>`;
             } else {
-                // PC / Mac
-                msg = `
-                <div class="text-center space-y-4">
-                    <div class="flex justify-center"><svg class="w-12 h-12 text-[#2E4982]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg></div>
-                    <h3 class="text-lg font-bold text-slate-800">Instalar en PC / Mac</h3>
-                    <div class="text-left bg-slate-50 p-4 rounded-2xl border border-slate-100 text-sm text-slate-600 space-y-3">
-                        <p><strong>Chrome / Edge:</strong> Busca el icono de <span class="inline-block border border-slate-300 rounded px-1 text-[10px] bg-white">Instalar</span> o <span class="inline-block border border-slate-300 rounded px-1 text-[10px] bg-white">+</span> a la derecha de la barra de dirección.</p>
-                        <p><strong>Safari (Mac):</strong> Archivo > Agregar al Dock.</p>
+                 msg = `
+                 <div class="text-center space-y-6">
+                    <div class="bg-slate-50 p-4 rounded-3xl inline-block border border-slate-100 shadow-sm">
+                        <svg class="w-10 h-10 text-[#2E4982]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
                     </div>
-                    <button onclick="document.getElementById('install-modal').classList.add('hidden')" class="w-full bg-[#2E4982] text-white py-3 rounded-xl font-bold text-xs uppercase shadow-lg">Entendido</button>
+                    <div><h3 class="text-xl font-bold text-slate-800">PC / Chrome</h3></div>
+                    <div class="text-left bg-slate-50 p-5 rounded-2xl border border-slate-100 text-sm text-slate-600 space-y-4">
+                        <p class="flex items-start gap-3">
+                            <span class="bg-white border border-slate-200 rounded-full w-6 h-6 flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5">1</span>
+                            <span>En la barra de direcciones (arriba a la derecha), busca este icono: <svg class="w-5 h-5 inline mx-1 border border-slate-300 rounded p-0.5 bg-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg> <strong>(Instalar)</strong></span>
+                        </p>
+                        <p class="flex items-start gap-3">
+                             <span class="bg-white border border-slate-200 rounded-full w-6 h-6 flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5">2</span>
+                             <span>Si no aparece: Menú (⋮) > <strong>Guardar y compartir</strong> > <strong>Instalar página como aplicación...</strong></span>
+                        </p>
+                    </div>
+                    <button onclick="document.getElementById('install-modal').classList.add('hidden')" class="w-full bg-[#2E4982] text-white py-4 rounded-xl font-bold text-xs uppercase shadow-xl tracking-widest hover:scale-[1.02] transition-transform">Entendido</button>
                 </div>`;
             }
 
@@ -312,8 +334,6 @@
             }
         };
 
-
-        // --- 6. LOGICA DE DATOS ---
         window.syncAIInstructions = async () => {
             if (!auth.currentUser) return;
             const aiDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'ai_config', 'instructions');
@@ -572,17 +592,23 @@
             if (chatHistory.length === 0) window.clearChat();
             const g = window.getGreeting(); window.safeUpdate('display-greeting', (el) => el.innerHTML = `<span class="text-xl mr-2">${g.icon}</span> ${g.text}`);
             
-            const st = data["Estatus"] || "Activo"; // Visual only, logic handled before
+            const st = data["Estatus"] || "Activo";
             window.safeUpdate('display-estatus', (el) => { el.textContent = st; el.className = `px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-widest border inline-block mt-2 ${window.getStatusClass(st)}`; });
             
             document.getElementById('featured-plan-banner')?.classList.toggle('hidden', !data.Programa);
             if (data.Programa) window.safeSetText('plan-banner-title', data.Programa);
             
-            // SHOW ALL CARDS (We are active if we are here)
-            ['card-entrenamientos', 'card-reporte', 'card-citas', 'card-consultas', 'card-community'].forEach(id => {
+            // SHOW ALL CARDS
+            ['card-entrenamientos', 'card-reporte', 'card-citas', 'card-consultas', 'card-community', 'card-install-app-main'].forEach(id => {
                 const el = document.getElementById(id);
                 if(el) el.classList.remove('hidden');
             });
+
+            // LOGICA INTELIGENTE: Si la App ya está instalada, ocultamos el botón del main
+            const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+            if (isStandalone) {
+                document.getElementById('card-install-app-main')?.classList.add('hidden');
+            }
 
             // CHECK LINK CONSULTAS
             const linkCons = data["Link Consultas"];
@@ -787,6 +813,7 @@
                 <div class="text-left"><p id="display-greeting" class="text-[10px] font-bold text-[#2E4982] uppercase tracking-[0.5em] mb-1 flex items-center text-left"></p><h2 class="text-2xl font-bold tracking-tight text-[#494949] leading-tight text-left"><span id="display-nombre">...</span></h2><div class="pt-2 text-left"><span id="display-estatus" class="px-3 py-1 rounded-full text-[10px] font-bold uppercase border inline-block text-left">Cargando...</span></div></div>
                 <div class="bg-white/60 p-6 rounded-[2rem] border border-white/60 shadow-sm backdrop-blur-md max-w-3xl text-slate-600 text-left"><p id="display-frase" class="italic text-[15px] leading-relaxed text-left">...</p></div>
                 <div id="featured-plan-banner" class="hidden fade-in text-left"><div class="bg-[#2E4982] rounded-[2.5rem] p-8 md:p-12 text-white shadow-2xl relative overflow-hidden group cursor-pointer text-left" onclick="window.viewProgramResources()"><div class="absolute -right-16 -top-16 w-64 h-64 bg-white/10 rounded-full blur-3xl text-left"></div><div class="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-8 text-left"><div class="space-y-3 text-left"><span class="text-[10px] font-bold uppercase tracking-[0.4em] opacity-60 text-left">Tu Programa Asignado</span><h3 id="plan-banner-title" class="text-xl md:text-2xl font-bold tracking-tight text-left">...</h3><p class="text-white/50 text-sm max-w-sm italic font-medium leading-relaxed text-left">Accede a tus recursos exclusivos acumulados.</p></div><button class="bg-white text-[#2E4982] px-8 py-4 rounded-full text-[11px] font-extrabold uppercase tracking-widest shadow-xl group-hover:scale-105 transition-transform shrink-0 text-center">Ver Recursos</button></div></div></div>
+                <div id="restricted-banner" class="hidden fade-in text-left"><div class="bg-[#2E4982] rounded-[2.5rem] p-10 md:p-12 text-white shadow-2xl relative overflow-hidden text-center flex flex-col items-center text-left"><div class="absolute -right-16 -top-16 w-64 h-64 bg-white/10 rounded-full blur-3xl text-left"></div><div class="relative z-10 space-y-4 max-w-xl text-center"><span id="restricted-banner-title" class="text-[10px] font-bold uppercase tracking-[0.4em] opacity-60 text-center text-left">Portal</span><h3 class="text-xl md:text-2xl font-bold tracking-tight text-white text-center">Tu Salud es Prioridad</h3><p id="restricted-banner-body" class="text-white/70 text-[14px] font-medium leading-relaxed text-center text-left"></p><div id="restricted-btn-container" class="w-full text-center"></div></div></div></div>
             </div>
 
             <div id="dashboard-grid" class="grid grid-cols-1 md:grid-cols-2 gap-8 text-left">
@@ -798,7 +825,7 @@
                     <div class="absolute -bottom-10 -right-10 w-48 h-48 bg-gradient-to-tr from-blue-200 to-violet-200 rounded-full blur-[60px] opacity-60 pointer-events-none text-left"></div>
                 </section>
                 <section id="card-entrenamientos" class="bento-card min-h-[300px] text-left"><div class="w-14 h-14 bg-[#DEE9FA] rounded-2xl flex items-center justify-center mb-6 shrink-0 text-center"><img src="https://imnufit.com/wp-content/uploads/2022/01/iuiuo.png" class="w-11 h-11 object-contain text-left"></div><div class="text-left"><h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-1 text-left">Entrenaconfren+</h4><h3 class="text-2xl font-bold text-[#494949] text-left">Entrenamientos</h3><p class="text-[14px] text-slate-500 mt-2 leading-relaxed text-left">Accede a tus rutinas y guías.</p></div><div class="mt-8 text-center text-left"><a href="https://imnufit.com/entrenaconfrenplus/" target="_blank" class="btn-ghost-sm text-center">Ir a Entrenar</a></div></section>
-                <section id="card-reporte" class="bento-card min-h-[300px] text-left"><div class="w-14 h-14 bg-[#FFEDD5] rounded-2xl flex items-center justify-center mb-6 text-[#2E4982] shrink-0 text-center"><svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg></div><div class="text-left"><h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-1 text-left">Seguimiento</h4><h3 class="text-2xl font-bold text-[#494949] text-left">Reporte Mensual</h3><p class="text-[14px] text-slate-500 mt-2 leading-relaxed text-left">Registra tus progresos.</p></div><div class="mt-8 text-center text-left"><a href="https://airtable.com/appCHcm7XPzeoyBCs/pagh79fwniuSPmusB/form" target="_blank" class="btn-ghost-sm text-center">Llenar Reporte</a></div></section>
+                <section id="card-reporte" class="bento-card min-h-[300px] text-left"><div class="w-14 h-14 bg-[#FFEDD5] rounded-2xl flex items-center justify-center mb-6 text-[#2E4982] shrink-0 text-center"><svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path></svg></div><div class="text-left"><h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-1 text-left">Seguimiento</h4><h3 class="text-2xl font-bold text-[#494949] text-left">Reporte Mensual</h3><p class="text-[14px] text-slate-500 mt-2 leading-relaxed text-left">Registra tus progresos.</p></div><div class="mt-8 text-center text-left"><a href="https://airtable.com/appCHcm7XPzeoyBCs/pagh79fwniuSPmusB/form" target="_blank" class="btn-ghost-sm text-center">Llenar Reporte</a></div></section>
                 <section id="card-citas" class="bento-card min-h-[300px] text-left"><div class="w-14 h-14 bg-[#D0F0E0] rounded-2xl flex items-center justify-center mb-6 text-[#2E4982] shrink-0 text-center"><svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg></div><div class="text-left"><h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-1 text-left">Citas</h4><h3 class="text-2xl font-bold text-[#494949] text-left">Reservar Consulta</h3><p class="text-[14px] text-slate-500 mt-2 leading-relaxed text-left">Gestiona tu espacio aquí.</p></div><div id="calendar-action-container" class="mt-8 text-center w-full text-center"></div></section>
                 <section id="card-consultas" class="bento-card min-h-[300px] text-left"><div class="w-14 h-14 bg-[#E7E3FB] rounded-2xl flex items-center justify-center mb-6 text-[#2E4982] shrink-0 text-center"><svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg></div><div class="text-left"><h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-1 text-left">Registro</h4><h3 class="text-2xl font-bold text-[#494949] text-left">Consultas Recientes</h3><p class="text-[14px] text-slate-500 mt-2 leading-relaxed text-left">Historial de evaluaciones.</p></div><div class="mt-8 text-center text-center"><a id="btn-consultas-action" href="#" target="_blank" class="btn-ghost-sm text-center">Abrir Historial</a></div></section>
                 
@@ -816,6 +843,22 @@
                         <a href="https://chat.whatsapp.com/FNoToJXy8HO7iLVhPseQHB" target="_blank" class="btn-ghost-sm text-center">Unirme Ahora</a>
                     </div>
                 </section>
+                
+                <!-- CARD "INSTALAR APP" EN EL GRID PRINCIPAL (INTELIGENTE) -->
+                <div id="card-install-app-main" class="bg-gradient-to-r from-slate-900 to-slate-800 rounded-[2rem] p-8 text-white shadow-xl relative overflow-hidden group cursor-pointer hidden text-left" onclick="window.showInstallInstructions()">
+                     <div class="absolute -right-8 -top-8 w-32 h-32 bg-white/10 rounded-full blur-2xl"></div>
+                     <div class="relative z-10 flex items-center justify-between">
+                         <div>
+                             <span class="text-[10px] font-black uppercase tracking-[0.2em] text-white/60">Acceso Rápido</span>
+                             <h3 class="text-lg font-bold mt-1">Instalar App</h3>
+                             <p class="text-[12px] text-white/70 mt-1 max-w-[200px]">Añade IMNUFIT a tu pantalla de inicio para una mejor experiencia.</p>
+                         </div>
+                         <div class="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-sm">
+                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                         </div>
+                     </div>
+                </div>
+
             </div>
         </main>
     </section>
@@ -870,13 +913,6 @@
                         Gestionar Membresía y Pagos 
                         <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
                     </a>
-                </div>
-                <!-- INSTALL APP BUTTON (PWA) -->
-                <div class="mt-8 border-t border-slate-50 pt-8">
-                    <button onclick="window.showInstallInstructions()" class="w-full bg-slate-900 text-white py-4 rounded-2xl text-[11px] font-black uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg hover:scale-[1.02] transition-transform">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
-                        Instalar App en mi Celular
-                    </button>
                 </div>
             </section>
 
