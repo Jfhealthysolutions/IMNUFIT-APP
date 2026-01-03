@@ -9,12 +9,12 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="IMNUFIT">
-    <meta name="theme-color" content="#FBFBFC">
+    <meta name="theme-color" content="#2E4982">
     
-    <!-- ICONO DE PANTALLA DE INICIO -->
-    <link rel="apple-touch-icon" href="https://imnufit.com/wp-content/uploads/2025/05/icono_web_512x512.png">
-    <link rel="icon" type="image/png" href="https://imnufit.com/wp-content/uploads/2025/05/icono_web_512x512.png">
-    <link rel="shortcut icon" href="https://imnufit.com/wp-content/uploads/2025/05/icono_web_512x512.png">
+    <!-- ICONO DE PANTALLA DE INICIO (NUEVO) -->
+    <link rel="apple-touch-icon" href="https://imnufit.com/wp-content/uploads/2026/01/IMG_8520.png">
+    <link rel="icon" type="image/png" href="https://imnufit.com/wp-content/uploads/2026/01/IMG_8520.png">
+    <link rel="shortcut icon" href="https://imnufit.com/wp-content/uploads/2026/01/IMG_8520.png">
     
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -29,12 +29,13 @@
             "short_name": "IMNUFIT",
             "start_url": ".",
             "display": "standalone",
-            "background_color": "#FBFBFC",
-            "theme_color": "#FBFBFC",
+            "background_color": "#FFFFFF",
+            "theme_color": "#2E4982",
             "icons": [{
-                "src": "https://imnufit.com/wp-content/uploads/2025/05/icono_web_512x512.png",
+                "src": "https://imnufit.com/wp-content/uploads/2026/01/IMG_8520.png",
                 "sizes": "512x512",
-                "type": "image/png"
+                "type": "image/png",
+                "purpose": "any maskable"
             }]
         };
         const blob = new Blob([JSON.stringify(manifest)], {type: 'application/json'});
@@ -846,17 +847,17 @@
                 
                 <!-- CARD "INSTALAR APP" EN EL GRID PRINCIPAL (INTELIGENTE) -->
                 <div id="card-install-app-main" class="bg-gradient-to-r from-slate-900 to-slate-800 rounded-[2rem] p-8 text-white shadow-xl relative overflow-hidden group cursor-pointer hidden text-left" onclick="window.showInstallInstructions()">
-                     <div class="absolute -right-8 -top-8 w-32 h-32 bg-white/10 rounded-full blur-2xl"></div>
-                     <div class="relative z-10 flex items-center justify-between">
-                         <div>
-                             <span class="text-[10px] font-black uppercase tracking-[0.2em] text-white/60">Acceso Rápido</span>
-                             <h3 class="text-lg font-bold mt-1">Instalar App</h3>
-                             <p class="text-[12px] text-white/70 mt-1 max-w-[200px]">Añade IMNUFIT a tu pantalla de inicio para una mejor experiencia.</p>
-                         </div>
-                         <div class="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-sm">
-                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
-                         </div>
-                     </div>
+                      <div class="absolute -right-8 -top-8 w-32 h-32 bg-white/10 rounded-full blur-2xl"></div>
+                      <div class="relative z-10 flex items-center justify-between">
+                          <div>
+                              <span class="text-[10px] font-black uppercase tracking-[0.2em] text-white/60">Acceso Rápido</span>
+                              <h3 class="text-lg font-bold mt-1">Instalar App</h3>
+                              <p class="text-[12px] text-white/70 mt-1 max-w-[200px]">Añade IMNUFIT a tu pantalla de inicio para una mejor experiencia.</p>
+                          </div>
+                          <div class="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-sm">
+                              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                          </div>
+                      </div>
                 </div>
 
             </div>
