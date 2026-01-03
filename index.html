@@ -2,8 +2,20 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>IMNUFIT - Portal del Paciente</title>
+    
+    <!-- PWA / APP MODE CONFIGURATION -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="IMNUFIT">
+    <meta name="theme-color" content="#FBFBFC">
+    
+    <!-- ICONO DE PANTALLA DE INICIO -->
+    <link rel="apple-touch-icon" href="https://imnufit.com/wp-content/uploads/2025/05/icono_web_512x512.png">
+    <link rel="icon" type="image/png" href="https://imnufit.com/wp-content/uploads/2025/05/icono_web_512x512.png">
+    <link rel="shortcut icon" href="https://imnufit.com/wp-content/uploads/2025/05/icono_web_512x512.png">
+    
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <script type="module">
@@ -43,8 +55,8 @@
         let currentAppData = null; 
         let chatHistory = [];
         let notificationTimer = null;
-
-        // --- TEMPORIZADOR DE INACTIVIDAD ---
+        
+        // --- VARIABLES DE INACTIVIDAD ---
         let inactivityTimeout;
         const INACTIVITY_LIMIT = 10 * 60 * 1000; // 10 Minutos
 
@@ -153,7 +165,6 @@
             document.getElementById('restricted-banner')?.classList.add('hidden');
             document.getElementById('card-ai')?.classList.remove('hidden'); 
             window.clearChat();
-            // AÑADIDO: Ocultar card-community también al resetear
             ['card-entrenamientos', 'card-reporte', 'card-citas', 'card-consultas', 'card-community'].forEach(id => { 
                 document.getElementById(id)?.classList.add('hidden'); 
             });
@@ -214,6 +225,7 @@
             const html = `<div class="flex ${role === 'user' ? 'justify-end' : 'justify-start'} mb-6 fade-in text-left"><div class="max-w-[85%] px-5 py-4 rounded-[1.4rem] text-[14px] leading-relaxed ${role === 'user' ? 'bg-[#2E4982] text-white rounded-tr-sm' : 'bg-white border border-slate-100 text-slate-600 rounded-tl-sm shadow-sm'}">${content}</div></div>`;
             const m = document.getElementById('ai-messages-mobile');
             const d = document.getElementById('ai-messages-desktop');
+            
             if (m) {
                 m.insertAdjacentHTML('beforeend', html);
                 if(role === 'user') m.scrollTop = m.scrollHeight;
@@ -235,6 +247,7 @@
             if(m) m.innerHTML = html; if(d) d.innerHTML = html;
         };
 
+        // --- 4. GESTIÓN DE MODALES ---
         window.handleAIAction = (viewId) => { window.closeDesktopAIModal(); if (viewId === 'program-detail-view') window.viewProgramResources(); else window.showView(viewId); };
         window.openDesktopAIModal = () => { const m = document.getElementById('ai-modal-overlay'); if(m){ m.classList.remove('hidden'); m.classList.add('flex'); setTimeout(() => { m.classList.remove('opacity-0'); m.querySelector('div')?.classList.remove('scale-95', 'opacity-0'); document.getElementById('ai-input-desktop')?.focus(); }, 10); }};
         window.closeDesktopAIModal = () => { const m = document.getElementById('ai-modal-overlay'); if(!m) return; m.classList.add('opacity-0'); m.querySelector('div')?.classList.add('scale-95', 'opacity-0'); setTimeout(() => { m.classList.add('hidden'); m.classList.remove('flex'); window.clearChat(); }, 300); };
@@ -243,7 +256,64 @@
         window.openAITrainingModal = () => { document.getElementById('ai-training-modal')?.classList.remove('hidden'); document.getElementById('ai-training-modal')?.classList.add('flex'); };
         window.closeAITrainingModal = () => { document.getElementById('ai-training-modal')?.classList.add('hidden'); };
         window.updateSpecMode = (val) => { specModeSelection = val; window.refreshUIWithData(); window.showView('patient-view'); };
+        
+        // --- 5. LOGICA DE INSTALACION PWA UNIVERSAL ---
+        window.showInstallInstructions = () => {
+            const ua = navigator.userAgent.toLowerCase();
+            const isIOS = /ipad|iphone|ipod/.test(ua) && !window.MSStream;
+            const isAndroid = /android/.test(ua);
+            
+            let msg = "";
+            
+            if (isIOS) {
+                msg = `
+                <div class="text-center space-y-4">
+                    <div class="flex justify-center"><svg class="w-12 h-12 text-[#2E4982]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg></div>
+                    <h3 class="text-lg font-bold text-slate-800">Instalar en iPhone</h3>
+                    <ol class="text-sm text-slate-600 space-y-2 text-left bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                        <li>1. Toca el botón <strong>Compartir</strong> <span class="text-blue-500 text-lg">⎋</span> abajo.</li>
+                        <li>2. Desliza y selecciona <strong>"Agregar a Inicio"</strong>.</li>
+                        <li>3. Confirma pulsando <strong>Agregar</strong>.</li>
+                    </ol>
+                    <button onclick="document.getElementById('install-modal').classList.add('hidden')" class="w-full bg-[#2E4982] text-white py-3 rounded-xl font-bold text-xs uppercase shadow-lg">Entendido</button>
+                </div>`;
+            } else if (isAndroid) {
+                msg = `
+                <div class="text-center space-y-4">
+                    <div class="flex justify-center"><svg class="w-12 h-12 text-[#2E4982]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg></div>
+                    <h3 class="text-lg font-bold text-slate-800">Instalar en Android</h3>
+                    <ol class="text-sm text-slate-600 space-y-2 text-left bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                        <li>1. Toca el menú de opciones (tres puntos ⋮).</li>
+                        <li>2. Selecciona <strong>"Instalar aplicación"</strong> o "Agregar a pantalla de inicio".</li>
+                        <li>3. Confirma la instalación.</li>
+                    </ol>
+                    <button onclick="document.getElementById('install-modal').classList.add('hidden')" class="w-full bg-[#2E4982] text-white py-3 rounded-xl font-bold text-xs uppercase shadow-lg">Entendido</button>
+                </div>`;
+            } else {
+                // PC / Mac
+                msg = `
+                <div class="text-center space-y-4">
+                    <div class="flex justify-center"><svg class="w-12 h-12 text-[#2E4982]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg></div>
+                    <h3 class="text-lg font-bold text-slate-800">Instalar en PC / Mac</h3>
+                    <div class="text-left bg-slate-50 p-4 rounded-2xl border border-slate-100 text-sm text-slate-600 space-y-3">
+                        <p><strong>Chrome / Edge:</strong> Busca el icono de <span class="inline-block border border-slate-300 rounded px-1 text-[10px] bg-white">Instalar</span> o <span class="inline-block border border-slate-300 rounded px-1 text-[10px] bg-white">+</span> a la derecha de la barra de dirección.</p>
+                        <p><strong>Safari (Mac):</strong> Archivo > Agregar al Dock.</p>
+                    </div>
+                    <button onclick="document.getElementById('install-modal').classList.add('hidden')" class="w-full bg-[#2E4982] text-white py-3 rounded-xl font-bold text-xs uppercase shadow-lg">Entendido</button>
+                </div>`;
+            }
 
+            const modal = document.getElementById('install-modal');
+            const content = document.getElementById('install-modal-content');
+            if(modal && content) {
+                content.innerHTML = msg;
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+            }
+        };
+
+
+        // --- 6. LOGICA DE DATOS ---
         window.syncAIInstructions = async () => {
             if (!auth.currentUser) return;
             const aiDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'ai_config', 'instructions');
@@ -469,43 +539,26 @@
         window.cerrarSesion = () => signOut(auth);
         window.updateAppPassword = async (e) => { e.preventDefault(); if(!auth.currentUser) return; try { document.getElementById('loading-screen')?.classList.remove('hidden'); await updatePassword(auth.currentUser, e.target.newPassword.value); window.notify("Clave actualizada", "success"); e.target.reset(); } catch (err) { window.notify("Sesión expirada"); } finally { document.getElementById('loading-screen')?.classList.add('hidden'); } };
 
-        // --- MODIFICACIÓN CLAVE EN REFRESH ---
-        window.refreshData = async () => { 
-            if(!auth.currentUser) return;
-            const loader = document.getElementById('loading-screen');
-            if(loader) loader.classList.remove('hidden');
-            
-            try {
-                const f = encodeURIComponent(`(LOWER({Email})=LOWER('${auth.currentUser.email}'))`);
-                const u = `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${AIRTABLE_TABLE_NAME}?filterByFormula=${f}`;
-                const res = await fetch(u, { headers: { Authorization: `Bearer ${AIRTABLE_PAT}` } });
-                const d = await res.json();
-                cachedAirtableData = d.records?.[0]?.fields || null;
-
-                // VALIDACIÓN DE ESTATUS EN REFRESH
-                if (!isSpecialistMode) {
-                    if (!cachedAirtableData) {
-                        window.notify("Usuario no encontrado en base de datos.");
-                        await signOut(auth);
-                        if(loader) loader.classList.add('hidden');
-                        return;
-                    }
-                    const status = String(cachedAirtableData["Estatus"] || "").toLowerCase();
-                    if (status.includes("inactivo") || (!status.includes("activo") && !status.includes("actívo"))) {
-                        window.notify("Tu cuenta no está activa. Será activada en tu próxima consulta.");
-                        await signOut(auth);
-                        if(loader) loader.classList.add('hidden');
-                        return;
-                    }
-                }
-                
-                window.refreshUIWithData();
-                setTimeout(() => { document.getElementById('loading-screen')?.classList.add('hidden'); window.notify("Datos actualizados", "success"); }, 600); 
-            } catch(e) {
-                if(loader) loader.classList.add('hidden');
-                window.notify("Error al actualizar");
-            }
-        };
+        window.refreshData = async () => { if(auth.currentUser) { document.getElementById('loading-screen')?.classList.remove('hidden'); const f = encodeURIComponent(`(LOWER({Email})=LOWER('${auth.currentUser.email}'))`), u = `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${AIRTABLE_TABLE_NAME}?filterByFormula=${f}`; const res = await fetch(u, { headers: { Authorization: `Bearer ${AIRTABLE_PAT}` } }); const d = await res.json(); cachedAirtableData = d.records?.[0]?.fields || null; 
+        
+        // VALIDACIÓN DE ESTATUS EN REFRESH
+        if (!isSpecialistMode) {
+             if (!cachedAirtableData) {
+                  window.notify("Usuario no encontrado en base de datos.");
+                  await signOut(auth);
+                  if(document.getElementById('loading-screen')) document.getElementById('loading-screen').classList.add('hidden');
+                  return;
+             }
+             const status = String(cachedAirtableData["Estatus"] || "").toLowerCase();
+             if (status.includes("inactivo") || (!status.includes("activo") && !status.includes("actívo"))) {
+                  window.notify("Tu cuenta no está activa. Será activada en tu próxima consulta.");
+                  await signOut(auth);
+                  if(document.getElementById('loading-screen')) document.getElementById('loading-screen').classList.add('hidden');
+                  return;
+             }
+        }
+        
+        window.refreshUIWithData(); setTimeout(() => { document.getElementById('loading-screen')?.classList.add('hidden'); window.notify("Datos actualizados", "success"); }, 600); } };
 
         async function fetchAirtableData(email) {
             const f = encodeURIComponent(`(LOWER({Email})=LOWER('${email}'))`), u = `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${AIRTABLE_TABLE_NAME}?filterByFormula=${f}`;
@@ -525,7 +578,7 @@
             document.getElementById('featured-plan-banner')?.classList.toggle('hidden', !data.Programa);
             if (data.Programa) window.safeSetText('plan-banner-title', data.Programa);
             
-            // SHOW ALL CARDS
+            // SHOW ALL CARDS (We are active if we are here)
             ['card-entrenamientos', 'card-reporte', 'card-citas', 'card-consultas', 'card-community'].forEach(id => {
                 const el = document.getElementById(id);
                 if(el) el.classList.remove('hidden');
@@ -544,6 +597,7 @@
             }
 
             window.safeUpdate('calendar-action-container', el => el.innerHTML = `<a href="${data["Link Calendar"] || CALENDAR_LINK_DEFAULT}" target="_blank" class="btn-ghost-sm text-center">Ir al Calendario</a>`);
+            const bh = document.getElementById('btn-consultas-action'); if (bh) { bh.href = data["Link Consultas"] || "#"; bh.style.opacity = bh.href.includes("#") ? "0.4" : "1"; }
             
             window.safeSetText('acc-nombre', data["Nombre + Edad"] || "---"); window.safeSetText('acc-email', auth.currentUser?.email || "--"); window.safeSetText('display-frase', frasesCreyentes[Math.floor(Math.random() * frasesCreyentes.length)]);
             window.safeSetText('acc-pais', data["País"] || "--"); window.safeSetText('acc-telefono', data["Telefono"] || "--");
@@ -744,7 +798,7 @@
                     <div class="absolute -bottom-10 -right-10 w-48 h-48 bg-gradient-to-tr from-blue-200 to-violet-200 rounded-full blur-[60px] opacity-60 pointer-events-none text-left"></div>
                 </section>
                 <section id="card-entrenamientos" class="bento-card min-h-[300px] text-left"><div class="w-14 h-14 bg-[#DEE9FA] rounded-2xl flex items-center justify-center mb-6 shrink-0 text-center"><img src="https://imnufit.com/wp-content/uploads/2022/01/iuiuo.png" class="w-11 h-11 object-contain text-left"></div><div class="text-left"><h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-1 text-left">Entrenaconfren+</h4><h3 class="text-2xl font-bold text-[#494949] text-left">Entrenamientos</h3><p class="text-[14px] text-slate-500 mt-2 leading-relaxed text-left">Accede a tus rutinas y guías.</p></div><div class="mt-8 text-center text-left"><a href="https://imnufit.com/entrenaconfrenplus/" target="_blank" class="btn-ghost-sm text-center">Ir a Entrenar</a></div></section>
-                <section id="card-reporte" class="bento-card min-h-[300px] text-left"><div class="w-14 h-14 bg-[#FFEDD5] rounded-2xl flex items-center justify-center mb-6 text-[#2E4982] shrink-0 text-center"><svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path></svg></div><div class="text-left"><h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-1 text-left">Seguimiento</h4><h3 class="text-2xl font-bold text-[#494949] text-left">Reporte Mensual</h3><p class="text-[14px] text-slate-500 mt-2 leading-relaxed text-left">Registra tus progresos.</p></div><div class="mt-8 text-center text-left"><a href="https://airtable.com/appCHcm7XPzeoyBCs/pagh79fwniuSPmusB/form" target="_blank" class="btn-ghost-sm text-center">Llenar Reporte</a></div></section>
+                <section id="card-reporte" class="bento-card min-h-[300px] text-left"><div class="w-14 h-14 bg-[#FFEDD5] rounded-2xl flex items-center justify-center mb-6 text-[#2E4982] shrink-0 text-center"><svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg></div><div class="text-left"><h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-1 text-left">Seguimiento</h4><h3 class="text-2xl font-bold text-[#494949] text-left">Reporte Mensual</h3><p class="text-[14px] text-slate-500 mt-2 leading-relaxed text-left">Registra tus progresos.</p></div><div class="mt-8 text-center text-left"><a href="https://airtable.com/appCHcm7XPzeoyBCs/pagh79fwniuSPmusB/form" target="_blank" class="btn-ghost-sm text-center">Llenar Reporte</a></div></section>
                 <section id="card-citas" class="bento-card min-h-[300px] text-left"><div class="w-14 h-14 bg-[#D0F0E0] rounded-2xl flex items-center justify-center mb-6 text-[#2E4982] shrink-0 text-center"><svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg></div><div class="text-left"><h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-1 text-left">Citas</h4><h3 class="text-2xl font-bold text-[#494949] text-left">Reservar Consulta</h3><p class="text-[14px] text-slate-500 mt-2 leading-relaxed text-left">Gestiona tu espacio aquí.</p></div><div id="calendar-action-container" class="mt-8 text-center w-full text-center"></div></section>
                 <section id="card-consultas" class="bento-card min-h-[300px] text-left"><div class="w-14 h-14 bg-[#E7E3FB] rounded-2xl flex items-center justify-center mb-6 text-[#2E4982] shrink-0 text-center"><svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg></div><div class="text-left"><h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-1 text-left">Registro</h4><h3 class="text-2xl font-bold text-[#494949] text-left">Consultas Recientes</h3><p class="text-[14px] text-slate-500 mt-2 leading-relaxed text-left">Historial de evaluaciones.</p></div><div class="mt-8 text-center text-center"><a id="btn-consultas-action" href="#" target="_blank" class="btn-ghost-sm text-center">Abrir Historial</a></div></section>
                 
@@ -817,6 +871,13 @@
                         <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
                     </a>
                 </div>
+                <!-- INSTALL APP BUTTON (PWA) -->
+                <div class="mt-8 border-t border-slate-50 pt-8">
+                    <button onclick="window.showInstallInstructions()" class="w-full bg-slate-900 text-white py-4 rounded-2xl text-[11px] font-black uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg hover:scale-[1.02] transition-transform">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                        Instalar App en mi Celular
+                    </button>
+                </div>
             </section>
 
             <button onclick="window.cerrarSesion()" class="w-full py-4 text-xs font-bold text-red-400 uppercase tracking-widest text-center">Cerrar Sesión</button>
@@ -885,6 +946,13 @@
     <!-- NOTIFICATION TOAST -->
     <div id="notification-toast" class="hidden fixed top-8 left-1/2 -translate-x-1/2 z-[9999] px-8 py-4 rounded-full shadow-2xl text-[13px] font-semibold bg-white border transform transition-all duration-300" style="z-index: 10000;">
         <span id="notification-content"></span>
+    </div>
+    
+    <!-- INSTALL MODAL -->
+    <div id="install-modal" class="fixed inset-0 z-[10000] bg-black/50 backdrop-blur-sm hidden items-center justify-center p-4">
+        <div id="install-modal-content" class="bg-white w-full max-w-sm rounded-[2rem] p-8 shadow-2xl space-y-6 transform transition-all scale-100">
+            <!-- Content injected by JS -->
+        </div>
     </div>
     
     <!-- LOADING SCREEN -->
