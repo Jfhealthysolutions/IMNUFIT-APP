@@ -11,7 +11,7 @@
     <meta name="apple-mobile-web-app-title" content="IMNUFIT">
     <meta name="theme-color" content="#2E4982">
     
-    <!-- ICONO DE PANTALLA DE INICIO (NUEVO) -->
+    <!-- ICONO DE PANTALLA DE INICIO -->
     <link rel="apple-touch-icon" href="https://imnufit.com/wp-content/uploads/2026/01/IMG_8520.png">
     <link rel="icon" type="image/png" href="https://imnufit.com/wp-content/uploads/2026/01/IMG_8520.png">
     <link rel="shortcut icon" href="https://imnufit.com/wp-content/uploads/2026/01/IMG_8520.png">
@@ -23,7 +23,7 @@
         import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut, setPersistence, browserLocalPersistence, updatePassword, sendPasswordResetEmail, signInWithCustomToken, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // --- 0. INYECCIÓN DE MANIFIESTO PWA (AYUDA A CHROME A DETECTAR LA APP) ---
+        // --- 0. INYECCIÓN DE MANIFIESTO PWA ---
         const manifest = {
             "name": "IMNUFIT Portal",
             "short_name": "IMNUFIT",
@@ -78,6 +78,10 @@
         let notificationTimer = null;
         let inactivityTimeout;
         const INACTIVITY_LIMIT = 10 * 60 * 1000; // 10 Minutos
+        
+        // Variables para manejo de imágenes
+        let currentImageBase64 = null;
+        let currentImageMime = null;
 
         const CALENDAR_LINK_DEFAULT = "https://calendar.app.google/CE4KjKxPeFiV93GV7";
         const PLANES_LINK = "https://imnufit.com/planes-y-precios/";
@@ -131,7 +135,7 @@
             "Jehová es mi fortaleza y mi escudo.", "Confía en el Señor de todo corazón.", "Mira que te mando que te esfuerces y seas valiente."
         ];
 
-        // --- 2. FUNCIONES DE UTILIDAD (DECLARADAS AL INICIO) ---
+        // --- 2. FUNCIONES DE UTILIDAD ---
         window.safeSetText = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
         window.safeUpdate = (id, fn) => { const el = document.getElementById(id); if (el) fn(el); };
 
@@ -175,6 +179,7 @@
 
         window.resetUI = () => {
             cachedAirtableData = null; currentAppData = null; chatHistory = []; isSpecialistMode = false;
+            window.removeImage();
             window.safeSetText('display-nombre', "..."); window.safeSetText('display-estatus', "...");
             window.safeSetText('display-frase', "..."); window.safeSetText('plan-banner-title', "...");
             window.safeSetText('acc-nombre', "..."); window.safeSetText('acc-email', "--");
@@ -238,9 +243,123 @@
             if(m) m.scrollTop = m.scrollHeight; if(d) d.scrollTop = d.scrollHeight;
         };
 
-        window.appendChatMessageToAll = (role, text) => {
+        // --- FUNCIONES NUEVAS PARA IMÁGENES Y VOZ ---
+
+        window.handleImageSelect = (input) => {
+            if (input.files && input.files[0]) {
+                const file = input.files[0];
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const img = new Image();
+                    img.onload = function() {
+                        const canvas = document.createElement('canvas');
+                        let width = img.width;
+                        let height = img.height;
+                        const MAX_WIDTH = 1024;
+                        const MAX_HEIGHT = 1024;
+
+                        if (width > height) {
+                            if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH; }
+                        } else {
+                            if (height > MAX_HEIGHT) { width *= MAX_HEIGHT / height; height = MAX_HEIGHT; }
+                        }
+                        canvas.width = width;
+                        canvas.height = height;
+                        const ctx = canvas.getContext("2d");
+                        ctx.drawImage(img, 0, 0, width, height);
+                        
+                        const dataUrl = canvas.toDataURL("image/jpeg", 0.7);
+                        currentImageBase64 = dataUrl.split(',')[1];
+                        currentImageMime = "image/jpeg";
+
+                        const previews = document.querySelectorAll('.image-preview-container');
+                        previews.forEach(div => {
+                            div.innerHTML = `
+                                <div class="relative inline-block mt-2">
+                                    <img src="${dataUrl}" class="h-16 w-auto rounded-xl border border-slate-200 shadow-sm">
+                                    <button type="button" onclick="window.removeImage()" class="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 shadow-md hover:bg-red-600 transition-colors">
+                                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M6 18L18 6M6 6l18 18"></path></svg>
+                                    </button>
+                                </div>`;
+                            div.classList.remove('hidden');
+                        });
+                    }
+                    img.src = e.target.result;
+                }
+                reader.readAsDataURL(file);
+            }
+        };
+
+        window.removeImage = () => {
+            currentImageBase64 = null;
+            currentImageMime = null;
+            const previews = document.querySelectorAll('.image-preview-container');
+            previews.forEach(div => {
+                div.innerHTML = '';
+                div.classList.add('hidden');
+            });
+            document.querySelectorAll('input[type="file"]').forEach(i => i.value = '');
+        };
+
+        window.startDictation = (source) => {
+            if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+                const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                const recognition = new SpeechRecognition();
+                recognition.lang = 'es-ES';
+                recognition.interimResults = false;
+                recognition.maxAlternatives = 1;
+
+                const inputId = source === 'mobile' ? 'ai-input-mobile' : 'ai-input-desktop';
+                const inputEl = document.getElementById(inputId);
+                const micBtn = document.getElementById(`mic-btn-${source}`);
+
+                recognition.onstart = () => {
+                    if(micBtn) micBtn.classList.add('text-red-500', 'animate-pulse');
+                };
+
+                recognition.onresult = (event) => {
+                    const speechResult = event.results[0][0].transcript;
+                    if (inputEl) {
+                        inputEl.value += (inputEl.value.length > 0 ? ' ' : '') + speechResult;
+                        inputEl.focus();
+                    }
+                };
+
+                recognition.onend = () => {
+                    if(micBtn) micBtn.classList.remove('text-red-500', 'animate-pulse');
+                };
+
+                recognition.onerror = (event) => {
+                    console.error('Error speech:', event.error);
+                    if(micBtn) micBtn.classList.remove('text-red-500', 'animate-pulse');
+                    if (event.error !== 'no-speech') {
+                       window.notify("No se pudo activar el micrófono. Verifica permisos.");
+                    }
+                };
+                
+                recognition.start();
+                
+            } else {
+                window.notify("Tu navegador no soporta dictado por voz.");
+            }
+        };
+
+        window.appendChatMessageToAll = (role, text, imageSrc = null) => {
             const content = role === 'ai' ? window.parseAIResponse(text) : text.replace(/\n/g, '<br>');
-            const html = `<div class="flex ${role === 'user' ? 'justify-end' : 'justify-start'} mb-6 fade-in text-left"><div class="max-w-[85%] px-5 py-4 rounded-[1.4rem] text-[14px] leading-relaxed ${role === 'user' ? 'bg-[#2E4982] text-white rounded-tr-sm' : 'bg-white border border-slate-100 text-slate-600 rounded-tl-sm shadow-sm'}">${content}</div></div>`;
+            
+            let imageHtml = '';
+            if (imageSrc) {
+                imageHtml = `<div class="mb-2"><img src="${imageSrc}" class="max-w-[200px] max-h-[200px] rounded-xl border border-white/20 shadow-sm"></div>`;
+            }
+
+            const html = `
+                <div class="flex ${role === 'user' ? 'justify-end' : 'justify-start'} mb-6 fade-in text-left">
+                    <div class="max-w-[85%] px-5 py-4 rounded-[1.4rem] text-[14px] leading-relaxed ${role === 'user' ? 'bg-[#2E4982] text-white rounded-tr-sm' : 'bg-white border border-slate-100 text-slate-600 rounded-tl-sm shadow-sm'}">
+                        ${imageHtml}
+                        ${content}
+                    </div>
+                </div>`;
+            
             const m = document.getElementById('ai-messages-mobile');
             const d = document.getElementById('ai-messages-desktop');
             if (m) {
@@ -277,21 +396,51 @@
             const ua = navigator.userAgent.toLowerCase();
             const isIOS = /ipad|iphone|ipod/.test(ua) && !window.MSStream;
             const isAndroid = /android/.test(ua);
+            const isMac = /macintosh|mac os x/.test(ua);
+            const isChrome = /chrome/.test(ua) && !/edg/.test(ua);
+            const isSafari = /safari/.test(ua) && !isChrome;
+            const isChromeIOS = isIOS && /crios/.test(ua);
             
             let msg = "";
+            let title = "";
+            
             if (isIOS) {
-                msg = `
-                <div class="text-center space-y-6">
-                    <div class="bg-slate-50 p-4 rounded-3xl inline-block border border-slate-100 shadow-sm">
-                        <svg class="w-10 h-10 text-[#2E4982]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
-                    </div>
-                    <div><h3 class="text-xl font-bold text-slate-800">iPhone / iPad</h3></div>
-                    <ol class="text-sm text-slate-600 space-y-3 text-left bg-slate-50 p-5 rounded-2xl border border-slate-100">
-                        <li class="flex gap-3"><span class="bg-white border border-slate-200 rounded-full w-6 h-6 flex items-center justify-center font-bold text-[10px] shrink-0">1</span> <span>Toca el botón <strong>Compartir</strong> <svg class="w-4 h-4 inline text-[#2E4982] align-text-bottom" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"></path></svg> abajo.</span></li>
-                        <li class="flex gap-3"><span class="bg-white border border-slate-200 rounded-full w-6 h-6 flex items-center justify-center font-bold text-[10px] shrink-0">2</span> <span>Selecciona <strong>"Agregar a Inicio"</strong>.</span></li>
-                    </ol>
-                    <button onclick="document.getElementById('install-modal').classList.add('hidden')" class="w-full bg-[#2E4982] text-white py-4 rounded-xl font-bold text-xs uppercase shadow-xl tracking-widest hover:scale-[1.02] transition-transform">Entendido</button>
-                </div>`;
+                title = "iPhone / iPad";
+                if (isChromeIOS) {
+                    msg = `
+                    <div class="text-center space-y-6">
+                        <div class="bg-slate-50 p-4 rounded-3xl inline-block border border-slate-100 shadow-sm">
+                            <svg class="w-10 h-10 text-[#2E4982]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"></path></svg>
+                        </div>
+                        <div><h3 class="text-xl font-bold text-slate-800">${title} (Chrome)</h3></div>
+                        <div class="text-left bg-slate-50 p-5 rounded-2xl border border-slate-100 text-sm text-slate-600 space-y-4">
+                            <p class="flex items-start gap-3">
+                                <span class="bg-white border border-slate-200 rounded-full w-6 h-6 flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5">1</span>
+                                <span>Busca el botón <strong>Compartir</strong> <svg class="w-4 h-4 inline text-[#2E4982] align-text-bottom" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"></path></svg> arriba, al lado de la barra de dirección.</span>
+                            </p>
+                            <p class="flex items-start gap-3">
+                                <span class="bg-white border border-slate-200 rounded-full w-6 h-6 flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5">2</span>
+                                <span>Si no lo ves, toca los <strong>tres puntos (...)</strong> y busca "Añadir a pantalla de inicio".</span>
+                            </p>
+                            <p class="flex items-start gap-3">
+                                <span class="bg-white border border-slate-200 rounded-full w-6 h-6 flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5">3</span>
+                                <span>Confirma pulsando <strong>"Añadir"</strong>.</span>
+                            </p>
+                        </div>
+                    </div>`;
+                } else {
+                    msg = `
+                    <div class="text-center space-y-6">
+                        <div class="bg-slate-50 p-4 rounded-3xl inline-block border border-slate-100 shadow-sm">
+                            <svg class="w-10 h-10 text-[#2E4982]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                        </div>
+                        <div><h3 class="text-xl font-bold text-slate-800">${title} (Safari)</h3></div>
+                        <ol class="text-sm text-slate-600 space-y-3 text-left bg-slate-50 p-5 rounded-2xl border border-slate-100">
+                            <li class="flex gap-3"><span class="bg-white border border-slate-200 rounded-full w-6 h-6 flex items-center justify-center font-bold text-[10px] shrink-0">1</span> <span>Toca el botón <strong>Compartir</strong> <svg class="w-4 h-4 inline text-[#2E4982] align-text-bottom" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"></path></svg> <strong>abajo</strong> en la barra central.</span></li>
+                            <li class="flex gap-3"><span class="bg-white border border-slate-200 rounded-full w-6 h-6 flex items-center justify-center font-bold text-[10px] shrink-0">2</span> <span>Desliza hacia arriba y selecciona <strong>"Agregar a Inicio"</strong>.</span></li>
+                        </ol>
+                    </div>`;
+                }
             } else if (isAndroid) {
                 msg = `
                  <div class="text-center space-y-6">
@@ -300,36 +449,69 @@
                     </div>
                     <div><h3 class="text-xl font-bold text-slate-800">Android</h3></div>
                     <ol class="text-sm text-slate-600 space-y-3 text-left bg-slate-50 p-5 rounded-2xl border border-slate-100">
-                         <li class="flex gap-3"><span class="bg-white border border-slate-200 rounded-full w-6 h-6 flex items-center justify-center font-bold text-[10px] shrink-0">1</span> <span>Toca el menú de opciones (los tres puntos <span class="font-bold">⋮</span>).</span></li>
+                         <li class="flex gap-3"><span class="bg-white border border-slate-200 rounded-full w-6 h-6 flex items-center justify-center font-bold text-[10px] shrink-0">1</span> <span>Toca el menú de opciones (los tres puntos <span class="font-bold">⋮</span>) arriba a la derecha.</span></li>
                          <li class="flex gap-3"><span class="bg-white border border-slate-200 rounded-full w-6 h-6 flex items-center justify-center font-bold text-[10px] shrink-0">2</span> <span>Selecciona <strong>"Instalar aplicación"</strong> o "Añadir a pantalla de inicio".</span></li>
                     </ol>
-                    <button onclick="document.getElementById('install-modal').classList.add('hidden')" class="w-full bg-[#2E4982] text-white py-4 rounded-xl font-bold text-xs uppercase shadow-xl tracking-widest hover:scale-[1.02] transition-transform">Entendido</button>
                 </div>`;
             } else {
-                 msg = `
-                 <div class="text-center space-y-6">
-                    <div class="bg-slate-50 p-4 rounded-3xl inline-block border border-slate-100 shadow-sm">
-                        <svg class="w-10 h-10 text-[#2E4982]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
-                    </div>
-                    <div><h3 class="text-xl font-bold text-slate-800">PC / Chrome</h3></div>
-                    <div class="text-left bg-slate-50 p-5 rounded-2xl border border-slate-100 text-sm text-slate-600 space-y-4">
-                        <p class="flex items-start gap-3">
-                            <span class="bg-white border border-slate-200 rounded-full w-6 h-6 flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5">1</span>
-                            <span>En la barra de direcciones (arriba a la derecha), busca este icono: <svg class="w-5 h-5 inline mx-1 border border-slate-300 rounded p-0.5 bg-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg> <strong>(Instalar)</strong></span>
-                        </p>
-                        <p class="flex items-start gap-3">
-                             <span class="bg-white border border-slate-200 rounded-full w-6 h-6 flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5">2</span>
-                             <span>Si no aparece: Menú (⋮) > <strong>Guardar y compartir</strong> > <strong>Instalar página como aplicación...</strong></span>
-                        </p>
-                    </div>
-                    <button onclick="document.getElementById('install-modal').classList.add('hidden')" class="w-full bg-[#2E4982] text-white py-4 rounded-xl font-bold text-xs uppercase shadow-xl tracking-widest hover:scale-[1.02] transition-transform">Entendido</button>
-                </div>`;
+                if (isMac && isSafari) {
+                    msg = `
+                     <div class="text-center space-y-6">
+                        <div class="bg-slate-50 p-4 rounded-3xl inline-block border border-slate-100 shadow-sm">
+                            <svg class="w-10 h-10 text-[#2E4982]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
+                        </div>
+                        <div><h3 class="text-xl font-bold text-slate-800">Mac (Safari)</h3></div>
+                        <div class="text-left bg-slate-50 p-5 rounded-2xl border border-slate-100 text-sm text-slate-600 space-y-4">
+                            <p class="flex items-start gap-3">
+                                <span class="bg-white border border-slate-200 rounded-full w-6 h-6 flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5">1</span>
+                                <span>Haz clic en el botón <strong>Compartir</strong> <svg class="w-4 h-4 inline text-[#2E4982] align-text-bottom" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"></path></svg> en la barra de herramientas superior.</span>
+                            </p>
+                            <p class="flex items-start gap-3">
+                                 <span class="bg-white border border-slate-200 rounded-full w-6 h-6 flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5">2</span>
+                                 <span>Selecciona <strong>"Agregar al Dock"</strong>.</span>
+                            </p>
+                        </div>
+                    </div>`;
+                } else if (isChrome) {
+                    msg = `
+                     <div class="text-center space-y-6">
+                        <div class="bg-slate-50 p-4 rounded-3xl inline-block border border-slate-100 shadow-sm">
+                            <svg class="w-10 h-10 text-[#2E4982]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
+                        </div>
+                        <div><h3 class="text-xl font-bold text-slate-800">PC / Mac (Chrome)</h3></div>
+                        <div class="text-left bg-slate-50 p-5 rounded-2xl border border-slate-100 text-sm text-slate-600 space-y-4">
+                            <p class="flex items-start gap-3">
+                                <span class="bg-white border border-slate-200 rounded-full w-6 h-6 flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5">1</span>
+                                <span>Haz clic en los <strong>tres puntos verticales (⋮)</strong> arriba a la derecha del navegador.</span>
+                            </p>
+                            <p class="flex items-start gap-3">
+                                 <span class="bg-white border border-slate-200 rounded-full w-6 h-6 flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5">2</span>
+                                 <span>Ve a <strong>"Guardar y compartir"</strong> (o "Transmitir, guardar y compartir").</span>
+                            </p>
+                            <p class="flex items-start gap-3">
+                                 <span class="bg-white border border-slate-200 rounded-full w-6 h-6 flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5">3</span>
+                                 <span>Haz clic en <strong>"Instalar página como aplicación..."</strong>.</span>
+                            </p>
+                        </div>
+                    </div>`;
+                } else {
+                     msg = `
+                     <div class="text-center space-y-6">
+                        <div class="bg-slate-50 p-4 rounded-3xl inline-block border border-slate-100 shadow-sm">
+                            <svg class="w-10 h-10 text-[#2E4982]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                        </div>
+                        <div><h3 class="text-xl font-bold text-slate-800">Instalar App</h3></div>
+                        <div class="text-left bg-slate-50 p-5 rounded-2xl border border-slate-100 text-sm text-slate-600 space-y-4">
+                            <p>Busca la opción <strong>"Instalar"</strong> o <strong>"Agregar a pantalla de inicio"</strong> en el menú de tu navegador.</p>
+                        </div>
+                    </div>`;
+                }
             }
 
             const modal = document.getElementById('install-modal');
             const content = document.getElementById('install-modal-content');
             if(modal && content) {
-                content.innerHTML = msg;
+                content.innerHTML = msg + `<button onclick="document.getElementById('install-modal').classList.add('hidden')" class="w-full bg-[#2E4982] text-white py-4 rounded-xl font-bold text-xs uppercase shadow-xl tracking-widest hover:scale-[1.02] transition-transform mt-6">Entendido</button>`;
                 modal.classList.remove('hidden');
                 modal.classList.add('flex');
             }
@@ -393,10 +575,23 @@
         window.sendMessageToAI = async (source) => {
             const input = document.getElementById(source === 'mobile' ? 'ai-input-mobile' : 'ai-input-desktop');
             const userMsg = input?.value.trim();
-            if (!userMsg) return;
+            
+            // Permitir enviar solo imagen si no hay texto, o texto solo, o ambos
+            if (!userMsg && !currentImageBase64) return;
+            
+            const msgToSend = userMsg || (currentImageBase64 ? "Analiza esta imagen." : "");
+            
             input.value = ''; if(source === 'mobile') input.blur();
 
-            window.appendChatMessageToAll('user', userMsg);
+            // Mostrar mensaje en el chat con la imagen si existe
+            let displayImg = currentImageBase64 ? `data:${currentImageMime};base64,${currentImageBase64}` : null;
+            window.appendChatMessageToAll('user', msgToSend, displayImg);
+            
+            // Guardar imagen temporalmente para enviarla y luego limpiar
+            const imageToSend = currentImageBase64;
+            const mimeToSend = currentImageMime;
+            window.removeImage(); // Limpiar UI inmediatamente
+
             const loaderHtml = `<div class="ai-loading-indicator flex justify-start mb-4"><div class="bg-slate-100 text-slate-400 px-4 py-2 rounded-2xl text-[11px] animate-pulse italic">Analizando...</div></div>`;
             const m = document.getElementById('ai-messages-mobile');
             const d = document.getElementById('ai-messages-desktop');
@@ -421,6 +616,7 @@
             3. **Alcance**: NUNCA respondas preguntas que no tengan nada que ver con IMNUFIT o la salud del paciente.
             4. **Prioridad Datos**: Para preguntas sobre dieta o plan, usa SOLO la información de Airtable (arriba).
             5. **Prohibido**: NO sugerir la "Guía PDF" como respuesta al plan diario.
+            6. **Análisis de Imágenes**: Si el usuario envía una foto de comida o producto, analízala estrictamente basándote en su plan nutricional actual. Indica si es adecuado o no y por qué. Se breve y directo.
 
             REGLAS DE ACCIÓN OBLIGATORIAS:
             - **Reportarse**: Muestra [Llenar Reporte Mensual](https://airtable.com/appCHcm7XPzeoyBCs/pagh79fwniuSPmusB/form).
@@ -434,20 +630,29 @@
             - **Comunidad**: [Unirme a la Comunidad](https://chat.whatsapp.com/FNoToJXy8HO7iLVhPseQHB).`;
 
             try {
+                // Construir historial previo (solo texto por ahora para ahorrar tokens, o podrías incluir imágenes previas si quisieras)
                 const history = chatHistory.map(m => ({ role: m.role === 'user' ? 'user' : 'model', parts: [{ text: m.text }] }));
+                
+                // Construir parte del usuario actual
+                let userParts = [{ text: msgToSend }];
+                if (imageToSend) {
+                    userParts.push({ inlineData: { mimeType: mimeToSend, data: imageToSend } });
+                }
+
                 const res = await fetchWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ contents: [...history, { role: 'user', parts: [{ text: userMsg }] }], systemInstruction: { parts: [{ text: sysPrompt }] } })
+                    body: JSON.stringify({ contents: [...history, { role: 'user', parts: userParts }], systemInstruction: { parts: [{ text: sysPrompt }] } })
                 });
+                
                 const aiText = res.candidates?.[0]?.content?.parts?.[0]?.text || "No pude procesar tu solicitud.";
                 
                 document.querySelectorAll('.ai-loading-indicator').forEach(el => el.remove());
                 window.appendChatMessageToAll('ai', aiText);
-                chatHistory.push({ role: 'user', text: userMsg }, { role: 'ai', text: aiText });
+                chatHistory.push({ role: 'user', text: msgToSend }, { role: 'ai', text: aiText });
             } catch (e) { 
                 document.querySelectorAll('.ai-loading-indicator').forEach(el => el.remove());
-                window.appendChatMessageToAll('ai', `⚠️ El coach está saturado. Reintenta en 1 min.`); 
+                window.appendChatMessageToAll('ai', `⚠️ Hubo un error al procesar. Intenta con una imagen más pequeña o texto.`); 
             }
         };
 
@@ -694,7 +899,7 @@
     <style>
         :root { --primary: #2E4982; --apple-bg: #FBFBFC; }
         body { font-family: 'Inter', sans-serif; background-color: var(--apple-bg); color: #494949; -webkit-font-smoothing: antialiased; overflow-x: hidden; }
-        .bg-mesh { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; background: radial-gradient(circle at 80% 20%, #DEE9FA 0%, transparent 40%), radial-gradient(circle at 20% 80%, #E7E3FB 0%, transparent 40%); opacity: 0.4; }
+        .bg-mesh { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; background: radial-gradient(circle at 80% 20%, #DEE9FA 0%, transparent 40%), radial-gradient(circle at 20% 80%, #E7E3FB 0%, transparent 40%); opacity: 0.4; transform: translateZ(0); pointer-events: none; }
         .bento-card { @apply bg-white/90 backdrop-blur-xl border border-white transition-all duration-500 flex flex-col justify-between; border-radius: 40px; padding: 36px 32px !important; box-shadow: 0 10px 30px -5px rgba(46, 73, 130, 0.05); }
         .bento-card:hover { transform: translateY(-4px); box-shadow: 0 25px 50px -10px rgba(46, 73, 130, 0.12); }
         .btn-ingresar { background-color: var(--primary); color: #FFFFFF; width: 100%; padding: 20px !important; border-radius: 100px; font-weight: 600; font-size: 15px; border: none; transition: all 0.4s ease; box-shadow: 0 10px 20px -5px rgba(46, 73, 130, 0.25); cursor: pointer; text-align: center; }
@@ -712,8 +917,17 @@
         #specialist-panel { background: #2E4982; border-bottom: 2px solid #1e315a; position: sticky; top: 0; z-index: 500; color: white; padding: 10px 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
         .spec-select { background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; font-size: 10px; font-weight: 700; padding: 6px 12px; outline: none; color: white; cursor: pointer; text-transform: uppercase; letter-spacing: 0.05em; }
         .spec-select option { color: #333; }
-        @keyframes ai-breathing { 0%, 100% { box-shadow: 0 0 20px rgba(139, 92, 246, 0.2), 0 0 40px rgba(59, 130, 246, 0.1); border-color: rgba(139, 92, 246, 0.3); } 50% { box-shadow: 0 0 30px rgba(139, 92, 246, 0.4), 0 0 60px rgba(59, 130, 246, 0.2); border-color: rgba(59, 130, 246, 0.5); } }
-        .ai-card-glow { animation: ai-breathing 4s infinite ease-in-out; background: linear-gradient(135deg, #ffffff 0%, #f0f7ff 100%); }
+        /* Optimizacion de animacion para evitar calentamiento */
+        @keyframes ai-breathing { 
+            0%, 100% { border-color: rgba(139, 92, 246, 0.3); background-color: #ffffff; } 
+            50% { border-color: rgba(139, 92, 246, 0.6); background-color: #f8fafc; } 
+        }
+        .ai-card-glow { 
+            animation: ai-breathing 4s infinite ease-in-out; 
+            background: #ffffff;
+            box-shadow: 0 10px 30px -5px rgba(139, 92, 246, 0.15); 
+            will-change: border-color, background-color; 
+        }
         ::-webkit-scrollbar { width: 4px; }
         ::-webkit-scrollbar-thumb { background: #E2E8F0; border-radius: 10px; }
     </style>
@@ -771,10 +985,28 @@
             <div class="flex flex-col items-center text-center"><span class="text-[10px] font-bold text-[#2E4982] uppercase tracking-[0.3em] text-center">Asistente</span><div class="flex items-center gap-1.5"><span class="relative flex h-2 w-2"><span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span><span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span></span><span class="text-[10px] font-medium text-emerald-600 uppercase tracking-wider text-center">En línea</span></div></div><div class="w-10"></div>
         </header>
         <div id="ai-messages-mobile" class="flex-1 overflow-y-auto p-6 space-y-6 scroll-smooth text-left"></div>
+        
+        <!-- Input Area Mobile -->
         <div class="p-4 bg-white border-t border-slate-50 shrink-0 text-left">
-            <form onsubmit="event.preventDefault(); window.sendMessageToAI('mobile')" class="relative flex items-center gap-3 bg-slate-50 border border-slate-200 rounded-[1.5rem] px-2 py-2">
-                <input id="ai-input-mobile" type="text" placeholder="Escribe..." class="flex-1 bg-transparent border-none outline-none px-4 py-3 text-slate-700 text-[15px]">
-                <button type="submit" class="w-12 h-12 bg-[#2E4982] text-white rounded-2xl flex items-center justify-center shadow-lg active:scale-95 transition-transform text-center"><svg class="w-5 h-5 ml-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"></path></svg></button>
+            <!-- Preview Imagen -->
+            <div class="image-preview-container hidden mb-3 px-2"></div>
+            
+            <form onsubmit="event.preventDefault(); window.sendMessageToAI('mobile')" class="relative flex items-end gap-2 bg-slate-50 border border-slate-200 rounded-[1.5rem] px-2 py-2">
+                
+                <!-- Botón Cámara -->
+                <label class="p-3 text-slate-400 hover:text-[#2E4982] cursor-pointer transition-colors shrink-0">
+                    <input type="file" accept="image/*" capture="environment" class="hidden" onchange="window.handleImageSelect(this)">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                </label>
+
+                <input id="ai-input-mobile" type="text" placeholder="Escribe o envía una foto..." class="flex-1 bg-transparent border-none outline-none py-3 text-slate-700 text-[15px] max-h-32 overflow-y-auto resize-none">
+                
+                <!-- Botón Micrófono -->
+                <button type="button" id="mic-btn-mobile" onclick="window.startDictation('mobile')" class="p-3 text-slate-400 hover:text-[#2E4982] transition-colors shrink-0">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path></svg>
+                </button>
+
+                <button type="submit" class="w-12 h-12 bg-[#2E4982] text-white rounded-2xl flex items-center justify-center shadow-lg active:scale-95 transition-transform shrink-0"><svg class="w-5 h-5 ml-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"></path></svg></button>
             </form>
         </div>
     </section>
@@ -787,10 +1019,28 @@
                 <button onclick="window.closeDesktopAIModal()" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition-colors text-center"><svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M6 18L18 6M6 6l18 18"></path></svg></button>
             </div>
             <div id="ai-messages-desktop" class="flex-1 overflow-y-auto p-8 space-y-6 scroll-smooth bg-[#FBFBFC] text-left"></div>
+            
+            <!-- Input Area Desktop -->
             <div class="p-6 bg-white shrink-0 text-left">
+                <!-- Preview Imagen -->
+                <div class="image-preview-container hidden mb-3 px-2"></div>
+
                 <form onsubmit="event.preventDefault(); window.sendMessageToAI('desktop')" class="relative flex items-center gap-3 bg-slate-50 border border-slate-200 rounded-[1.5rem] px-2 py-2">
-                    <input id="ai-input-desktop" type="text" placeholder="Pregunta..." class="flex-1 bg-transparent outline-none px-4 py-3 text-slate-700 text-[15px]">
-                    <button type="submit" class="w-12 h-12 bg-[#2E4982] hover:bg-[#1e315a] text-white rounded-2xl flex items-center justify-center shadow-lg active:scale-95 text-center"><svg class="w-5 h-5 ml-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"></path></svg></button>
+                    
+                    <!-- Botón Cámara -->
+                    <label class="p-3 text-slate-400 hover:text-[#2E4982] cursor-pointer transition-colors shrink-0">
+                        <input type="file" accept="image/*" class="hidden" onchange="window.handleImageSelect(this)">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                    </label>
+
+                    <input id="ai-input-desktop" type="text" placeholder="Pregunta..." class="flex-1 bg-transparent outline-none px-2 py-3 text-slate-700 text-[15px]">
+                    
+                    <!-- Botón Micrófono -->
+                    <button type="button" id="mic-btn-desktop" onclick="window.startDictation('desktop')" class="p-3 text-slate-400 hover:text-[#2E4982] transition-colors shrink-0">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path></svg>
+                    </button>
+
+                    <button type="submit" class="w-12 h-12 bg-[#2E4982] hover:bg-[#1e315a] text-white rounded-2xl flex items-center justify-center shadow-lg active:scale-95 text-center shrink-0"><svg class="w-5 h-5 ml-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"></path></svg></button>
                 </form>
             </div>
         </div>
@@ -818,6 +1068,21 @@
             </div>
 
             <div id="dashboard-grid" class="grid grid-cols-1 md:grid-cols-2 gap-8 text-left">
+                <!-- CARD "INSTALAR APP" EN EL GRID PRINCIPAL (INTELIGENTE) -->
+                <div id="card-install-app-main" class="bg-gradient-to-r from-slate-900 to-slate-800 rounded-[2rem] p-8 text-white shadow-xl relative overflow-hidden group cursor-pointer hidden text-left" onclick="window.showInstallInstructions()">
+                      <div class="absolute -right-8 -top-8 w-32 h-32 bg-white/10 rounded-full blur-2xl"></div>
+                      <div class="relative z-10 flex items-center justify-between">
+                          <div>
+                              <span class="text-[10px] font-black uppercase tracking-[0.2em] text-white/60">Acceso Rápido</span>
+                              <h3 class="text-lg font-bold mt-1">Instalar App</h3>
+                              <p class="text-[12px] text-white/70 mt-1 max-w-[200px]">Añade IMNUFIT a tu pantalla de inicio para una mejor experiencia.</p>
+                          </div>
+                          <div class="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-sm">
+                              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                          </div>
+                      </div>
+                </div>
+
                 <section id="card-ai" class="ai-card-glow rounded-[2.5rem] p-8 border border-white/50 relative overflow-hidden cursor-pointer group transition-transform hover:-translate-y-1 text-left" onclick="window.openAIChat()">
                     <div class="relative z-10 flex flex-col justify-between h-full min-h-[220px] text-left">
                         <div class="flex items-start justify-between text-left"><div><span class="px-3 py-1 bg-white/50 backdrop-blur-md rounded-full text-[10px] font-extrabold text-[#2E4982] uppercase tracking-[0.2em] border border-white/60 text-left">Nuevo</span><h3 class="text-2xl font-bold text-slate-800 mt-3 leading-tight text-left">Asistente<br><span class="text-transparent bg-clip-text bg-gradient-to-r from-violet-600 to-blue-500 text-left">Inteligente</span></h3></div><div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-violet-100 to-blue-50 flex items-center justify-center text-blue-600 shadow-sm text-center"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path></svg></div></div>
@@ -845,21 +1110,6 @@
                     </div>
                 </section>
                 
-                <!-- CARD "INSTALAR APP" EN EL GRID PRINCIPAL (INTELIGENTE) -->
-                <div id="card-install-app-main" class="bg-gradient-to-r from-slate-900 to-slate-800 rounded-[2rem] p-8 text-white shadow-xl relative overflow-hidden group cursor-pointer hidden text-left" onclick="window.showInstallInstructions()">
-                      <div class="absolute -right-8 -top-8 w-32 h-32 bg-white/10 rounded-full blur-2xl"></div>
-                      <div class="relative z-10 flex items-center justify-between">
-                          <div>
-                              <span class="text-[10px] font-black uppercase tracking-[0.2em] text-white/60">Acceso Rápido</span>
-                              <h3 class="text-lg font-bold mt-1">Instalar App</h3>
-                              <p class="text-[12px] text-white/70 mt-1 max-w-[200px]">Añade IMNUFIT a tu pantalla de inicio para una mejor experiencia.</p>
-                          </div>
-                          <div class="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-sm">
-                              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
-                          </div>
-                      </div>
-                </div>
-
             </div>
         </main>
     </section>
