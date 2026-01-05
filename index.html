@@ -77,7 +77,7 @@
         let chatHistory = [];
         let notificationTimer = null;
         let inactivityTimeout;
-        const INACTIVITY_LIMIT = 10 * 60 * 1000; // 10 Minutos
+        const INACTIVITY_LIMIT = 10 * 60 * 1000; 
         
         // Variables para manejo de imágenes
         let currentImageBase64 = null;
@@ -166,7 +166,7 @@
         window.resetInactivityTimer = () => {
             if (inactivityThrottle) return;
             inactivityThrottle = true;
-            setTimeout(() => { inactivityThrottle = false; }, 2000); // Limita a 1 ejecución cada 2s
+            setTimeout(() => { inactivityThrottle = false; }, 2000); 
 
             if (!auth.currentUser) return;
             clearTimeout(inactivityTimeout);
@@ -567,17 +567,9 @@
 
             const info = currentAppData || {};
             const patientData = JSON.stringify(info, null, 2);
-            
-            // --- CONTEXTO TEMPORAL ---
-            const now = new Date();
-            const fechaHora = now.toLocaleString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 
             const sysPrompt = `Eres el Asistente Personal AI de IMNUFIT. Hablas con **${info["Nombre + Edad"] || "Paciente"}**. 
             
-            --- CONTEXTO ACTUAL ---
-            Fecha y Hora del Paciente: ${fechaHora}
-            (Usa esto para responder preguntas como "qué como ahora" o "qué ejercicio toca hoy").
-
             --- DATOS DEL PACIENTE (AIRTABLE) ---
             Usa estos datos como tu única fuente de verdad para preguntas personales.
             ${patientData}
@@ -605,7 +597,7 @@
             - **Comunidad**: [Unirme a la Comunidad](https://chat.whatsapp.com/FNoToJXy8HO7iLVhPseQHB).`;
 
             try {
-                // Construir historial previo
+                // Construir historial previo (solo texto por ahora para ahorrar tokens, o podrías incluir imágenes previas si quisieras)
                 const history = chatHistory.map(m => ({ role: m.role === 'user' ? 'user' : 'model', parts: [{ text: m.text }] }));
                 
                 // Construir parte del usuario actual
@@ -875,7 +867,7 @@
         :root { --primary: #2E4982; --apple-bg: #FBFBFC; }
         body { font-family: 'Inter', sans-serif; background-color: var(--apple-bg); color: #494949; -webkit-font-smoothing: antialiased; overflow-x: hidden; }
         .bg-mesh { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; background: radial-gradient(circle at 80% 20%, #DEE9FA 0%, transparent 40%), radial-gradient(circle at 20% 80%, #E7E3FB 0%, transparent 40%); opacity: 0.4; transform: translateZ(0); pointer-events: none; }
-        .bento-card { @apply bg-white/90 backdrop-blur-xl border border-white transition-all duration-500 flex flex-col justify-between; border-radius: 40px; padding: 36px 32px !important; box-shadow: 0 10px 30px -5px rgba(46, 73, 130, 0.05); }
+        .bento-card { @apply bg-white border border-white transition-all duration-500 flex flex-col justify-between; border-radius: 40px; padding: 36px 32px !important; box-shadow: 0 10px 30px -5px rgba(46, 73, 130, 0.05); }
         .bento-card:hover { transform: translateY(-4px); box-shadow: 0 25px 50px -10px rgba(46, 73, 130, 0.12); }
         .btn-ingresar { background-color: var(--primary); color: #FFFFFF; width: 100%; padding: 20px !important; border-radius: 100px; font-weight: 600; font-size: 15px; border: none; transition: all 0.4s ease; box-shadow: 0 10px 20px -5px rgba(46, 73, 130, 0.25); cursor: pointer; text-align: center; }
         .btn-ghost-sm { background-color: transparent; color: var(--primary); border: 1.5px solid var(--primary); padding: 14px 20px !important; border-radius: 100px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.12em; transition: all 0.3s ease; display: inline-block; text-align: center; width: 100%; }
@@ -1013,7 +1005,7 @@
 
     <!-- MAIN VIEWS -->
     <section id="patient-view" class="min-h-screen hidden text-left">
-        <header class="bg-white/40 backdrop-blur-xl border-b h-24 flex items-center px-8 justify-between sticky top-0 z-40 text-left">
+        <header class="bg-white/95 border-b border-slate-100 h-24 flex items-center px-8 justify-between sticky top-0 z-40 text-left">
             <button onclick="window.showView('patient-view')" class="hover:opacity-80 transition-opacity"><img src="https://imnufit.com/wp-content/uploads/2025/05/cropped-logo-y-nombre-AZUL.png" class="h-10 object-contain mix-blend-multiply"></button>
             <div class="flex items-center gap-3 text-left">
                 <a href="https://imnufit.com" target="_blank" class="text-slate-600 hover:text-[#2E4982] p-2 transition-colors group text-center" title="Ir a web"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"></path></svg></a>
@@ -1027,7 +1019,7 @@
         <main class="max-w-5xl mx-auto py-12 px-6 space-y-12 text-left">
             <div class="space-y-6 text-left">
                 <div class="text-left"><p id="display-greeting" class="text-[10px] font-bold text-[#2E4982] uppercase tracking-[0.5em] mb-1 flex items-center text-left"></p><h2 class="text-2xl font-bold tracking-tight text-[#494949] leading-tight text-left"><span id="display-nombre">...</span></h2><div class="pt-2 text-left"><span id="display-estatus" class="px-3 py-1 rounded-full text-[10px] font-bold uppercase border inline-block text-left">Cargando...</span></div></div>
-                <div class="bg-white/60 p-6 rounded-[2rem] border border-white/60 shadow-sm backdrop-blur-md max-w-3xl text-slate-600 text-left"><p id="display-frase" class="italic text-[15px] leading-relaxed text-left">...</p></div>
+                <div class="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm max-w-3xl text-slate-600 text-left"><p id="display-frase" class="italic text-[15px] leading-relaxed text-left">...</p></div>
                 <div id="featured-plan-banner" class="hidden fade-in text-left"><div class="bg-[#2E4982] rounded-[2.5rem] p-8 md:p-12 text-white shadow-2xl relative overflow-hidden group cursor-pointer text-left" onclick="window.viewProgramResources()"><div class="absolute -right-16 -top-16 w-64 h-64 bg-white/10 rounded-full blur-3xl text-left"></div><div class="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-8 text-left"><div class="space-y-3 text-left"><span class="text-[10px] font-bold uppercase tracking-[0.4em] opacity-60 text-left">Tu Programa Asignado</span><h3 id="plan-banner-title" class="text-xl md:text-2xl font-bold tracking-tight text-left">...</h3><p class="text-white/50 text-sm max-w-sm italic font-medium leading-relaxed text-left">Accede a tus recursos exclusivos acumulados.</p></div><button class="bg-white text-[#2E4982] px-8 py-4 rounded-full text-[11px] font-extrabold uppercase tracking-widest shadow-xl group-hover:scale-105 transition-transform shrink-0 text-center">Ver Recursos</button></div></div></div>
                 <div id="restricted-banner" class="hidden fade-in text-left"><div class="bg-[#2E4982] rounded-[2.5rem] p-10 md:p-12 text-white shadow-2xl relative overflow-hidden text-center flex flex-col items-center text-left"><div class="absolute -right-16 -top-16 w-64 h-64 bg-white/10 rounded-full blur-3xl text-left"></div><div class="relative z-10 space-y-4 max-w-xl text-center"><span id="restricted-banner-title" class="text-[10px] font-bold uppercase tracking-[0.4em] opacity-60 text-center text-left">Portal</span><h3 class="text-xl md:text-2xl font-bold tracking-tight text-white text-center">Tu Salud es Prioridad</h3><p id="restricted-banner-body" class="text-white/70 text-[14px] font-medium leading-relaxed text-center text-left"></p><div id="restricted-btn-container" class="w-full text-center"></div></div></div></div>
             </div>
@@ -1048,12 +1040,12 @@
                       </div>
                 </div>
 
-                <section id="card-ai" class="ai-card-glow rounded-[2.5rem] p-8 border border-white/50 relative overflow-hidden cursor-pointer group transition-transform hover:-translate-y-1 text-left" onclick="window.openAIChat()">
+                <section id="card-ai" class="ai-card-glow rounded-[2.5rem] p-8 border border-white relative overflow-hidden cursor-pointer group transition-transform hover:-translate-y-1 text-left" onclick="window.openAIChat()">
                     <div class="relative z-10 flex flex-col justify-between h-full min-h-[220px] text-left">
-                        <div class="flex items-start justify-between text-left"><div><span class="px-3 py-1 bg-white/50 backdrop-blur-md rounded-full text-[10px] font-extrabold text-[#2E4982] uppercase tracking-[0.2em] border border-white/60 text-left">Nuevo</span><h3 class="text-2xl font-bold text-slate-800 mt-3 leading-tight text-left">Asistente<br><span class="text-transparent bg-clip-text bg-gradient-to-r from-violet-600 to-blue-500 text-left">Inteligente</span></h3></div><div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-violet-100 to-blue-50 flex items-center justify-center text-blue-600 shadow-sm text-center"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path></svg></div></div>
+                        <div class="flex items-start justify-between text-left"><div><span class="px-3 py-1 bg-white rounded-full text-[10px] font-extrabold text-[#2E4982] uppercase tracking-[0.2em] border border-slate-100 text-left">Nuevo</span><h3 class="text-2xl font-bold text-slate-800 mt-3 leading-tight text-left">Asistente<br><span class="text-transparent bg-clip-text bg-gradient-to-r from-violet-600 to-blue-500 text-left">Inteligente</span></h3></div><div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-violet-100 to-blue-50 flex items-center justify-center text-blue-600 shadow-sm text-center"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path></svg></div></div>
                         <div class="space-y-4 text-left"><p class="text-[14px] text-slate-500 font-medium leading-relaxed text-left">"¿Qué puedo comer si tengo antojo de dulce?"</p><div class="flex items-center gap-2 text-xs font-bold text-[#2E4982] group-hover:gap-3 transition-all text-left"><span>Iniciar conversación</span><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"></path></svg></div></div>
                     </div>
-                    <div class="absolute -bottom-10 -right-10 w-48 h-48 bg-gradient-to-tr from-blue-200 to-violet-200 rounded-full blur-[60px] opacity-60 pointer-events-none text-left"></div>
+                    <div class="absolute -bottom-10 -right-10 w-48 h-48 bg-gradient-to-tr from-blue-100 to-violet-100 rounded-full blur-[60px] opacity-40 pointer-events-none text-left"></div>
                 </section>
                 <section id="card-citas" class="bento-card min-h-[300px] text-left"><div class="w-14 h-14 bg-[#D0F0E0] rounded-2xl flex items-center justify-center mb-6 text-[#2E4982] shrink-0 text-center"><svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg></div><div class="text-left"><h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-1 text-left">Citas</h4><h3 class="text-2xl font-bold text-[#494949] text-left">Reservar Consulta</h3><p class="text-[14px] text-slate-500 mt-2 leading-relaxed text-left">Gestiona tu espacio aquí.</p></div><div id="calendar-action-container" class="mt-8 text-center w-full text-center"></div></section>
                 <section id="card-reporte" class="bento-card min-h-[300px] text-left"><div class="w-14 h-14 bg-[#FFEDD5] rounded-2xl flex items-center justify-center mb-6 text-[#2E4982] shrink-0 text-center"><svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path></svg></div><div class="text-left"><h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-1 text-left">Seguimiento</h4><h3 class="text-2xl font-bold text-[#494949] text-left">Check-in</h3><p class="text-[14px] text-slate-500 mt-2 leading-relaxed text-left">Preferiblemente completarlo 24h antes.</p></div><div class="mt-8 text-center text-left"><a href="https://airtable.com/appCHcm7XPzeoyBCs/pagh79fwniuSPmusB/form" target="_blank" class="btn-ghost-sm text-center">Hacer Check-in</a></div></section>
