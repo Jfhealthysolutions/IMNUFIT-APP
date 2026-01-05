@@ -161,7 +161,7 @@
             } else { alert(msg); }
         };
 
-        // --- OPTIMIZACIÓN: THROTTLE PARA INACTIVIDAD (Evita calentamiento) ---
+        // --- OPTIMIZACIÓN: THROTTLE PARA INACTIVIDAD ---
         let inactivityThrottle = false;
         window.resetInactivityTimer = () => {
             if (inactivityThrottle) return;
@@ -175,6 +175,15 @@
                 window.cerrarSesion();
             }, INACTIVITY_LIMIT);
         };
+
+        // Escuchar cambios de visibilidad para pausar animaciones (Cool Phone Mode)
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                document.body.classList.add('paused-animations');
+            } else {
+                document.body.classList.remove('paused-animations');
+            }
+        });
 
         ['mousemove', 'mousedown', 'click', 'scroll', 'keypress', 'touchstart'].forEach(evt => {
             document.addEventListener(evt, window.resetInactivityTimer, { passive: true });
@@ -567,9 +576,17 @@
 
             const info = currentAppData || {};
             const patientData = JSON.stringify(info, null, 2);
+            
+            // --- CONTEXTO TEMPORAL ---
+            const now = new Date();
+            const fechaHora = now.toLocaleString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 
             const sysPrompt = `Eres el Asistente Personal AI de IMNUFIT. Hablas con **${info["Nombre + Edad"] || "Paciente"}**. 
             
+            --- CONTEXTO ACTUAL ---
+            Fecha y Hora del Paciente: ${fechaHora}
+            (Usa esto para responder preguntas como "qué como ahora" o "qué ejercicio toca hoy").
+
             --- DATOS DEL PACIENTE (AIRTABLE) ---
             Usa estos datos como tu única fuente de verdad para preguntas personales.
             ${patientData}
@@ -597,7 +614,7 @@
             - **Comunidad**: [Unirme a la Comunidad](https://chat.whatsapp.com/FNoToJXy8HO7iLVhPseQHB).`;
 
             try {
-                // Construir historial previo (solo texto por ahora para ahorrar tokens, o podrías incluir imágenes previas si quisieras)
+                // Construir historial previo
                 const history = chatHistory.map(m => ({ role: m.role === 'user' ? 'user' : 'model', parts: [{ text: m.text }] }));
                 
                 // Construir parte del usuario actual
@@ -866,9 +883,10 @@
     <style>
         :root { --primary: #2E4982; --apple-bg: #FBFBFC; }
         body { font-family: 'Inter', sans-serif; background-color: var(--apple-bg); color: #494949; -webkit-font-smoothing: antialiased; overflow-x: hidden; }
-        .bg-mesh { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; background: radial-gradient(circle at 80% 20%, #DEE9FA 0%, transparent 40%), radial-gradient(circle at 20% 80%, #E7E3FB 0%, transparent 40%); opacity: 0.4; transform: translateZ(0); pointer-events: none; }
-        .bento-card { @apply bg-white border border-white transition-all duration-500 flex flex-col justify-between; border-radius: 40px; padding: 36px 32px !important; box-shadow: 0 10px 30px -5px rgba(46, 73, 130, 0.05); }
-        .bento-card:hover { transform: translateY(-4px); box-shadow: 0 25px 50px -10px rgba(46, 73, 130, 0.12); }
+        .bg-mesh { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; background: #FBFBFC; opacity: 1; pointer-events: none; } /* OPTIMIZADO: Fondo plano */
+        /* OPTIMIZACIÓN: Eliminado backdrop-filter y animaciones infinitas */
+        .bento-card { @apply bg-white border border-slate-100 flex flex-col justify-between; border-radius: 40px; padding: 36px 32px !important; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); transition: transform 0.2s ease; }
+        .bento-card:hover { transform: translateY(-2px); box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05); }
         .btn-ingresar { background-color: var(--primary); color: #FFFFFF; width: 100%; padding: 20px !important; border-radius: 100px; font-weight: 600; font-size: 15px; border: none; transition: all 0.4s ease; box-shadow: 0 10px 20px -5px rgba(46, 73, 130, 0.25); cursor: pointer; text-align: center; }
         .btn-ghost-sm { background-color: transparent; color: var(--primary); border: 1.5px solid var(--primary); padding: 14px 20px !important; border-radius: 100px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.12em; transition: all 0.3s ease; display: inline-block; text-align: center; width: 100%; }
         .btn-ghost-sm:hover { background-color: #DEE9FA; border-color: #DEE9FA; }
@@ -884,17 +902,26 @@
         #specialist-panel { background: #2E4982; border-bottom: 2px solid #1e315a; position: sticky; top: 0; z-index: 500; color: white; padding: 10px 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
         .spec-select { background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; font-size: 10px; font-weight: 700; padding: 6px 12px; outline: none; color: white; cursor: pointer; text-transform: uppercase; letter-spacing: 0.05em; }
         .spec-select option { color: #333; }
-        /* Optimizacion de animacion para evitar calentamiento */
-        @keyframes ai-breathing { 
-            0%, 100% { border-color: rgba(139, 92, 246, 0.3); background-color: #ffffff; } 
-            50% { border-color: rgba(139, 92, 246, 0.6); background-color: #f8fafc; } 
-        }
+        
+        /* OPTIMIZACIÓN MÁXIMA IA CARD: ESTATICO + HOVER */
         .ai-card-glow { 
-            animation: ai-breathing 4s infinite ease-in-out; 
             background: #ffffff;
-            box-shadow: 0 10px 30px -5px rgba(139, 92, 246, 0.15); 
-            will-change: border-color, background-color; 
+            box-shadow: 0 10px 30px -5px rgba(139, 92, 246, 0.15);
+            border-color: rgba(139, 92, 246, 0.3);
+            transition: all 0.3s ease;
         }
+        .ai-card-glow:active { /* Solo al tocar */
+            box-shadow: 0 15px 35px -5px rgba(139, 92, 246, 0.25);
+            border-color: rgba(139, 92, 246, 0.6);
+        }
+
+        /* Pausa global si la app no es visible */
+        body.paused-animations * { animation-play-state: paused !important; }
+        
+        @media (prefers-reduced-motion: reduce) {
+            * { animation: none !important; transition: none !important; }
+        }
+
         ::-webkit-scrollbar { width: 4px; }
         ::-webkit-scrollbar-thumb { background: #E2E8F0; border-radius: 10px; }
     </style>
@@ -932,7 +959,8 @@
                          </div>
                          <p id="ai-last-update" class="text-[10px] text-indigo-600/80 font-medium leading-relaxed">Sincronizando...</p>
                      </div>
-                     <div class="h-2 w-2 bg-green-500 rounded-full animate-pulse mt-1"></div>
+                     <!-- ESTÁTICO (sin animación) -->
+                     <div class="h-2 w-2 bg-green-500 rounded-full mt-1"></div>
                 </div>
 
                 <div class="space-y-2">
@@ -949,7 +977,7 @@
     <section id="mobile-ai-view" class="h-[100dvh] hidden bg-[#FBFBFC] text-left flex flex-col fixed inset-0 z-[2000]">
         <header class="h-24 flex items-center px-6 border-b border-slate-50 justify-between sticky top-0 bg-white z-50 shrink-0 text-left">
             <button onclick="window.closeMobileChat()" class="flex items-center gap-2 text-slate-400 hover:text-[#2E4982] font-bold text-xs uppercase tracking-widest transition-colors"><svg class="w-4 h-4 transform group-hover:-translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path d="M15 19l-7-7 7-7"></path></svg> Volver</button>
-            <div class="flex flex-col items-center text-center"><span class="text-[10px] font-bold text-[#2E4982] uppercase tracking-[0.3em] text-center">Asistente</span><div class="flex items-center gap-1.5"><span class="relative flex h-2 w-2"><span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span><span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span></span><span class="text-[10px] font-medium text-emerald-600 uppercase tracking-wider text-center">En línea</span></div></div><div class="w-10"></div>
+            <div class="flex flex-col items-center text-center"><span class="text-[10px] font-bold text-[#2E4982] uppercase tracking-[0.3em] text-center">Asistente</span><div class="flex items-center gap-1.5"><span class="relative flex h-2 w-2"><span class="absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span><span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span></span><span class="text-[10px] font-medium text-emerald-600 uppercase tracking-wider text-center">En línea</span></div></div><div class="w-10"></div>
         </header>
         <div id="ai-messages-mobile" class="flex-1 overflow-y-auto p-6 space-y-6 scroll-smooth text-left"></div>
         
@@ -977,7 +1005,7 @@
     <div id="ai-modal-overlay" class="fixed inset-0 z-[2000] bg-white/30 backdrop-blur-xl hidden opacity-0 transition-opacity duration-300 items-center justify-center p-4">
         <div class="bg-white w-full max-w-2xl h-[70vh] rounded-[2.5rem] shadow-2xl border border-white/60 flex flex-col overflow-hidden scale-95 opacity-0 transition-all duration-300 relative pointer-events-auto text-left">
             <div class="h-16 flex items-center justify-between px-8 border-b border-slate-50 shrink-0 bg-white/80 backdrop-blur-md z-10 text-left">
-                <div class="flex flex-col text-left"><span class="font-bold text-sm text-slate-800 text-left">Asistente IMNUFIT</span><div class="flex items-center gap-1.5 mt-0.5"><span class="relative flex h-1.5 w-1.5"><span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span><span class="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span></span><span class="text-[9px] font-bold text-emerald-600 uppercase tracking-widest text-left">En línea</span></div></div>
+                <div class="flex flex-col text-left"><span class="font-bold text-sm text-slate-800 text-left">Asistente IMNUFIT</span><div class="flex items-center gap-1.5 mt-0.5"><span class="relative flex h-1.5 w-1.5"><span class="absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span><span class="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span></span><span class="text-[9px] font-bold text-emerald-600 uppercase tracking-widest text-left">En línea</span></div></div>
                 <button onclick="window.closeDesktopAIModal()" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition-colors text-center"><svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M6 18L18 6M6 6l18 18"></path></svg></button>
             </div>
             <div id="ai-messages-desktop" class="flex-1 overflow-y-auto p-8 space-y-6 scroll-smooth bg-[#FBFBFC] text-left"></div>
