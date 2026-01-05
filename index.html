@@ -7,9 +7,9 @@
     
     <!-- PWA / APP MODE CONFIGURATION -->
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="IMNUFIT">
-    <meta name="theme-color" content="#2E4982">
+    <meta name="theme-color" content="#FBFBFC">
     
     <!-- ICONO DE PANTALLA DE INICIO -->
     <link rel="apple-touch-icon" href="https://imnufit.com/wp-content/uploads/2026/01/IMG_8520.png">
@@ -29,8 +29,8 @@
             "short_name": "IMNUFIT",
             "start_url": ".",
             "display": "standalone",
-            "background_color": "#FFFFFF",
-            "theme_color": "#2E4982",
+            "background_color": "#FBFBFC",
+            "theme_color": "#FBFBFC",
             "icons": [{
                 "src": "https://imnufit.com/wp-content/uploads/2026/01/IMG_8520.png",
                 "sizes": "512x512",
@@ -63,7 +63,6 @@
         const db = getFirestore(app);
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'imnufit-official';
 
-        // API Key para Gemini (Construcción segura básica)
         const _partA = "AIzaSyCPDuual8XB";
         const _partB = "ejuVUPbKecfonbIh6SNolDk";
         const apiKey = _partA + _partB;
@@ -80,7 +79,7 @@
         let inactivityTimeout;
         const INACTIVITY_LIMIT = 10 * 60 * 1000; // 10 Minutos
         
-        // Variables para manejo de imágenes (IA)
+        // Variables para manejo de imágenes
         let currentImageBase64 = null;
         let currentImageMime = null;
 
@@ -162,7 +161,13 @@
             } else { alert(msg); }
         };
 
+        // --- OPTIMIZACIÓN: THROTTLE PARA INACTIVIDAD (Evita calentamiento) ---
+        let inactivityThrottle = false;
         window.resetInactivityTimer = () => {
+            if (inactivityThrottle) return;
+            inactivityThrottle = true;
+            setTimeout(() => { inactivityThrottle = false; }, 2000); // Limita a 1 ejecución cada 2s
+
             if (!auth.currentUser) return;
             clearTimeout(inactivityTimeout);
             inactivityTimeout = setTimeout(() => {
@@ -248,7 +253,7 @@
             if(m) m.scrollTop = m.scrollHeight; if(d) d.scrollTop = d.scrollHeight;
         };
 
-        // --- FUNCIONES PARA IMÁGENES (IA) ---
+        // --- FUNCIONES PARA IMÁGENES ---
 
         window.handleImageSelect = (input) => {
             if (input.files && input.files[0]) {
@@ -591,7 +596,7 @@
             REGLAS DE ACCIÓN OBLIGATORIAS:
             - **Check-in**: Muestra [Hacer Check-in](https://airtable.com/appCHcm7XPzeoyBCs/pagh79fwniuSPmusB/form).
             - **Entrenar**: Muestra [Ver Entrenamientos](https://imnufit.com/entrenaconfrenplus/).
-            - **Agendar Cita**: Muestra [Reservar Cita](${info["Link Calendar"] || CALENDAR_LINK_DEFAULT}) y añade: "Recuerda completarlo antes de asistir a tu consulta.".
+            - **Agendar Cita**: Muestra [Reservar Cita](${info["Link Calendar"] || CALENDAR_LINK_DEFAULT}) y añade: "Recuerda que es preferible completar tu Check-in 24 horas antes.".
             - **Ver Recursos/Manual**: SOLO si piden manuales o material de apoyo, muestra [Ver Guías PDF](function:program-detail-view).
             - **Ver Consultas**: Muestra [Historial de Consultas](${info["Link Consultas"] || "#"}).
             - **Contactar**: Muestra [Contactar Soporte](function:contact-view).
@@ -1050,10 +1055,10 @@
                     </div>
                     <div class="absolute -bottom-10 -right-10 w-48 h-48 bg-gradient-to-tr from-blue-200 to-violet-200 rounded-full blur-[60px] opacity-60 pointer-events-none text-left"></div>
                 </section>
-                <section id="card-entrenamientos" class="bento-card min-h-[300px] text-left"><div class="w-14 h-14 bg-[#DEE9FA] rounded-2xl flex items-center justify-center mb-6 shrink-0 text-center"><img src="https://imnufit.com/wp-content/uploads/2022/01/iuiuo.png" class="w-11 h-11 object-contain text-left"></div><div class="text-left"><h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-1 text-left">Entrenaconfren+</h4><h3 class="text-2xl font-bold text-[#494949] text-left">Entrenamientos</h3><p class="text-[14px] text-slate-500 mt-2 leading-relaxed text-left">Accede a tus rutinas y guías.</p></div><div class="mt-8 text-center text-left"><a href="https://imnufit.com/entrenaconfrenplus/" target="_blank" class="btn-ghost-sm text-center">Ir a Entrenar</a></div></section>
                 <section id="card-citas" class="bento-card min-h-[300px] text-left"><div class="w-14 h-14 bg-[#D0F0E0] rounded-2xl flex items-center justify-center mb-6 text-[#2E4982] shrink-0 text-center"><svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg></div><div class="text-left"><h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-1 text-left">Citas</h4><h3 class="text-2xl font-bold text-[#494949] text-left">Reservar Consulta</h3><p class="text-[14px] text-slate-500 mt-2 leading-relaxed text-left">Gestiona tu espacio aquí.</p></div><div id="calendar-action-container" class="mt-8 text-center w-full text-center"></div></section>
-                <section id="card-reporte" class="bento-card min-h-[300px] text-left"><div class="w-14 h-14 bg-[#FFEDD5] rounded-2xl flex items-center justify-center mb-6 text-[#2E4982] shrink-0 text-center"><svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path></svg></div><div class="text-left"><h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-1 text-left">Seguimiento</h4><h3 class="text-2xl font-bold text-[#494949] text-left">Check-in</h3><p class="text-[14px] text-slate-500 mt-2 leading-relaxed text-left">Debes completarlo antes de asistir a tu consulta.</p></div><div class="mt-8 text-center text-left"><a href="https://airtable.com/appCHcm7XPzeoyBCs/pagh79fwniuSPmusB/form" target="_blank" class="btn-ghost-sm text-center">Hacer Check-in</a></div></section>
+                <section id="card-reporte" class="bento-card min-h-[300px] text-left"><div class="w-14 h-14 bg-[#FFEDD5] rounded-2xl flex items-center justify-center mb-6 text-[#2E4982] shrink-0 text-center"><svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path></svg></div><div class="text-left"><h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-1 text-left">Seguimiento</h4><h3 class="text-2xl font-bold text-[#494949] text-left">Check-in</h3><p class="text-[14px] text-slate-500 mt-2 leading-relaxed text-left">Preferiblemente completarlo 24h antes.</p></div><div class="mt-8 text-center text-left"><a href="https://airtable.com/appCHcm7XPzeoyBCs/pagh79fwniuSPmusB/form" target="_blank" class="btn-ghost-sm text-center">Hacer Check-in</a></div></section>
                 <section id="card-consultas" class="bento-card min-h-[300px] text-left"><div class="w-14 h-14 bg-[#E7E3FB] rounded-2xl flex items-center justify-center mb-6 text-[#2E4982] shrink-0 text-center"><svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg></div><div class="text-left"><h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-1 text-left">Registro</h4><h3 class="text-2xl font-bold text-[#494949] text-left">Consultas Recientes</h3><p class="text-[14px] text-slate-500 mt-2 leading-relaxed text-left">Historial de evaluaciones.</p></div><div class="mt-8 text-center text-center"><a id="btn-consultas-action" href="#" target="_blank" class="btn-ghost-sm text-center">Abrir Historial</a></div></section>
+                <section id="card-entrenamientos" class="bento-card min-h-[300px] text-left"><div class="w-14 h-14 bg-[#DEE9FA] rounded-2xl flex items-center justify-center mb-6 shrink-0 text-center"><img src="https://imnufit.com/wp-content/uploads/2022/01/iuiuo.png" class="w-11 h-11 object-contain text-left"></div><div class="text-left"><h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-1 text-left">Entrenaconfren+</h4><h3 class="text-2xl font-bold text-[#494949] text-left">Entrenamientos</h3><p class="text-[14px] text-slate-500 mt-2 leading-relaxed text-left">Accede a tus rutinas y guías.</p></div><div class="mt-8 text-center text-left"><a href="https://imnufit.com/entrenaconfrenplus/" target="_blank" class="btn-ghost-sm text-center">Ir a Entrenar</a></div></section>
                 
                 <!-- CARD COMUNIDAD (NUEVA) -->
                 <section id="card-community" class="bento-card min-h-[300px] text-left">
