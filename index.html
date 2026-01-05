@@ -63,6 +63,7 @@
         const db = getFirestore(app);
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'imnufit-official';
 
+        // API Key para Gemini (Construcción segura básica)
         const _partA = "AIzaSyCPDuual8XB";
         const _partB = "ejuVUPbKecfonbIh6SNolDk";
         const apiKey = _partA + _partB;
@@ -79,7 +80,7 @@
         let inactivityTimeout;
         const INACTIVITY_LIMIT = 10 * 60 * 1000; // 10 Minutos
         
-        // Variables para manejo de imágenes
+        // Variables para manejo de imágenes (IA)
         let currentImageBase64 = null;
         let currentImageMime = null;
 
@@ -131,8 +132,12 @@
         };
 
         const frasesCreyentes = [
-            "Todo lo puedo en Cristo que me fortalece.", "Su amor es constante y nuevo cada mañana.", "El Señor es mi pastor, nada me faltará.",
-            "Jehová es mi fortaleza y mi escudo.", "Confía en el Señor de todo corazón.", "Mira que te mando que te esfuerces y seas valiente."
+            "Todo lo puedo en Cristo que me fortalece. - Filipenses 4:13", 
+            "Nuevas son sus misericordias cada mañana. - Lamentaciones 3:23", 
+            "Jehová es mi pastor; nada me faltará. - Salmos 23:1",
+            "Jehová es mi fortaleza y mi escudo. - Salmos 28:7", 
+            "Fíate de Jehová de todo tu corazón. - Proverbios 3:5", 
+            "Mira que te mando que te esfuerces y seas valiente. - Josué 1:9"
         ];
 
         // --- 2. FUNCIONES DE UTILIDAD ---
@@ -243,7 +248,7 @@
             if(m) m.scrollTop = m.scrollHeight; if(d) d.scrollTop = d.scrollHeight;
         };
 
-        // --- FUNCIONES NUEVAS PARA IMÁGENES Y VOZ ---
+        // --- FUNCIONES PARA IMÁGENES (IA) ---
 
         window.handleImageSelect = (input) => {
             if (input.files && input.files[0]) {
@@ -299,49 +304,6 @@
                 div.classList.add('hidden');
             });
             document.querySelectorAll('input[type="file"]').forEach(i => i.value = '');
-        };
-
-        window.startDictation = (source) => {
-            if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
-                const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-                const recognition = new SpeechRecognition();
-                recognition.lang = 'es-ES';
-                recognition.interimResults = false;
-                recognition.maxAlternatives = 1;
-
-                const inputId = source === 'mobile' ? 'ai-input-mobile' : 'ai-input-desktop';
-                const inputEl = document.getElementById(inputId);
-                const micBtn = document.getElementById(`mic-btn-${source}`);
-
-                recognition.onstart = () => {
-                    if(micBtn) micBtn.classList.add('text-red-500', 'animate-pulse');
-                };
-
-                recognition.onresult = (event) => {
-                    const speechResult = event.results[0][0].transcript;
-                    if (inputEl) {
-                        inputEl.value += (inputEl.value.length > 0 ? ' ' : '') + speechResult;
-                        inputEl.focus();
-                    }
-                };
-
-                recognition.onend = () => {
-                    if(micBtn) micBtn.classList.remove('text-red-500', 'animate-pulse');
-                };
-
-                recognition.onerror = (event) => {
-                    console.error('Error speech:', event.error);
-                    if(micBtn) micBtn.classList.remove('text-red-500', 'animate-pulse');
-                    if (event.error !== 'no-speech') {
-                       window.notify("No se pudo activar el micrófono. Verifica permisos.");
-                    }
-                };
-                
-                recognition.start();
-                
-            } else {
-                window.notify("Tu navegador no soporta dictado por voz.");
-            }
         };
 
         window.appendChatMessageToAll = (role, text, imageSrc = null) => {
@@ -1001,11 +963,6 @@
 
                 <input id="ai-input-mobile" type="text" placeholder="Escribe o envía una foto..." class="flex-1 bg-transparent border-none outline-none py-3 text-slate-700 text-[15px] max-h-32 overflow-y-auto resize-none">
                 
-                <!-- Botón Micrófono -->
-                <button type="button" id="mic-btn-mobile" onclick="window.startDictation('mobile')" class="p-3 text-slate-400 hover:text-[#2E4982] transition-colors shrink-0">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path></svg>
-                </button>
-
                 <button type="submit" class="w-12 h-12 bg-[#2E4982] text-white rounded-2xl flex items-center justify-center shadow-lg active:scale-95 transition-transform shrink-0"><svg class="w-5 h-5 ml-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"></path></svg></button>
             </form>
         </div>
@@ -1034,11 +991,6 @@
                     </label>
 
                     <input id="ai-input-desktop" type="text" placeholder="Pregunta..." class="flex-1 bg-transparent outline-none px-2 py-3 text-slate-700 text-[15px]">
-                    
-                    <!-- Botón Micrófono -->
-                    <button type="button" id="mic-btn-desktop" onclick="window.startDictation('desktop')" class="p-3 text-slate-400 hover:text-[#2E4982] transition-colors shrink-0">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path></svg>
-                    </button>
 
                     <button type="submit" class="w-12 h-12 bg-[#2E4982] hover:bg-[#1e315a] text-white rounded-2xl flex items-center justify-center shadow-lg active:scale-95 text-center shrink-0"><svg class="w-5 h-5 ml-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"></path></svg></button>
                 </form>
