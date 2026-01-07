@@ -54,6 +54,9 @@
             appId: "1:65610345018:web:eac15a30c72084faac6303"
         };
 
+        // --- CONFIGURACIÓN DE INTEGRACIONES ---
+        const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyBYjUkpL4la8H9sZ2T6rXz253AxklQ_eDFJkkbSyY3zLKgZnsJkCAf3k7_v3_FXM3a/exec"; 
+
         const AIRTABLE_PAT = "patZ9QUQVyldn9zKC.afb4fc362eb2f79b1aa10faf3fb3268ea6bca3f57a1362b83f6cc8459a50f0d3"; 
         const AIRTABLE_BASE_ID = "appCHcm7XPzeoyBCs"; 
         const AIRTABLE_TABLE_NAME = "Pacientes"; 
@@ -247,7 +250,10 @@
 
         window.parseAIResponse = (text) => {
             if (!text) return "";
-            let html = text.replace(/\*\*(.*?)\*\*/g, '<strong class="font-bold text-slate-900">$1</strong>');
+            // Eliminamos comandos internos por seguridad visual
+            let cleanText = text.replace(/\[\[.*?\]\]/g, ''); 
+            
+            let html = cleanText.replace(/\*\*(.*?)\*\*/g, '<strong class="font-bold text-slate-900">$1</strong>');
             html = html.replace(/\*(.*?)\*/g, '<em class="italic text-slate-600">$1</em>');
             html = html.replace(/\[([^\]]+)\]\(function:([a-zA-Z0-9-]+)\)/g, `<button type="button" onclick="window.handleAIAction('$2')" class="mt-3 flex items-center gap-2 bg-[#2E4982]/10 text-[#2E4982] px-5 py-3 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-[#2E4982] hover:text-white transition-all shadow-sm w-full md:w-auto justify-center md:justify-start"><span>$1</span></button>`);
             html = html.replace(/\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g, `<a href="$2" target="_blank" class="mt-3 flex items-center gap-2 bg-emerald-50 text-emerald-600 border border-emerald-100 px-5 py-3 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-emerald-600 hover:text-white transition-all shadow-sm w-full md:w-auto justify-center md:justify-start decoration-0"><span>$1</span></a>`);
@@ -432,7 +438,7 @@
             } else {
                 if (isMac && isSafari) {
                     msg = `
-                     <div class="text-center space-y-6">
+                      <div class="text-center space-y-6">
                         <div class="bg-slate-50 p-4 rounded-3xl inline-block border border-slate-100 shadow-sm">
                             <svg class="w-10 h-10 text-[#2E4982]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
                         </div>
@@ -450,7 +456,7 @@
                     </div>`;
                 } else if (isChrome) {
                     msg = `
-                     <div class="text-center space-y-6">
+                      <div class="text-center space-y-6">
                         <div class="bg-slate-50 p-4 rounded-3xl inline-block border border-slate-100 shadow-sm">
                             <svg class="w-10 h-10 text-[#2E4982]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
                         </div>
@@ -471,8 +477,8 @@
                         </div>
                     </div>`;
                 } else {
-                     msg = `
-                     <div class="text-center space-y-6">
+                      msg = `
+                      <div class="text-center space-y-6">
                         <div class="bg-slate-50 p-4 rounded-3xl inline-block border border-slate-100 shadow-sm">
                             <svg class="w-10 h-10 text-[#2E4982]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
                         </div>
@@ -529,6 +535,42 @@
             finally { btn.disabled = false; btn.textContent = "Guardar Cambios"; }
         };
 
+        // --- CALENDAR INTEGRATION LOGIC ---
+        
+        async function callGoogleCalendar(action, data = {}) {
+            if (!GOOGLE_SCRIPT_URL || GOOGLE_SCRIPT_URL.includes("PEGAR_AQUI")) {
+                window.notify("Error: Configura la URL del Script de Google en el código.", "error");
+                return null;
+            }
+
+            const payload = { action, ...data };
+            
+            try {
+                const response = await fetch(GOOGLE_SCRIPT_URL, {
+                    method: 'POST',
+                    body: JSON.stringify(payload),
+                    headers: {
+                        "Content-Type": "text/plain;charset=utf-8"
+                    }
+                });
+                
+                const json = await response.json();
+                
+                // Handle logical errors from the script (status: 'error') gracefully
+                if (json.status === 'success') {
+                    return json.data;
+                } else {
+                    // Log as warning, not error, since it's a handled business logic case (e.g. slot busy)
+                    console.warn("Calendar Logic:", json.message); 
+                    return { error: json.message || "Error desconocido del servidor" };
+                }
+            } catch (e) {
+                // Handle actual network/execution errors
+                console.error("Calendar System Error:", e);
+                return { error: "Fallo de conexión: " + e.toString() };
+            }
+        }
+
         async function fetchWithRetry(url, options, retries = 3) {
             const backoffs = [1000, 2000, 4000, 8000];
             for (let i = 0; i <= retries; i++) {
@@ -552,21 +594,18 @@
             const input = document.getElementById(source === 'mobile' ? 'ai-input-mobile' : 'ai-input-desktop');
             const userMsg = input?.value.trim();
             
-            // Permitir enviar solo imagen si no hay texto, o texto solo, o ambos
             if (!userMsg && !currentImageBase64) return;
             
             const msgToSend = userMsg || (currentImageBase64 ? "Analiza esta imagen." : "");
             
             input.value = ''; if(source === 'mobile') input.blur();
 
-            // Mostrar mensaje en el chat con la imagen si existe
             let displayImg = currentImageBase64 ? `data:${currentImageMime};base64,${currentImageBase64}` : null;
             window.appendChatMessageToAll('user', msgToSend, displayImg);
             
-            // Guardar imagen temporalmente para enviarla y luego limpiar
             const imageToSend = currentImageBase64;
             const mimeToSend = currentImageMime;
-            window.removeImage(); // Limpiar UI inmediatamente
+            window.removeImage(); 
 
             const loaderHtml = `<div class="ai-loading-indicator flex justify-start mb-4"><div class="bg-slate-100 text-slate-400 px-4 py-2 rounded-2xl text-[11px] animate-pulse italic">Analizando...</div></div>`;
             const m = document.getElementById('ai-messages-mobile');
@@ -577,47 +616,76 @@
             const info = currentAppData || {};
             const patientData = JSON.stringify(info, null, 2);
             
-            // --- CONTEXTO TEMPORAL ---
+            // --- EXTRACCIÓN DE NOMBRE DE PILA ---
+            const fullName = info["Nombre + Edad"] || "Paciente";
+            const firstName = fullName.split(" ")[0]; 
+
             const now = new Date();
             const fechaHora = now.toLocaleString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 
-            const sysPrompt = `Eres el Asistente Personal AI de IMNUFIT. Hablas con **${info["Nombre + Edad"] || "Paciente"}**. 
+            const sysPrompt = `Eres el Asistente Personal AI de IMNUFIT.
             
-            --- CONTEXTO ACTUAL ---
-            Fecha y Hora del Paciente: ${fechaHora}
-            (Usa esto para responder preguntas como "qué como ahora" o "qué ejercicio toca hoy").
+            --- IDENTIDAD Y TONO (ESTRICTO) ---
+            1. TU NOMBRE: Asistente IMNUFIT.
+            2. CLIENTE: Estás hablando con ${firstName}.
+            3. TONO: Cercano, personal y motivador. Usa "tú".
+            4. PROHIBIDO: Nunca uses "Estimado/a", "Usted" o formalismos robóticos. 
+            5. PROHIBIDO: NO inventes doctores ni nombres como "Dr. IMNUFIT". Eres parte de un equipo.
+            6. CAPACIDADES: Solo puedes BUSCAR DISPONIBILIDAD y RESERVAR. NO PUEDES CANCELAR NI REAGENDAR.
+            7. CONTEXTO: El servicio es virtual. No inventes direcciones físicas.
 
-            --- DATOS DEL PACIENTE (AIRTABLE) ---
-            Usa estos datos como tu única fuente de verdad para preguntas personales.
-            ${patientData}
-            -------------------------------------
+            --- FORMATOS DE FECHA Y HORA (ESTRICTO) ---
+            1. FECHAS: Siempre usa formato texto completo. Ejemplo: "Lunes 19 de Febrero, 2026". NUNCA uses YYYY-MM-DD.
+            2. HORAS: Siempre usa formato 12 horas con AM/PM y añade "(Hora de Miami)". Ejemplo: "4:00 PM (Hora de Miami)".
 
-            INSTRUCCIONES CLAVE DEL ADMINISTRADOR: ${aiCustomInstructions}
-            
-            DIRECTRICES ESTRICTAS:
-            1. **Estilo**: Responde de forma clara, precisa, amable y fluida. NO uses caracteres extraños. Respeta el formato de **negritas** y signos de puntuación.
-            2. **Formato Enlaces**: Cuando des un enlace, MUESTRA UN BOTÓN usando el formato Markdown: [Texto del Botón](URL o funcion).
-            3. **Alcance**: NUNCA respondas preguntas que no tengan nada que ver con IMNUFIT o la salud del paciente.
-            4. **Prioridad Datos**: Para preguntas sobre dieta o plan, usa SOLO la información de Airtable (arriba).
-            5. **Prohibido**: NO sugerir la "Guía PDF" como respuesta al plan diario.
-            6. **Análisis de Imágenes**: Si el usuario envía una foto de comida o producto, analízala estrictamente basándote en su plan nutricional actual. Indica si es adecuado o no y por qué. Se breve y directo.
+            --- FUENTES DE INFORMACIÓN (CRÍTICO) ---
+            1. DATOS DE AIRTABLE (Abajo): Contiene la "Fecha Sugerida" por el especialista. NO es una cita confirmada. Es solo una recomendación.
+               ${patientData}
+            2. GOOGLE CALENDAR (Comando [[MY_CITAS]]): Contiene las citas REALES y CONFIRMADAS.
 
-            REGLAS DE ACCIÓN OBLIGATORIAS:
-            - **Check-in**: Muestra [Hacer Check-in](https://airtable.com/appCHcm7XPzeoyBCs/pagh79fwniuSPmusB/form).
-            - **Entrenar**: Muestra [Ver Entrenamientos](https://imnufit.com/entrenaconfrenplus/).
-            - **Agendar Cita**: Muestra [Reservar Cita](${info["Link Calendar"] || CALENDAR_LINK_DEFAULT}) y añade: "Recuerda que es preferible completar tu Check-in 24 horas antes.".
-            - **Ver Recursos/Manual**: SOLO si piden manuales o material de apoyo, muestra [Ver Guías PDF](function:program-detail-view).
-            - **Ver Consultas**: Muestra [Historial de Consultas](${info["Link Consultas"] || "#"}).
-            - **Contactar**: Muestra [Contactar Soporte](function:contact-view).
-            - **Cancelar Membresía/Clave**: Muestra [Mi Cuenta](function:membership-view). (NO ofrecer pausar).
-            - **Precios/Web**: Muestra [Visitar Web](https://imnufit.com).
-            - **Comunidad**: [Unirme a la Comunidad](https://chat.whatsapp.com/FNoToJXy8HO7iLVhPseQHB).`;
+            --- LÓGICA PARA "CUÁNDO ES MI CONSULTA" ---
+            Si el paciente pregunta por su próxima consulta/cita:
+            1. SIEMPRE ejecuta primero [[MY_CITAS]].
+            2. Analiza el resultado de [[MY_CITAS]] y la "Fecha Sugerida" de Airtable.
+            3. ESCENARIOS:
+               - CASO A: Hay cita en [[MY_CITAS]].
+                 Dile: "Tienes una cita confirmada para el [Fecha/Hora del Calendar]. (El especialista había sugerido el [Fecha Airtable])."
+               - CASO B: NO hay cita en [[MY_CITAS]] pero hay "Fecha Sugerida" en Airtable.
+                 Dile: "No tienes ninguna cita confirmada en el sistema todavía. Tu especialista sugirió una fecha tentativa para el [Fecha Airtable]. ¿Te gustaría revisar horarios disponibles para ese día?"
+                 (Si dice sí, usa [[CHECK:FechaAirtable]]).
+               - CASO C: Ni cita confirmada ni sugerencia.
+                 Dile que no hay nada pendiente.
+
+            --- GESTIÓN DE CITAS (RESERVAS) ---
+            1. Si el usuario pide agendar o "próxima cita", PRIMERO verifica si ya tiene cita con [[MY_CITAS]].
+            2. CASO A: YA TIENE CITA Y QUIERE CAMBIARLA (REAGENDAR) O CANCELARLA:
+               - TU NO PUEDES hacer esto (NO tienes el comando).
+               - Dile amablemente: "Ya tienes una cita el [Fecha/Hora]. Para cambiarla o cancelarla, por favor busca el correo de confirmación de Google Calendar ('Invitation: Consulta IMNUFIT...') que recibiste al reservar y usa los enlaces allí."
+               - O ofrece soporte: [Contactar Soporte](function:contact-view)
+            3. CASO B: YA TIENE CITA PERO QUIERE OTRA (NUEVA):
+               - Adviértele: "Veo que ya tienes una cita el [Fecha/Hora]. Si agendamos esta nueva, tendrás DOS citas programadas. ¿Deseas continuar?"
+               - Si confirma, busca hueco con [[NEXT]].
+            4. CASO C: NO TIENE CITAS:
+               - Busca disponibilidad con [[NEXT]].
+               - Si el usuario dice "para después del X de enero", usa [[NEXT:YYYY-MM-DD]] con la fecha que pidió.
+               - Reserva con [[BOOK:FECHA|HORA]].
+
+            --- COMANDOS (SOLO PARA USO INTERNO - NO MOSTRAR AL USUARIO) ---
+            [[NEXT]] -> Buscar primer hueco disponible.
+            [[NEXT:YYYY-MM-DD]] -> Buscar hueco a partir de una fecha especifica.
+            [[MY_CITAS]] -> Ver citas confirmadas en Calendar.
+            [[CHECK:YYYY-MM-DD]] -> Ver disponibilidad de un día específico.
+            [[BOOK:YYYY-MM-DD|HH:mm]] -> Reservar cita nueva.
+            (NO EXISTEN COMANDOS DE CANCELAR O REAGENDAR)
+
+            --- REGLAS DE RESPUESTA ---
+            1. Si usas un comando [[...]], NO escribas nada más. Envía SOLO el comando.
+            2. Cuando recibas datos del sistema (fechas/horas), tradúcelos al formato amigable antes de responder.
+            3. Si el sistema devuelve un evento con título "Consulta IMNUFIT (Nombre)", di simplemente "Consulta con tu Coach".
+            `;
 
             try {
-                // Construir historial previo
                 const history = chatHistory.map(m => ({ role: m.role === 'user' ? 'user' : 'model', parts: [{ text: m.text }] }));
-                
-                // Construir parte del usuario actual
                 let userParts = [{ text: msgToSend }];
                 if (imageToSend) {
                     userParts.push({ inlineData: { mimeType: mimeToSend, data: imageToSend } });
@@ -632,13 +700,145 @@
                 const aiText = res.candidates?.[0]?.content?.parts?.[0]?.text || "No pude procesar tu solicitud.";
                 
                 document.querySelectorAll('.ai-loading-indicator').forEach(el => el.remove());
-                window.appendChatMessageToAll('ai', aiText);
-                chatHistory.push({ role: 'user', text: msgToSend }, { role: 'ai', text: aiText });
+                
+                // --- PROCESAR COMANDOS ---
+                // Detectar comandos, mostrarlos solo en consola/debug, y ejecutar herramienta
+                if (aiText.includes('[[CHECK:') || aiText.includes('[[BOOK:') || aiText.includes('[[MY_CITAS]]') || aiText.includes('[[NEXT')) {
+                    // NO mostramos el comando crudo al usuario para evitar el mensaje doble
+                    await handleToolCommand(aiText, info);
+                } else {
+                    window.appendChatMessageToAll('ai', aiText);
+                    chatHistory.push({ role: 'user', text: msgToSend }, { role: 'ai', text: aiText });
+                }
+
             } catch (e) { 
                 document.querySelectorAll('.ai-loading-indicator').forEach(el => el.remove());
                 window.appendChatMessageToAll('ai', `⚠️ Hubo un error al procesar. Intenta con una imagen más pequeña o texto.`); 
             }
         };
+
+        // Helper para formato de hora 12h
+        const formatTime12h = (time24) => {
+            if (!time24) return "";
+            const [h, m] = time24.split(':');
+            let hours = parseInt(h);
+            const suffix = hours >= 12 ? 'PM' : 'AM';
+            hours = hours % 12 || 12;
+            return `${hours}:${m} ${suffix} (Hora de Miami)`;
+        };
+
+        // Helper para formato de fecha largo
+        const formatDateLong = (dateStr) => {
+            if (!dateStr) return "";
+            const parts = dateStr.split('-');
+            // Mes es base 0 en JS
+            const date = new Date(parts[0], parts[1] - 1, parts[2]);
+            return date.toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+        };
+
+        // --- MANEJADOR DE HERRAMIENTAS ---
+        async function handleToolCommand(aiText, userInfo) {
+            const loaderHtml = `<div class="ai-loading-indicator flex justify-start mb-4"><div class="bg-indigo-50 text-indigo-600 border border-indigo-100 px-4 py-2 rounded-2xl text-[11px] font-bold animate-pulse flex items-center gap-2"><svg class="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Consultando Agenda...</div></div>`;
+            const m = document.getElementById('ai-messages-mobile');
+            const d = document.getElementById('ai-messages-desktop');
+            if(m) { m.insertAdjacentHTML('beforeend', loaderHtml); m.scrollTop = m.scrollHeight; }
+            if(d) { d.insertAdjacentHTML('beforeend', loaderHtml); d.scrollTop = d.scrollHeight; }
+
+            let toolResultText = "";
+            
+            // 1. NEXT AVAILABLE
+            if (aiText.includes('[[NEXT')) {
+                // Extraer fecha si existe: [[NEXT:2026-01-15]]
+                let startDate = null;
+                const match = aiText.match(/\[\[NEXT:(.*?)\]\]/);
+                if (match && match[1]) {
+                    startDate = match[1].trim();
+                }
+
+                const data = await callGoogleCalendar('find_next_available', { startDate });
+                if (data.found) {
+                    const dateFormatted = formatDateLong(data.date);
+                    // Solo pasamos la hora simple aqui, formatTime12h agregará "Hora de Miami"
+                    const slotsFormatted = data.slots.map(s => formatTime12h(s)).join(', ');
+                    toolResultText = `ENCONTRADO: La fecha más próxima es ${dateFormatted}. Horarios disponibles: ${slotsFormatted}. Ofrécelos al usuario sin mencionar reglas de 48h.`;
+                } else {
+                    toolResultText = `No hay disponibilidad en los próximos 30 días a partir de la fecha solicitada.`;
+                }
+            }
+
+            // 2. CHECK AVAILABILITY
+            const checkMatch = aiText.match(/\[\[CHECK:(.*?)\]\]/);
+            if (checkMatch) {
+                const date = checkMatch[1].trim(); // CLEAN SPACES
+                const data = await callGoogleCalendar('check_availability', { date });
+                if (data.error) toolResultText = "Error: " + data.error;
+                else if (data.message) toolResultText = data.message;
+                else {
+                    if (data.availableSlots && data.availableSlots.length > 0) {
+                        const dateFormatted = formatDateLong(date);
+                        const slotsFormatted = data.availableSlots.map(s => formatTime12h(s)).join(', ');
+                        toolResultText = `Horarios disponibles para el ${dateFormatted}: ${slotsFormatted}.`;
+                    } else {
+                        toolResultText = `No hay huecos el ${formatDateLong(date)}.`;
+                    }
+                }
+            }
+
+            // 3. BOOK APPOINTMENT
+            const bookMatch = aiText.match(/\[\[BOOK:(.*?)\|(.*?)\]\]/);
+            if (bookMatch) {
+                const date = bookMatch[1].trim(); // CLEAN SPACES
+                const time = bookMatch[2].trim(); // CLEAN SPACES
+                const payload = {
+                    date, 
+                    time,
+                    patientName: userInfo["Nombre + Edad"] || "Paciente",
+                    patientEmail: auth.currentUser?.email || "sin_email@imnufit.com",
+                    patientPhone: userInfo["Telefono"] || "Sin telefono"
+                };
+                
+                const data = await callGoogleCalendar('book_appointment', payload);
+                if (data.error) toolResultText = `FALLÓ la reserva: ${data.error}. Dile al usuario por qué falló (ej: horario ocupado) y pide otra hora.`;
+                else {
+                    toolResultText = `Reserva EXITOSA. Link Meet: ${data.meetLink}. Confirma al usuario.`;
+                }
+            }
+
+            // 5. MY CITAS (GOOGLE CALENDAR)
+            if (aiText.includes('[[MY_CITAS]]')) {
+                const email = auth.currentUser?.email;
+                const data = await callGoogleCalendar('get_user_appointments', { email });
+                if (data.length === 0) toolResultText = "El usuario no tiene citas confirmadas en Google Calendar.";
+                else {
+                    const citasStr = data.map(c => `(ID: ${c.id}) - ${formatDateLong(c.date)} a las ${formatTime12h(c.time)} - Título: ${c.title}`).join('\n');
+                    toolResultText = `Sus citas CONFIRMADAS son:\n${citasStr}\n(Recuerda: NO PUEDES CANCELAR. Dile que use su correo).`;
+                }
+            }
+
+            document.querySelectorAll('.ai-loading-indicator').forEach(el => el.remove());
+            
+            // Inyectar resultado oculto para que la IA responda al usuario
+            const sysInjection = `[SISTEMA - DATOS REALES]: ${toolResultText}`;
+            
+            // Agregamos al historial PERO NO MOSTRAMOS el comando en el UI
+            const newHistory = [...chatHistory, { role: 'model', text: aiText }];
+            
+            const res2 = await fetchWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    contents: [...newHistory.map(m => ({ role: m.role === 'user' ? 'user' : 'model', parts: [{ text: m.text }] })), { role: 'user', parts: [{ text: sysInjection }] }], 
+                    systemInstruction: { parts: [{ text: "Eres el Asistente IMNUFIT. Usa los datos del sistema para responder. IMPORTANTE: Usa formato de fecha largo (ej: Lunes 12 de Febrero) y hora 12h (ej: 4:00 PM). Sé amable y personal. Recuerda: TODO ONLINE." }] } 
+                })
+            });
+
+            const finalAiText = res2.candidates?.[0]?.content?.parts?.[0]?.text || "Listo.";
+            window.appendChatMessageToAll('ai', finalAiText);
+            
+            chatHistory.push({ role: 'ai', text: aiText }); 
+            chatHistory.push({ role: 'user', text: "(Sistema: Datos agenda recibidos)" }); 
+            chatHistory.push({ role: 'ai', text: finalAiText }); 
+        }
 
         window.viewProgramResources = () => {
             const data = currentAppData;
@@ -749,26 +949,46 @@
         window.cerrarSesion = () => signOut(auth);
         window.updateAppPassword = async (e) => { e.preventDefault(); if(!auth.currentUser) return; try { document.getElementById('loading-screen')?.classList.remove('hidden'); await updatePassword(auth.currentUser, e.target.newPassword.value); window.notify("Clave actualizada", "success"); e.target.reset(); } catch (err) { window.notify("Sesión expirada"); } finally { document.getElementById('loading-screen')?.classList.add('hidden'); } };
 
-        window.refreshData = async () => { if(auth.currentUser) { document.getElementById('loading-screen')?.classList.remove('hidden'); const f = encodeURIComponent(`(LOWER({Email})=LOWER('${auth.currentUser.email}'))`), u = `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${AIRTABLE_TABLE_NAME}?filterByFormula=${f}`; const res = await fetch(u, { headers: { Authorization: `Bearer ${AIRTABLE_PAT}` } }); const d = await res.json(); cachedAirtableData = d.records?.[0]?.fields || null; 
-        
-        // VALIDACIÓN DE ESTATUS EN REFRESH
-        if (!isSpecialistMode) {
-             if (!cachedAirtableData) {
-                  window.notify("Usuario no encontrado en base de datos.");
-                  await signOut(auth);
-                  if(document.getElementById('loading-screen')) document.getElementById('loading-screen').classList.add('hidden');
-                  return;
-             }
-             const status = String(cachedAirtableData["Estatus"] || "").toLowerCase();
-             if (status.includes("inactivo") || (!status.includes("activo") && !status.includes("actívo"))) {
-                  window.notify("Tu cuenta no está activa. Será activada en tu próxima consulta.");
-                  await signOut(auth);
-                  if(document.getElementById('loading-screen')) document.getElementById('loading-screen').classList.add('hidden');
-                  return;
-             }
-        }
-        
-        window.refreshUIWithData(); setTimeout(() => { document.getElementById('loading-screen')?.classList.add('hidden'); window.notify("Datos actualizados", "success"); }, 600); } };
+        window.refreshData = async () => { 
+            if(auth.currentUser) { 
+                document.getElementById('loading-screen')?.classList.remove('hidden'); 
+                const f = encodeURIComponent(`(LOWER({Email})=LOWER('${auth.currentUser.email}'))`);
+                const u = `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${AIRTABLE_TABLE_NAME}?filterByFormula=${f}`; 
+                try {
+                    const res = await fetch(u, { headers: { Authorization: `Bearer ${AIRTABLE_PAT}` } }); 
+                    const d = await res.json(); 
+                    cachedAirtableData = d.records?.[0]?.fields || null; 
+            
+                    // VALIDACIÓN DE ESTATUS EN REFRESH
+                    if (!isSpecialistMode) {
+                        if (!cachedAirtableData) {
+                            window.notify("Usuario no encontrado en base de datos.");
+                            await signOut(auth);
+                            document.getElementById('loading-screen')?.classList.add('hidden');
+                            return;
+                        }
+                        const status = String(cachedAirtableData["Estatus"] || "").toLowerCase();
+                        if (status.includes("inactivo") || (!status.includes("activo") && !status.includes("actívo"))) {
+                            window.notify("Tu cuenta no está activa. Será activada en tu próxima consulta.");
+                            await signOut(auth);
+                            document.getElementById('loading-screen')?.classList.add('hidden');
+                            return;
+                        }
+                    }
+                    
+                    window.refreshUIWithData(); 
+                    if(typeof window.syncAIInstructions === 'function') window.syncAIInstructions(); 
+                    
+                    setTimeout(() => { 
+                        document.getElementById('loading-screen')?.classList.add('hidden'); 
+                        window.notify("Datos actualizados", "success"); 
+                    }, 600);
+                } catch (e) {
+                     console.error(e);
+                     document.getElementById('loading-screen')?.classList.add('hidden');
+                }
+            }
+        };
 
         async function fetchAirtableData(email) {
             const f = encodeURIComponent(`(LOWER({Email})=LOWER('${email}'))`), u = `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${AIRTABLE_TABLE_NAME}?filterByFormula=${f}`;
@@ -867,7 +1087,9 @@
                     }
                 }
 
-                window.refreshUIWithData(); window.syncAIInstructions(); window.showView('patient-view', false);
+                window.refreshUIWithData(); 
+                if(typeof window.syncAIInstructions === 'function') window.syncAIInstructions(); 
+                window.showView('patient-view', false);
             } else { 
                 window.resetUI(); 
                 const sp = document.getElementById('specialist-panel'); if(sp) sp.classList.add('hidden');
@@ -1076,7 +1298,7 @@
                     <div class="absolute -bottom-10 -right-10 w-48 h-48 bg-gradient-to-tr from-blue-100 to-violet-100 rounded-full blur-[60px] opacity-40 pointer-events-none text-left"></div>
                 </section>
                 <section id="card-citas" class="bento-card min-h-[300px] text-left"><div class="w-14 h-14 bg-[#D0F0E0] rounded-2xl flex items-center justify-center mb-6 text-[#2E4982] shrink-0 text-center"><svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg></div><div class="text-left"><h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-1 text-left">Citas</h4><h3 class="text-2xl font-bold text-[#494949] text-left">Reservar Consulta</h3><p class="text-[14px] text-slate-500 mt-2 leading-relaxed text-left">Gestiona tu espacio aquí.</p></div><div id="calendar-action-container" class="mt-8 text-center w-full text-center"></div></section>
-                <section id="card-reporte" class="bento-card min-h-[300px] text-left"><div class="w-14 h-14 bg-[#FFEDD5] rounded-2xl flex items-center justify-center mb-6 text-[#2E4982] shrink-0 text-center"><svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path></svg></div><div class="text-left"><h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-1 text-left">Seguimiento</h4><h3 class="text-2xl font-bold text-[#494949] text-left">Check-in</h3><p class="text-[14px] text-slate-500 mt-2 leading-relaxed text-left">Preferiblemente completarlo 24h antes.</p></div><div class="mt-8 text-center text-left"><a href="https://airtable.com/appCHcm7XPzeoyBCs/pagh79fwniuSPmusB/form" target="_blank" class="btn-ghost-sm text-center">Hacer Check-in</a></div></section>
+                <section id="card-reporte" class="bento-card min-h-[300px] text-left"><div class="w-14 h-14 bg-[#FFEDD5] rounded-2xl flex items-center justify-center mb-6 text-[#2E4982] shrink-0 text-center"><svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path></svg></div><div class="text-left"><h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-1 text-left">Seguimiento</h4><h3 class="text-2xl font-bold text-[#494949] text-left">Check-in</h3><p class="text-[14px] text-slate-500 mt-2 leading-relaxed text-left">Preferiblemente completarlo 24h antes.</p></div><div class="mt-8 text-center text-left"><a href="https://airtable.com/appCHcm7XPzeoyBCs/pagh79fwniuSPmusB/form" target="_blank" class="btn-ghost-sm text-center">Hacer Check-in</a></div></section>
                 <section id="card-consultas" class="bento-card min-h-[300px] text-left"><div class="w-14 h-14 bg-[#E7E3FB] rounded-2xl flex items-center justify-center mb-6 text-[#2E4982] shrink-0 text-center"><svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg></div><div class="text-left"><h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-1 text-left">Registro</h4><h3 class="text-2xl font-bold text-[#494949] text-left">Consultas Recientes</h3><p class="text-[14px] text-slate-500 mt-2 leading-relaxed text-left">Historial de evaluaciones.</p></div><div class="mt-8 text-center text-center"><a id="btn-consultas-action" href="#" target="_blank" class="btn-ghost-sm text-center">Abrir Historial</a></div></section>
                 <section id="card-entrenamientos" class="bento-card min-h-[300px] text-left"><div class="w-14 h-14 bg-[#DEE9FA] rounded-2xl flex items-center justify-center mb-6 shrink-0 text-center"><img src="https://imnufit.com/wp-content/uploads/2022/01/iuiuo.png" class="w-11 h-11 object-contain text-left"></div><div class="text-left"><h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-1 text-left">Entrenaconfren+</h4><h3 class="text-2xl font-bold text-[#494949] text-left">Entrenamientos</h3><p class="text-[14px] text-slate-500 mt-2 leading-relaxed text-left">Accede a tus rutinas y guías.</p></div><div class="mt-8 text-center text-left"><a href="https://imnufit.com/entrenaconfrenplus/" target="_blank" class="btn-ghost-sm text-center">Ir a Entrenar</a></div></section>
                 
@@ -1109,128 +1331,128 @@
     <section id="contact-view" class="min-h-screen hidden bg-white text-left">
         <header class="h-24 flex items-center px-8 border-b border-slate-50 justify-between sticky top-0 bg-white z-50 text-left"><button onclick="window.showView('patient-view')" class="flex items-center gap-2 text-slate-400 hover:text-[#2E4982] font-bold text-xs uppercase tracking-widest transition-colors text-left"><svg class="w-4 h-4 transform group-hover:-translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path d="M15 19l-7-7 7-7"></path></svg> Volver</button><span class="text-sm font-bold text-[#494949] uppercase tracking-[0.2em] text-left text-left">Contacto</span><div class="w-10 text-left"></div></header>
         <main class="max-w-xl mx-auto py-16 px-6 fade-in space-y-12 text-left"><div class="text-center space-y-4 text-left"><h3 class="text-2xl font-bold text-slate-800 tracking-tight text-left">Atención al Paciente</h3><p class="text-slate-500 text-sm text-left">Estamos aquí para apoyarte en tu camino.</p></div><div class="bg-[#2E4982] rounded-[2.5rem] p-8 md:p-10 text-white shadow-xl space-y-8 relative overflow-hidden text-left"><div class="absolute -right-16 -top-16 w-48 h-48 bg-white/5 rounded-full blur-2xl text-left"></div><div class="flex items-center gap-5 text-left"><div class="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center shrink-0 text-center"><svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.246 2.248 3.484 5.232 3.483 8.413-.003 6.557-5.338 11.892-11.893 11.892-1.997-.001-3.951-.5-5.688-1.448l-6.308 1.655zm6.205-4.105l.345.205c1.332.793 2.839 1.211 4.382 1.212 4.793 0 8.694-3.901 8.697-8.694 0-2.324-.904-4.509-2.547-6.152-1.642-1.642-3.827-2.547-6.15-2.547-4.796 0-8.696 3.901-8.699 8.694 0 1.646.463 3.253 1.339 4.653l.225.362-.977 3.564 3.65-.958z"/></svg></div><div class="text-left"><h4 class="font-bold text-xl text-left">Soporte WhatsApp</h4><p class="text-white/60 text-xs font-black uppercase tracking-widest mt-1 text-left">Chat directo</p></div></div><div class="space-y-4 bg-white/10 p-6 rounded-3xl backdrop-blur-sm border border-white/5 text-left"><p class="text-[10px] font-black uppercase tracking-[0.3em] text-white/50 text-left">Horario de Atención (EE.UU. Este)</p><div class="grid grid-cols-1 gap-3 text-left"><div class="flex justify-between items-center text-sm font-semibold text-left"><span>Lunes - Viernes</span><span class="opacity-90 text-left">10:00 am - 6:00 pm</span></div><div class="flex justify-between items-center text-[10px] uppercase font-black tracking-widest text-white/40 pt-2 border-t border-white/5 text-left"><span>Sábados - Domingos</span><span class="italic text-left">Cerrado</span></div></div></div><a href="https://wa.me/14076325438" target="_blank" class="block w-full bg-white text-[#2E4982] py-5 rounded-full text-[11px] font-black uppercase tracking-widest text-center shadow-lg hover:scale-[1.02] transition-transform text-center">Iniciar Chat</a></div>
-            <div class="grid gap-4 text-left">
-                <p class="text-slate-300 text-[10px] font-black uppercase tracking-[0.5em] text-center text-left">Nuestras Redes</p>
-                <div class="grid gap-3 text-left">
-                    <a href="https://www.instagram.com/imnufit/" target="_blank" class="flex items-center justify-between p-5 rounded-3xl bg-slate-50 border border-slate-100 hover:bg-[#DEE9FA]/50 transition-all group text-left">
-                        <div class="flex items-center gap-4 text-left"><span class="w-10 h-10 rounded-xl bg-white flex items-center justify-center text-slate-400 shadow-sm font-bold text-xs italic text-left">IG</span><span class="text-sm font-bold text-slate-700 text-left">Instagram</span></div>
-                        <svg class="w-4 h-4 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3"><path d="M9 5l7 7-7 7"/></svg>
-                    </a>
-                    <a href="https://www.youtube.com/@entrenaconfren" target="_blank" class="flex items-center justify-between p-5 rounded-3xl bg-slate-50 border border-slate-100 hover:bg-[#DEE9FA]/50 transition-all group text-left">
-                        <div class="flex items-center gap-4 text-left"><span class="w-10 h-10 rounded-xl bg-white flex items-center justify-center text-slate-400 shadow-sm font-bold text-xs italic text-left">YT</span><span class="text-sm font-bold text-slate-700 text-left">YouTube</span></div>
-                        <svg class="w-4 h-4 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3"><path d="M9 5l7 7-7 7"/></svg>
-                    </a>
-                    <a href="https://www.facebook.com/entrenaconfren" target="_blank" class="flex items-center justify-between p-5 rounded-3xl bg-slate-50 border border-slate-100 hover:bg-[#DEE9FA]/50 transition-all group text-left">
-                        <div class="flex items-center gap-4 text-left"><span class="w-10 h-10 rounded-xl bg-white flex items-center justify-center text-slate-400 shadow-sm font-bold text-xs italic text-left">FB</span><span class="text-sm font-bold text-slate-700 text-left">Facebook</span></div>
-                        <svg class="w-4 h-4 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3"><path d="M9 5l7 7-7 7"/></svg>
-                    </a>
-                </div>
+        <div class="grid gap-4 text-left">
+            <p class="text-slate-300 text-[10px] font-black uppercase tracking-[0.5em] text-center text-left">Nuestras Redes</p>
+            <div class="grid gap-3 text-left">
+                <a href="https://www.instagram.com/imnufit/" target="_blank" class="flex items-center justify-between p-5 rounded-3xl bg-slate-50 border border-slate-100 hover:bg-[#DEE9FA]/50 transition-all group text-left">
+                    <div class="flex items-center gap-4 text-left"><span class="w-10 h-10 rounded-xl bg-white flex items-center justify-center text-slate-400 shadow-sm font-bold text-xs italic text-left">IG</span><span class="text-sm font-bold text-slate-700 text-left">Instagram</span></div>
+                    <svg class="w-4 h-4 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3"><path d="M9 5l7 7-7 7"/></svg>
+                </a>
+                <a href="https://www.youtube.com/@entrenaconfren" target="_blank" class="flex items-center justify-between p-5 rounded-3xl bg-slate-50 border border-slate-100 hover:bg-[#DEE9FA]/50 transition-all group text-left">
+                    <div class="flex items-center gap-4 text-left"><span class="w-10 h-10 rounded-xl bg-white flex items-center justify-center text-slate-400 shadow-sm font-bold text-xs italic text-left">YT</span><span class="text-sm font-bold text-slate-700 text-left">YouTube</span></div>
+                    <svg class="w-4 h-4 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3"><path d="M9 5l7 7-7 7"/></svg>
+                </a>
+                <a href="https://www.facebook.com/entrenaconfren" target="_blank" class="flex items-center justify-between p-5 rounded-3xl bg-slate-50 border border-slate-100 hover:bg-[#DEE9FA]/50 transition-all group text-left">
+                    <div class="flex items-center gap-4 text-left"><span class="w-10 h-10 rounded-xl bg-white flex items-center justify-center text-slate-400 shadow-sm font-bold text-xs italic text-left">FB</span><span class="text-sm font-bold text-slate-700 text-left">Facebook</span></div>
+                    <svg class="w-4 h-4 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3"><path d="M9 5l7 7-7 7"/></svg>
+                </a>
             </div>
-            <div class="pt-8 border-t border-slate-50 text-center"><a href="mailto:imnufit@gmail.com" class="inline-block space-y-1 text-left"><p class="text-slate-300 text-[9px] font-black uppercase tracking-[0.4em] text-left">Email Oficial</p><p class="text-slate-600 font-bold text-sm hover:text-[#2E4982] transition-colors text-left">imnufit@gmail.com</p></a></div>
-        </main>
-    </section>
-
-    <!-- ACCOUNT VIEW -->
-    <section id="membership-view" class="min-h-screen hidden bg-slate-50/50 pb-20 text-left">
-        <header class="bg-white/40 backdrop-blur-xl border-b h-24 flex items-center px-8 justify-between sticky top-0 z-40 text-left"><button onclick="window.showView('patient-view')" class="flex items-center gap-2 text-slate-400 hover:text-[#2E4982] font-bold text-xs uppercase tracking-widest transition-colors text-left"><svg class="w-4 h-4 transform group-hover:-translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path d="M15 19l-7-7 7-7"></path></svg> Volver</button><h2 class="text-sm font-bold text-[#494949] uppercase tracking-[0.2em] text-left">Mi Cuenta</h2><div class="w-10"></div></header>
-        <main class="max-w-2xl mx-auto py-12 px-6 space-y-10 text-left">
-            <section class="bg-white rounded-[2.5rem] p-10 shadow-sm border border-slate-50 text-left"><div class="flex items-center gap-4 mb-12 text-left"><div class="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center text-[#2E4982] shadow-sm text-center"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg></div><div class="text-left"><h3 class="text-xl font-bold">Perfil Personal</h3><p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest text-left">Identidad en Consulta</p></div></div><div class="space-y-0 text-left"><div class="profile-line text-left"><span class="profile-label-text">Paciente:</span><span id="acc-nombre" class="profile-value-text">...</span></div><div class="profile-line flex items-center justify-start !py-6 text-left"><span id="acc-genero">--</span></div><div class="profile-line text-left"><span class="profile-label-text">Nacimiento:</span><span id="acc-nacimiento" class="profile-value-text">--</span></div><div class="profile-line text-left"><span class="profile-label-text">País:</span><span id="acc-pais" class="profile-value-text">--</span></div><div class="profile-line border-0 text-left"><span class="profile-label-text">Teléfono:</span><span id="acc-telefono" class="profile-value-text">--</span></div><div class="mt-4 pt-10 border-t border-slate-50 text-left"><span class="profile-label-text !mb-1 text-left">Email de acceso</span><div class="h-1 text-left"></div><span id="acc-email" class="text-[14px] font-medium text-slate-500">--</span></div></div></section>
-            
-            <section class="bg-white rounded-[2.5rem] p-10 shadow-sm border border-slate-50 text-left"><div class="flex items-center gap-4 mb-8 text-left"><div class="w-12 h-12 bg-slate-50 rounded-2xl flex items-center justify-center text-slate-500 shadow-sm text-left"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" /></svg></div><div class="text-left"><h3 class="text-xl font-bold text-[#494949]">Seguridad</h3><p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest text-left">Cambio de Acceso</p></div></div><form onsubmit="window.updateAppPassword(event)" class="space-y-6 text-left"><div><label class="text-[11px] font-bold text-slate-400 uppercase tracking-widest ml-1 text-left">Nueva Contraseña</label><input type="password" name="newPassword" required minlength="6" placeholder="Nueva contraseña (mín. 6 caracteres)" class="input-apple mt-2 text-left"></div><button type="submit" class="btn-ingresar !bg-slate-800 text-center">Actualizar Contraseña</button></form></section>
-            
-            <section class="bg-white rounded-[2.5rem] p-10 shadow-sm border border-slate-50 text-left">
-                <div class="flex items-center gap-4 mb-8 text-left">
-                    <div class="w-12 h-12 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-600 shadow-sm text-left"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg></div>
-                    <div class="text-left"><h3 class="text-xl font-bold text-[#494949]">Membresía</h3><p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest text-left">Gestión de Suscripción</p></div>
-                </div>
-                <p class="text-[14px] text-slate-500 mb-8 leading-relaxed text-left">Utilizamos una plataforma segura para tus suscripciones. Desde aquí podrás actualizar tu tarjeta o <strong>cancelar tu membresía</strong>.</p>
-                <div class="w-full">
-                    <a href="https://billing.stripe.com/p/login/bIY9CF3un99T2XefYY" target="_blank" class="btn-secure-portal w-full justify-center text-center">
-                        Gestionar Membresía y Pagos 
-                        <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
-                    </a>
-                </div>
-            </section>
-
-            <button onclick="window.cerrarSesion()" class="w-full py-4 text-xs font-bold text-red-400 uppercase tracking-widest text-center">Cerrar Sesión</button>
-        </main>
-    </section>
-
-    <!-- LOGIN VIEW RESTAURADO -->
-    <section id="login-view" class="min-h-screen hidden flex flex-col items-center justify-center p-8 text-center text-left">
-        <div class="max-w-[340px] w-full space-y-12 fade-in text-center text-left">
-            <img src="https://imnufit.com/wp-content/uploads/2025/05/cropped-logo-y-nombre-AZUL.png" class="mx-auto h-11 object-contain mix-blend-multiply text-center">
-            <div class="space-y-2 text-center text-left">
-                <h1 class="text-2xl font-bold tracking-tight text-[#494949] text-center">Portal del Paciente</h1>
-                <p class="text-[14px] text-slate-500 text-center">Inicia sesión para continuar</p>
-            </div>
-            <form onsubmit="window.handleLogin(event)" class="space-y-6 text-center text-left">
-                <input type="email" name="email" required placeholder="Correo electrónico" class="input-apple text-center text-left">
-                <div class="space-y-3 text-center text-left">
-                    <input type="password" name="pass" required placeholder="Contraseña" class="input-apple text-center text-left">
-                    <div class="text-center text-left"><button type="button" onclick="window.showView('forgot-password-view')" class="text-[11px] font-bold text-[#2E4982] uppercase tracking-widest hover:underline text-center text-left">¿Olvidaste tu contraseña?</button></div>
-                </div>
-                <div class="space-y-5 text-center text-left">
-                    <button type="submit" class="btn-ingresar text-center text-center">Entrar al portal</button>
-                    <button type="button" onclick="window.showView('signup-view')" class="text-[12px] font-extrabold text-[#2E4982] uppercase tracking-tight text-center text-left">
-                        ¿Eres nuevo? <span class="border-b border-[#2E4982]/30 pb-0.5 text-center">Crea tu cuenta aquí</span>
-                    </button>
-                </div>
-            </form>
         </div>
-    </section>
+        <div class="pt-8 border-t border-slate-50 text-center"><a href="mailto:imnufit@gmail.com" class="inline-block space-y-1 text-left"><p class="text-slate-300 text-[9px] font-black uppercase tracking-[0.4em] text-left">Email Oficial</p><p class="text-slate-600 font-bold text-sm hover:text-[#2E4982] transition-colors text-left">imnufit@gmail.com</p></a></div>
+    </main>
+</section>
 
-    <!-- SIGNUP VIEW RESTAURADO -->
-    <section id="signup-view" class="min-h-screen hidden flex flex-col items-center justify-center p-8 text-center text-left">
-        <div class="max-w-[340px] w-full space-y-12 fade-in text-center text-left">
-            <img src="https://imnufit.com/wp-content/uploads/2025/05/cropped-logo-y-nombre-AZUL.png" class="mx-auto h-11 object-contain mix-blend-multiply text-center">
-            <div class="space-y-2 text-center text-left">
-                <h1 class="text-2xl font-bold tracking-tight text-[#494949] text-center">Crear tu cuenta</h1>
-                <p class="text-[14px] text-slate-500 text-center text-left">Usa el correo registrado en consulta</p>
+<!-- ACCOUNT VIEW -->
+<section id="membership-view" class="min-h-screen hidden bg-slate-50/50 pb-20 text-left">
+    <header class="bg-white/40 backdrop-blur-xl border-b h-24 flex items-center px-8 justify-between sticky top-0 z-40 text-left"><button onclick="window.showView('patient-view')" class="flex items-center gap-2 text-slate-400 hover:text-[#2E4982] font-bold text-xs uppercase tracking-widest transition-colors text-left"><svg class="w-4 h-4 transform group-hover:-translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path d="M15 19l-7-7 7-7"></path></svg> Volver</button><h2 class="text-sm font-bold text-[#494949] uppercase tracking-[0.2em] text-left">Mi Cuenta</h2><div class="w-10"></div></header>
+    <main class="max-w-2xl mx-auto py-12 px-6 space-y-10 text-left">
+        <section class="bg-white rounded-[2.5rem] p-10 shadow-sm border border-slate-50 text-left"><div class="flex items-center gap-4 mb-12 text-left"><div class="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center text-[#2E4982] shadow-sm text-center"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg></div><div class="text-left"><h3 class="text-xl font-bold">Perfil Personal</h3><p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest text-left">Identidad en Consulta</p></div></div><div class="space-y-0 text-left"><div class="profile-line text-left"><span class="profile-label-text">Paciente:</span><span id="acc-nombre" class="profile-value-text">...</span></div><div class="profile-line flex items-center justify-start !py-6 text-left"><span id="acc-genero">--</span></div><div class="profile-line text-left"><span class="profile-label-text">Nacimiento:</span><span id="acc-nacimiento" class="profile-value-text">--</span></div><div class="profile-line text-left"><span class="profile-label-text">País:</span><span id="acc-pais" class="profile-value-text">--</span></div><div class="profile-line border-0 text-left"><span class="profile-label-text">Teléfono:</span><span id="acc-telefono" class="profile-value-text">--</span></div><div class="mt-4 pt-10 border-t border-slate-50 text-left"><span class="profile-label-text !mb-1 text-left">Email de acceso</span><div class="h-1 text-left"></div><span id="acc-email" class="text-[14px] font-medium text-slate-500">--</span></div></div></section>
+        
+        <section class="bg-white rounded-[2.5rem] p-10 shadow-sm border border-slate-50 text-left"><div class="flex items-center gap-4 mb-8 text-left"><div class="w-12 h-12 bg-slate-50 rounded-2xl flex items-center justify-center text-slate-500 shadow-sm text-left"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" /></svg></div><div class="text-left"><h3 class="text-xl font-bold text-[#494949]">Seguridad</h3><p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest text-left">Cambio de Acceso</p></div></div><form onsubmit="window.updateAppPassword(event)" class="space-y-6 text-left"><div><label class="text-[11px] font-bold text-slate-400 uppercase tracking-widest ml-1 text-left">Nueva Contraseña</label><input type="password" name="newPassword" required minlength="6" placeholder="Nueva contraseña (mín. 6 caracteres)" class="input-apple mt-2 text-left"></div><button type="submit" class="btn-ingresar !bg-slate-800 text-center">Actualizar Contraseña</button></form></section>
+        
+        <section class="bg-white rounded-[2.5rem] p-10 shadow-sm border border-slate-50 text-left">
+            <div class="flex items-center gap-4 mb-8 text-left">
+                <div class="w-12 h-12 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-600 shadow-sm text-left"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg></div>
+                <div class="text-left"><h3 class="text-xl font-bold text-[#494949]">Membresía</h3><p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest text-left">Gestión de Suscripción</p></div>
             </div>
-            <form onsubmit="window.handleSignup(event)" class="space-y-6 text-center text-left">
-                <input type="email" name="email" required placeholder="Correo electrónico" class="input-apple text-center text-left">
-                <input type="password" name="pass" required minlength="6" placeholder="Contraseña" class="input-apple text-center text-left">
-                <input type="password" name="confirmPass" required minlength="6" placeholder="Confirmar contraseña" class="input-apple text-center text-left">
-                <button type="submit" class="btn-ingresar mt-4 text-center text-center">Registrarme</button>
-            </form>
-            <button onclick="window.showView('login-view')" class="text-[11px] font-bold text-[#2E4982] uppercase tracking-widest hover:underline text-center text-left">¿Ya tienes cuenta? Inicia sesión</button>
-        </div>
-    </section>
-
-    <!-- FORGOT PASSWORD VIEW RESTAURADO -->
-    <section id="forgot-password-view" class="min-h-screen hidden flex flex-col items-center justify-center p-8 text-center text-left">
-        <div class="max-w-[340px] w-full space-y-10 fade-in text-center text-left">
-            <img src="https://imnufit.com/wp-content/uploads/2025/05/cropped-logo-y-nombre-AZUL.png" class="mx-auto h-11 object-contain mix-blend-multiply text-center">
-            <div class="space-y-2 text-center text-left">
-                <h1 class="text-2xl font-bold tracking-tight text-[#494949] text-center text-left">Recuperar Acceso</h1>
-                <p class="text-[14px] text-slate-500 text-center text-left">Te enviaremos un enlace a tu correo</p>
+            <p class="text-[14px] text-slate-500 mb-8 leading-relaxed text-left">Utilizamos una plataforma segura para tus suscripciones. Desde aquí podrás actualizar tu tarjeta o <strong>cancelar tu membresía</strong>.</p>
+            <div class="w-full">
+                <a href="https://billing.stripe.com/p/login/bIY9CF3un99T2XefYY" target="_blank" class="btn-secure-portal w-full justify-center text-center">
+                    Gestionar Membresía y Pagos 
+                    <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 00-2-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
+                </a>
             </div>
-            <form onsubmit="window.handlePasswordReset(event)" class="space-y-6 text-center text-left">
-                <input type="email" name="resetEmail" required placeholder="Correo de acceso" class="input-apple text-center text-left">
-                <button type="submit" class="btn-ingresar text-center text-center">Enviar enlace</button>
-                <p class="text-[12px] text-slate-700 font-bold text-center text-left">💡 Si no recibes el correo, revisa tu carpeta de Spam.</p>
-            </form>
-            <button onclick="window.showView('login-view')" class="text-[12px] font-bold text-[#2E4982] uppercase tracking-widest w-full text-center text-left">Volver al inicio</button>
-        </div>
-    </section>
+        </section>
 
-    <!-- NOTIFICATION TOAST -->
-    <div id="notification-toast" class="hidden fixed top-8 left-1/2 -translate-x-1/2 z-[9999] px-8 py-4 rounded-full shadow-2xl text-[13px] font-semibold bg-white border transform transition-all duration-300" style="z-index: 10000;">
-        <span id="notification-content"></span>
+        <button onclick="window.cerrarSesion()" class="w-full py-4 text-xs font-bold text-red-400 uppercase tracking-widest text-center">Cerrar Sesión</button>
+    </main>
+</section>
+
+<!-- LOGIN VIEW RESTAURADO -->
+<section id="login-view" class="min-h-screen hidden flex flex-col items-center justify-center p-8 text-center text-left">
+    <div class="max-w-[340px] w-full space-y-12 fade-in text-center text-left">
+        <img src="https://imnufit.com/wp-content/uploads/2025/05/cropped-logo-y-nombre-AZUL.png" class="mx-auto h-11 object-contain mix-blend-multiply text-center">
+        <div class="space-y-2 text-center text-left">
+            <h1 class="text-2xl font-bold tracking-tight text-[#494949] text-center">Portal del Paciente</h1>
+            <p class="text-[14px] text-slate-500 text-center">Inicia sesión para continuar</p>
+        </div>
+        <form onsubmit="window.handleLogin(event)" class="space-y-6 text-center text-left">
+            <input type="email" name="email" required placeholder="Correo electrónico" class="input-apple text-center text-left">
+            <div class="space-y-3 text-center text-left">
+                <input type="password" name="pass" required placeholder="Contraseña" class="input-apple text-center text-left">
+                <div class="text-center text-left"><button type="button" onclick="window.showView('forgot-password-view')" class="text-[11px] font-bold text-[#2E4982] uppercase tracking-widest hover:underline text-center text-left">¿Olvidaste tu contraseña?</button></div>
+            </div>
+            <div class="space-y-5 text-center text-left">
+                <button type="submit" class="btn-ingresar text-center text-center">Entrar al portal</button>
+                <button type="button" onclick="window.showView('signup-view')" class="text-[12px] font-extrabold text-[#2E4982] uppercase tracking-tight text-center text-left">
+                    ¿Eres nuevo? <span class="border-b border-[#2E4982]/30 pb-0.5 text-center">Crea tu cuenta aquí</span>
+                </button>
+            </div>
+        </form>
     </div>
-    
-    <!-- INSTALL MODAL -->
-    <div id="install-modal" class="fixed inset-0 z-[10000] bg-black/50 backdrop-blur-sm hidden items-center justify-center p-4">
-        <div id="install-modal-content" class="bg-white w-full max-w-sm rounded-[2rem] p-8 shadow-2xl space-y-6 transform transition-all scale-100">
-            <!-- Content injected by JS -->
+</section>
+
+<!-- SIGNUP VIEW RESTAURADO -->
+<section id="signup-view" class="min-h-screen hidden flex flex-col items-center justify-center p-8 text-center text-left">
+    <div class="max-w-[340px] w-full space-y-12 fade-in text-center text-left">
+        <img src="https://imnufit.com/wp-content/uploads/2025/05/cropped-logo-y-nombre-AZUL.png" class="mx-auto h-11 object-contain mix-blend-multiply text-center">
+        <div class="space-y-2 text-center text-left">
+            <h1 class="text-2xl font-bold tracking-tight text-[#494949] text-center">Crear tu cuenta</h1>
+            <p class="text-[14px] text-slate-500 text-center text-left">Usa el correo registrado en consulta</p>
         </div>
+        <form onsubmit="window.handleSignup(event)" class="space-y-6 text-center text-left">
+            <input type="email" name="email" required placeholder="Correo electrónico" class="input-apple text-center text-left">
+            <input type="password" name="pass" required minlength="6" placeholder="Contraseña" class="input-apple text-center text-left">
+            <input type="password" name="confirmPass" required minlength="6" placeholder="Confirmar contraseña" class="input-apple text-center text-left">
+            <button type="submit" class="btn-ingresar mt-4 text-center text-center">Registrarme</button>
+        </form>
+        <button onclick="window.showView('login-view')" class="text-[11px] font-bold text-[#2E4982] uppercase tracking-widest hover:underline text-center text-left">¿Ya tienes cuenta? Inicia sesión</button>
     </div>
-    
-    <!-- LOADING SCREEN -->
-    <div id="loading-screen" class="fixed inset-0 bg-white z-[9000] flex items-center justify-center hidden">
-        <div class="h-8 w-8 border-[3px] border-[#2E4982] border-t-transparent rounded-full animate-spin"></div>
+</section>
+
+<!-- FORGOT PASSWORD VIEW RESTAURADO -->
+<section id="forgot-password-view" class="min-h-screen hidden flex flex-col items-center justify-center p-8 text-center text-left">
+    <div class="max-w-[340px] w-full space-y-10 fade-in text-center text-left">
+        <img src="https://imnufit.com/wp-content/uploads/2025/05/cropped-logo-y-nombre-AZUL.png" class="mx-auto h-11 object-contain mix-blend-multiply text-center">
+        <div class="space-y-2 text-center text-left">
+            <h1 class="text-2xl font-bold tracking-tight text-[#494949] text-center text-left">Recuperar Acceso</h1>
+            <p class="text-[14px] text-slate-500 text-center text-left">Te enviaremos un enlace a tu correo</p>
+        </div>
+        <form onsubmit="window.handlePasswordReset(event)" class="space-y-6 text-center text-left">
+            <input type="email" name="resetEmail" required placeholder="Correo de acceso" class="input-apple text-center text-left">
+            <button type="submit" class="btn-ingresar text-center text-center">Enviar enlace</button>
+            <p class="text-[12px] text-slate-700 font-bold text-center text-left">💡 Si no recibes el correo, revisa tu carpeta de Spam.</p>
+        </form>
+        <button onclick="window.showView('login-view')" class="text-[12px] font-bold text-[#2E4982] uppercase tracking-widest w-full text-center text-left">Volver al inicio</button>
     </div>
+</section>
+
+<!-- NOTIFICATION TOAST -->
+<div id="notification-toast" class="hidden fixed top-8 left-1/2 -translate-x-1/2 z-[9999] px-8 py-4 rounded-full shadow-2xl text-[13px] font-semibold bg-white border transform transition-all duration-300" style="z-index: 10000;">
+    <span id="notification-content"></span>
+</div>
+
+<!-- INSTALL MODAL -->
+<div id="install-modal" class="fixed inset-0 z-[10000] bg-black/50 backdrop-blur-sm hidden items-center justify-center p-4">
+    <div id="install-modal-content" class="bg-white w-full max-w-sm rounded-[2rem] p-8 shadow-2xl space-y-6 transform transition-all scale-100">
+        <!-- Content injected by JS -->
+    </div>
+</div>
+
+<!-- LOADING SCREEN -->
+<div id="loading-screen" class="fixed inset-0 bg-white z-[9000] flex items-center justify-center hidden">
+    <div class="h-8 w-8 border-[3px] border-[#2E4982] border-t-transparent rounded-full animate-spin"></div>
+</div>
 
 </body>
 </html>
