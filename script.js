@@ -795,20 +795,25 @@ function updateDashboardUI(data) {
         document.getElementById('card-install-app-main')?.classList.add('hidden');
     }
 
-    // CHECK LINK CONSULTAS
+    // CHECK LINK CONSULTAS (LÓGICA CORREGIDA)
     const linkCons = data["Link Consultas"];
     const cardCons = document.getElementById('card-consultas');
+    const btnCons = document.getElementById('btn-consultas-action');
+
     if (cardCons) {
-        if (!linkCons || linkCons.trim() === "") cardCons.classList.add('hidden');
-        else {
+        // Si no hay link o está vacío, ocultamos la tarjeta completa
+        if (!linkCons || linkCons.trim() === "") {
+            cardCons.classList.add('hidden');
+        } else {
             cardCons.classList.remove('hidden');
-            const btn = document.getElementById('btn-consultas-action');
-            if (btn) { btn.href = linkCons; btn.style.opacity = "1"; }
+            if (btnCons) { 
+                btnCons.href = linkCons; 
+                btnCons.style.opacity = "1"; 
+            }
         }
     }
 
     window.safeUpdate('calendar-action-container', el => el.innerHTML = `<a href="${data["Link Calendar"] || CALENDAR_LINK_DEFAULT}" target="_blank" class="btn-ghost-sm text-center">Ir al Calendario</a>`);
-    const bh = document.getElementById('btn-consultas-action'); if (bh) { bh.href = data["Link Consultas"] || "#"; bh.style.opacity = bh.href.includes("#") ? "0.4" : "1"; }
     
     window.safeSetText('acc-nombre', data["Nombre + Edad"] || "---"); window.safeSetText('acc-email', auth.currentUser?.email || "--"); window.safeSetText('display-frase', frasesCreyentes[Math.floor(Math.random() * frasesCreyentes.length)]);
     window.safeSetText('acc-pais', data["País"] || "--"); window.safeSetText('acc-telefono', data["Telefono"] || "--");
