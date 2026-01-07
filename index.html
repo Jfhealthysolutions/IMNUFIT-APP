@@ -54,9 +54,6 @@
             appId: "1:65610345018:web:eac15a30c72084faac6303"
         };
 
-        // --- CONFIGURACIÓN DE INTEGRACIONES ---
-        const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyBYjUkpL4la8H9sZ2T6rXz253AxklQ_eDFJkkbSyY3zLKgZnsJkCAf3k7_v3_FXM3a/exec"; 
-
         const AIRTABLE_PAT = "patZ9QUQVyldn9zKC.afb4fc362eb2f79b1aa10faf3fb3268ea6bca3f57a1362b83f6cc8459a50f0d3"; 
         const AIRTABLE_BASE_ID = "appCHcm7XPzeoyBCs"; 
         const AIRTABLE_TABLE_NAME = "Pacientes"; 
@@ -250,10 +247,7 @@
 
         window.parseAIResponse = (text) => {
             if (!text) return "";
-            // Eliminamos comandos internos por seguridad visual
-            let cleanText = text.replace(/\[\[.*?\]\]/g, ''); 
-            
-            let html = cleanText.replace(/\*\*(.*?)\*\*/g, '<strong class="font-bold text-slate-900">$1</strong>');
+            let html = text.replace(/\*\*(.*?)\*\*/g, '<strong class="font-bold text-slate-900">$1</strong>');
             html = html.replace(/\*(.*?)\*/g, '<em class="italic text-slate-600">$1</em>');
             html = html.replace(/\[([^\]]+)\]\(function:([a-zA-Z0-9-]+)\)/g, `<button type="button" onclick="window.handleAIAction('$2')" class="mt-3 flex items-center gap-2 bg-[#2E4982]/10 text-[#2E4982] px-5 py-3 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-[#2E4982] hover:text-white transition-all shadow-sm w-full md:w-auto justify-center md:justify-start"><span>$1</span></button>`);
             html = html.replace(/\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g, `<a href="$2" target="_blank" class="mt-3 flex items-center gap-2 bg-emerald-50 text-emerald-600 border border-emerald-100 px-5 py-3 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-emerald-600 hover:text-white transition-all shadow-sm w-full md:w-auto justify-center md:justify-start decoration-0"><span>$1</span></a>`);
@@ -535,42 +529,6 @@
             finally { btn.disabled = false; btn.textContent = "Guardar Cambios"; }
         };
 
-        // --- CALENDAR INTEGRATION LOGIC ---
-        
-        async function callGoogleCalendar(action, data = {}) {
-            if (!GOOGLE_SCRIPT_URL || GOOGLE_SCRIPT_URL.includes("PEGAR_AQUI")) {
-                window.notify("Error: Configura la URL del Script de Google en el código.", "error");
-                return null;
-            }
-
-            const payload = { action, ...data };
-            
-            try {
-                const response = await fetch(GOOGLE_SCRIPT_URL, {
-                    method: 'POST',
-                    body: JSON.stringify(payload),
-                    headers: {
-                        "Content-Type": "text/plain;charset=utf-8"
-                    }
-                });
-                
-                const json = await response.json();
-                
-                // Handle logical errors from the script (status: 'error') gracefully
-                if (json.status === 'success') {
-                    return json.data;
-                } else {
-                    // Log as warning, not error, since it's a handled business logic case (e.g. slot busy)
-                    console.warn("Calendar Logic:", json.message); 
-                    return { error: json.message || "Error desconocido del servidor" };
-                }
-            } catch (e) {
-                // Handle actual network/execution errors
-                console.error("Calendar System Error:", e);
-                return { error: "Fallo de conexión: " + e.toString() };
-            }
-        }
-
         async function fetchWithRetry(url, options, retries = 3) {
             const backoffs = [1000, 2000, 4000, 8000];
             for (let i = 0; i <= retries; i++) {
@@ -594,18 +552,21 @@
             const input = document.getElementById(source === 'mobile' ? 'ai-input-mobile' : 'ai-input-desktop');
             const userMsg = input?.value.trim();
             
+            // Permitir enviar solo imagen si no hay texto, o texto solo, o ambos
             if (!userMsg && !currentImageBase64) return;
             
             const msgToSend = userMsg || (currentImageBase64 ? "Analiza esta imagen." : "");
             
             input.value = ''; if(source === 'mobile') input.blur();
 
+            // Mostrar mensaje en el chat con la imagen si existe
             let displayImg = currentImageBase64 ? `data:${currentImageMime};base64,${currentImageBase64}` : null;
             window.appendChatMessageToAll('user', msgToSend, displayImg);
             
+            // Guardar imagen temporalmente para enviarla y luego limpiar
             const imageToSend = currentImageBase64;
             const mimeToSend = currentImageMime;
-            window.removeImage(); 
+            window.removeImage(); // Limpiar UI inmediatamente
 
             const loaderHtml = `<div class="ai-loading-indicator flex justify-start mb-4"><div class="bg-slate-100 text-slate-400 px-4 py-2 rounded-2xl text-[11px] animate-pulse italic">Analizando...</div></div>`;
             const m = document.getElementById('ai-messages-mobile');
@@ -616,76 +577,47 @@
             const info = currentAppData || {};
             const patientData = JSON.stringify(info, null, 2);
             
-            // --- EXTRACCIÓN DE NOMBRE DE PILA ---
-            const fullName = info["Nombre + Edad"] || "Paciente";
-            const firstName = fullName.split(" ")[0]; 
-
+            // --- CONTEXTO TEMPORAL ---
             const now = new Date();
             const fechaHora = now.toLocaleString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 
-            const sysPrompt = `Eres el Asistente Personal AI de IMNUFIT.
+            const sysPrompt = `Eres el Asistente Personal AI de IMNUFIT. Hablas con **${info["Nombre + Edad"] || "Paciente"}**. 
             
-            --- IDENTIDAD Y TONO (ESTRICTO) ---
-            1. TU NOMBRE: Asistente IMNUFIT.
-            2. CLIENTE: Estás hablando con ${firstName}.
-            3. TONO: Cercano, personal y motivador. Usa "tú".
-            4. PROHIBIDO: Nunca uses "Estimado/a", "Usted" o formalismos robóticos. 
-            5. PROHIBIDO: NO inventes doctores ni nombres como "Dr. IMNUFIT". Eres parte de un equipo.
-            6. CAPACIDADES: Solo puedes BUSCAR DISPONIBILIDAD y RESERVAR. NO PUEDES CANCELAR NI REAGENDAR.
-            7. CONTEXTO: El servicio es virtual. No inventes direcciones físicas.
+            --- CONTEXTO ACTUAL ---
+            Fecha y Hora del Paciente: ${fechaHora}
+            (Usa esto para responder preguntas como "qué como ahora" o "qué ejercicio toca hoy").
 
-            --- FORMATOS DE FECHA Y HORA (ESTRICTO) ---
-            1. FECHAS: Siempre usa formato texto completo. Ejemplo: "Lunes 19 de Febrero, 2026". NUNCA uses YYYY-MM-DD.
-            2. HORAS: Siempre usa formato 12 horas con AM/PM y añade "(Hora de Miami)". Ejemplo: "4:00 PM (Hora de Miami)".
+            --- DATOS DEL PACIENTE (AIRTABLE) ---
+            Usa estos datos como tu única fuente de verdad para preguntas personales.
+            ${patientData}
+            -------------------------------------
 
-            --- FUENTES DE INFORMACIÓN (CRÍTICO) ---
-            1. DATOS DE AIRTABLE (Abajo): Contiene la "Fecha Sugerida" por el especialista. NO es una cita confirmada. Es solo una recomendación.
-               ${patientData}
-            2. GOOGLE CALENDAR (Comando [[MY_CITAS]]): Contiene las citas REALES y CONFIRMADAS.
+            INSTRUCCIONES CLAVE DEL ADMINISTRADOR: ${aiCustomInstructions}
+            
+            DIRECTRICES ESTRICTAS:
+            1. **Estilo**: Responde de forma clara, precisa, amable y fluida. NO uses caracteres extraños. Respeta el formato de **negritas** y signos de puntuación.
+            2. **Formato Enlaces**: Cuando des un enlace, MUESTRA UN BOTÓN usando el formato Markdown: [Texto del Botón](URL o funcion).
+            3. **Alcance**: NUNCA respondas preguntas que no tengan nada que ver con IMNUFIT o la salud del paciente.
+            4. **Prioridad Datos**: Para preguntas sobre dieta o plan, usa SOLO la información de Airtable (arriba).
+            5. **Prohibido**: NO sugerir la "Guía PDF" como respuesta al plan diario.
+            6. **Análisis de Imágenes**: Si el usuario envía una foto de comida o producto, analízala estrictamente basándote en su plan nutricional actual. Indica si es adecuado o no y por qué. Se breve y directo.
 
-            --- LÓGICA PARA "CUÁNDO ES MI CONSULTA" ---
-            Si el paciente pregunta por su próxima consulta/cita:
-            1. SIEMPRE ejecuta primero [[MY_CITAS]].
-            2. Analiza el resultado de [[MY_CITAS]] y la "Fecha Sugerida" de Airtable.
-            3. ESCENARIOS:
-               - CASO A: Hay cita en [[MY_CITAS]].
-                 Dile: "Tienes una cita confirmada para el [Fecha/Hora del Calendar]. (El especialista había sugerido el [Fecha Airtable])."
-               - CASO B: NO hay cita en [[MY_CITAS]] pero hay "Fecha Sugerida" en Airtable.
-                 Dile: "No tienes ninguna cita confirmada en el sistema todavía. Tu especialista sugirió una fecha tentativa para el [Fecha Airtable]. ¿Te gustaría revisar horarios disponibles para ese día?"
-                 (Si dice sí, usa [[CHECK:FechaAirtable]]).
-               - CASO C: Ni cita confirmada ni sugerencia.
-                 Dile que no hay nada pendiente.
-
-            --- GESTIÓN DE CITAS (RESERVAS) ---
-            1. Si el usuario pide agendar o "próxima cita", PRIMERO verifica si ya tiene cita con [[MY_CITAS]].
-            2. CASO A: YA TIENE CITA Y QUIERE CAMBIARLA (REAGENDAR) O CANCELARLA:
-               - TU NO PUEDES hacer esto (NO tienes el comando).
-               - Dile amablemente: "Ya tienes una cita el [Fecha/Hora]. Para cambiarla o cancelarla, por favor busca el correo de confirmación de Google Calendar ('Invitation: Consulta IMNUFIT...') que recibiste al reservar y usa los enlaces allí."
-               - O ofrece soporte: [Contactar Soporte](function:contact-view)
-            3. CASO B: YA TIENE CITA PERO QUIERE OTRA (NUEVA):
-               - Adviértele: "Veo que ya tienes una cita el [Fecha/Hora]. Si agendamos esta nueva, tendrás DOS citas programadas. ¿Deseas continuar?"
-               - Si confirma, busca hueco con [[NEXT]].
-            4. CASO C: NO TIENE CITAS:
-               - Busca disponibilidad con [[NEXT]].
-               - Si el usuario dice "para después del X de enero", usa [[NEXT:YYYY-MM-DD]] con la fecha que pidió.
-               - Reserva con [[BOOK:FECHA|HORA]].
-
-            --- COMANDOS (SOLO PARA USO INTERNO - NO MOSTRAR AL USUARIO) ---
-            [[NEXT]] -> Buscar primer hueco disponible.
-            [[NEXT:YYYY-MM-DD]] -> Buscar hueco a partir de una fecha especifica.
-            [[MY_CITAS]] -> Ver citas confirmadas en Calendar.
-            [[CHECK:YYYY-MM-DD]] -> Ver disponibilidad de un día específico.
-            [[BOOK:YYYY-MM-DD|HH:mm]] -> Reservar cita nueva.
-            (NO EXISTEN COMANDOS DE CANCELAR O REAGENDAR)
-
-            --- REGLAS DE RESPUESTA ---
-            1. Si usas un comando [[...]], NO escribas nada más. Envía SOLO el comando.
-            2. Cuando recibas datos del sistema (fechas/horas), tradúcelos al formato amigable antes de responder.
-            3. Si el sistema devuelve un evento con título "Consulta IMNUFIT (Nombre)", di simplemente "Consulta con tu Coach".
-            `;
+            REGLAS DE ACCIÓN OBLIGATORIAS:
+            - **Check-in**: Muestra [Hacer Check-in](https://airtable.com/appCHcm7XPzeoyBCs/pagh79fwniuSPmusB/form).
+            - **Entrenar**: Muestra [Ver Entrenamientos](https://imnufit.com/entrenaconfrenplus/).
+            - **Agendar Cita**: Muestra [Reservar Cita](${info["Link Calendar"] || CALENDAR_LINK_DEFAULT}) y añade: "Recuerda que es preferible completar tu Check-in 24 horas antes.".
+            - **Ver Recursos/Manual**: SOLO si piden manuales o material de apoyo, muestra [Ver Guías PDF](function:program-detail-view).
+            - **Ver Consultas**: Muestra [Historial de Consultas](${info["Link Consultas"] || "#"}).
+            - **Contactar**: Muestra [Contactar Soporte](function:contact-view).
+            - **Cancelar Membresía/Clave**: Muestra [Mi Cuenta](function:membership-view). (NO ofrecer pausar).
+            - **Precios/Web**: Muestra [Visitar Web](https://imnufit.com).
+            - **Comunidad**: [Unirme a la Comunidad](https://chat.whatsapp.com/FNoToJXy8HO7iLVhPseQHB).`;
 
             try {
+                // Construir historial previo
                 const history = chatHistory.map(m => ({ role: m.role === 'user' ? 'user' : 'model', parts: [{ text: m.text }] }));
+                
+                // Construir parte del usuario actual
                 let userParts = [{ text: msgToSend }];
                 if (imageToSend) {
                     userParts.push({ inlineData: { mimeType: mimeToSend, data: imageToSend } });
@@ -700,145 +632,13 @@
                 const aiText = res.candidates?.[0]?.content?.parts?.[0]?.text || "No pude procesar tu solicitud.";
                 
                 document.querySelectorAll('.ai-loading-indicator').forEach(el => el.remove());
-                
-                // --- PROCESAR COMANDOS ---
-                // Detectar comandos, mostrarlos solo en consola/debug, y ejecutar herramienta
-                if (aiText.includes('[[CHECK:') || aiText.includes('[[BOOK:') || aiText.includes('[[MY_CITAS]]') || aiText.includes('[[NEXT')) {
-                    // NO mostramos el comando crudo al usuario para evitar el mensaje doble
-                    await handleToolCommand(aiText, info);
-                } else {
-                    window.appendChatMessageToAll('ai', aiText);
-                    chatHistory.push({ role: 'user', text: msgToSend }, { role: 'ai', text: aiText });
-                }
-
+                window.appendChatMessageToAll('ai', aiText);
+                chatHistory.push({ role: 'user', text: msgToSend }, { role: 'ai', text: aiText });
             } catch (e) { 
                 document.querySelectorAll('.ai-loading-indicator').forEach(el => el.remove());
                 window.appendChatMessageToAll('ai', `⚠️ Hubo un error al procesar. Intenta con una imagen más pequeña o texto.`); 
             }
         };
-
-        // Helper para formato de hora 12h
-        const formatTime12h = (time24) => {
-            if (!time24) return "";
-            const [h, m] = time24.split(':');
-            let hours = parseInt(h);
-            const suffix = hours >= 12 ? 'PM' : 'AM';
-            hours = hours % 12 || 12;
-            return `${hours}:${m} ${suffix} (Hora de Miami)`;
-        };
-
-        // Helper para formato de fecha largo
-        const formatDateLong = (dateStr) => {
-            if (!dateStr) return "";
-            const parts = dateStr.split('-');
-            // Mes es base 0 en JS
-            const date = new Date(parts[0], parts[1] - 1, parts[2]);
-            return date.toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-        };
-
-        // --- MANEJADOR DE HERRAMIENTAS ---
-        async function handleToolCommand(aiText, userInfo) {
-            const loaderHtml = `<div class="ai-loading-indicator flex justify-start mb-4"><div class="bg-indigo-50 text-indigo-600 border border-indigo-100 px-4 py-2 rounded-2xl text-[11px] font-bold animate-pulse flex items-center gap-2"><svg class="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Consultando Agenda...</div></div>`;
-            const m = document.getElementById('ai-messages-mobile');
-            const d = document.getElementById('ai-messages-desktop');
-            if(m) { m.insertAdjacentHTML('beforeend', loaderHtml); m.scrollTop = m.scrollHeight; }
-            if(d) { d.insertAdjacentHTML('beforeend', loaderHtml); d.scrollTop = d.scrollHeight; }
-
-            let toolResultText = "";
-            
-            // 1. NEXT AVAILABLE
-            if (aiText.includes('[[NEXT')) {
-                // Extraer fecha si existe: [[NEXT:2026-01-15]]
-                let startDate = null;
-                const match = aiText.match(/\[\[NEXT:(.*?)\]\]/);
-                if (match && match[1]) {
-                    startDate = match[1].trim();
-                }
-
-                const data = await callGoogleCalendar('find_next_available', { startDate });
-                if (data.found) {
-                    const dateFormatted = formatDateLong(data.date);
-                    // Solo pasamos la hora simple aqui, formatTime12h agregará "Hora de Miami"
-                    const slotsFormatted = data.slots.map(s => formatTime12h(s)).join(', ');
-                    toolResultText = `ENCONTRADO: La fecha más próxima es ${dateFormatted}. Horarios disponibles: ${slotsFormatted}. Ofrécelos al usuario sin mencionar reglas de 48h.`;
-                } else {
-                    toolResultText = `No hay disponibilidad en los próximos 30 días a partir de la fecha solicitada.`;
-                }
-            }
-
-            // 2. CHECK AVAILABILITY
-            const checkMatch = aiText.match(/\[\[CHECK:(.*?)\]\]/);
-            if (checkMatch) {
-                const date = checkMatch[1].trim(); // CLEAN SPACES
-                const data = await callGoogleCalendar('check_availability', { date });
-                if (data.error) toolResultText = "Error: " + data.error;
-                else if (data.message) toolResultText = data.message;
-                else {
-                    if (data.availableSlots && data.availableSlots.length > 0) {
-                        const dateFormatted = formatDateLong(date);
-                        const slotsFormatted = data.availableSlots.map(s => formatTime12h(s)).join(', ');
-                        toolResultText = `Horarios disponibles para el ${dateFormatted}: ${slotsFormatted}.`;
-                    } else {
-                        toolResultText = `No hay huecos el ${formatDateLong(date)}.`;
-                    }
-                }
-            }
-
-            // 3. BOOK APPOINTMENT
-            const bookMatch = aiText.match(/\[\[BOOK:(.*?)\|(.*?)\]\]/);
-            if (bookMatch) {
-                const date = bookMatch[1].trim(); // CLEAN SPACES
-                const time = bookMatch[2].trim(); // CLEAN SPACES
-                const payload = {
-                    date, 
-                    time,
-                    patientName: userInfo["Nombre + Edad"] || "Paciente",
-                    patientEmail: auth.currentUser?.email || "sin_email@imnufit.com",
-                    patientPhone: userInfo["Telefono"] || "Sin telefono"
-                };
-                
-                const data = await callGoogleCalendar('book_appointment', payload);
-                if (data.error) toolResultText = `FALLÓ la reserva: ${data.error}. Dile al usuario por qué falló (ej: horario ocupado) y pide otra hora.`;
-                else {
-                    toolResultText = `Reserva EXITOSA. Link Meet: ${data.meetLink}. Confirma al usuario.`;
-                }
-            }
-
-            // 5. MY CITAS (GOOGLE CALENDAR)
-            if (aiText.includes('[[MY_CITAS]]')) {
-                const email = auth.currentUser?.email;
-                const data = await callGoogleCalendar('get_user_appointments', { email });
-                if (data.length === 0) toolResultText = "El usuario no tiene citas confirmadas en Google Calendar.";
-                else {
-                    const citasStr = data.map(c => `(ID: ${c.id}) - ${formatDateLong(c.date)} a las ${formatTime12h(c.time)} - Título: ${c.title}`).join('\n');
-                    toolResultText = `Sus citas CONFIRMADAS son:\n${citasStr}\n(Recuerda: NO PUEDES CANCELAR. Dile que use su correo).`;
-                }
-            }
-
-            document.querySelectorAll('.ai-loading-indicator').forEach(el => el.remove());
-            
-            // Inyectar resultado oculto para que la IA responda al usuario
-            const sysInjection = `[SISTEMA - DATOS REALES]: ${toolResultText}`;
-            
-            // Agregamos al historial PERO NO MOSTRAMOS el comando en el UI
-            const newHistory = [...chatHistory, { role: 'model', text: aiText }];
-            
-            const res2 = await fetchWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    contents: [...newHistory.map(m => ({ role: m.role === 'user' ? 'user' : 'model', parts: [{ text: m.text }] })), { role: 'user', parts: [{ text: sysInjection }] }], 
-                    systemInstruction: { parts: [{ text: "Eres el Asistente IMNUFIT. Usa los datos del sistema para responder. IMPORTANTE: Usa formato de fecha largo (ej: Lunes 12 de Febrero) y hora 12h (ej: 4:00 PM). Sé amable y personal. Recuerda: TODO ONLINE." }] } 
-                })
-            });
-
-            const finalAiText = res2.candidates?.[0]?.content?.parts?.[0]?.text || "Listo.";
-            window.appendChatMessageToAll('ai', finalAiText);
-            
-            chatHistory.push({ role: 'ai', text: aiText }); 
-            chatHistory.push({ role: 'user', text: "(Sistema: Datos agenda recibidos)" }); 
-            chatHistory.push({ role: 'ai', text: finalAiText }); 
-        }
 
         window.viewProgramResources = () => {
             const data = currentAppData;
@@ -869,10 +669,10 @@
                 }
             }
             const imgEl = document.getElementById('program-img-main');
-            if (imgEl) { 
-                imgEl.src = progInfo.img; 
+            if (imgEl) { 
+                imgEl.src = progInfo.img; 
                 document.getElementById('program-img-container').className = `flex justify-center mb-10 transition-transform duration-500 ${progInfo.imgWidth || 'w-32'}`;
-                document.getElementById('program-img-container')?.classList.remove('hidden'); 
+                document.getElementById('program-img-container')?.classList.remove('hidden'); 
             }
             window.showView('program-detail-view');
         };
@@ -903,92 +703,72 @@
             }
         };
 
-        window.handleSignup = async (e) => { 
-            e.preventDefault(); 
-            const email = e.target.email.value; 
-            const pass = e.target.pass.value; 
+        window.handleSignup = async (e) => { 
+            e.preventDefault(); 
+            const email = e.target.email.value; 
+            const pass = e.target.pass.value; 
             const confirmPass = e.target.confirmPass.value;
             
             if (pass.length < 6) { window.notify("La contraseña debe tener al menos 6 caracteres"); return; }
-            if (pass !== confirmPass) { window.notify("Las contraseñas no coinciden"); return; } 
+            if (pass !== confirmPass) { window.notify("Las contraseñas no coinciden"); return; } 
             
             const loader = document.getElementById('loading-screen');
             if(loader) loader.classList.remove('hidden');
 
-            try { 
+            try { 
                 const airtableUser = await fetchAirtableData(email);
                 if (!airtableUser) {
                     if(loader) loader.classList.add('hidden');
                     window.notify("Este correo no está registrado en nuestra base de datos. Debes ser atendido en consulta primero.");
-                    return; 
+                    return; 
                 }
                 
                 const status = String(airtableUser["Estatus"] || "").toLowerCase();
                 // REGLA ESTRICTA: SOLO ACTIVO
                 if (!status.includes("activo") && !status.includes("actívo")) {
-                     if(loader) loader.classList.add('hidden');
-                     window.notify("Tu cuenta no está activa. Será activada en tu próxima consulta.");
-                     return; 
+                    if(loader) loader.classList.add('hidden');
+                    window.notify("Tu cuenta no está activa. Será activada en tu próxima consulta.");
+                    return; 
                 }
                 
                 if (status.includes("inactivo")) {
-                     if(loader) loader.classList.add('hidden');
-                     window.notify("Tu cuenta no está activa. Será activada en tu próxima consulta.");
-                     return; 
+                    if(loader) loader.classList.add('hidden');
+                    window.notify("Tu cuenta no está activa. Será activada en tu próxima consulta.");
+                    return; 
                 }
 
-                await createUserWithEmailAndPassword(auth, email, pass); 
-                window.notify("Cuenta creada exitosamente", "success"); 
-            } catch (err) { 
+                await createUserWithEmailAndPassword(auth, email, pass); 
+                window.notify("Cuenta creada exitosamente", "success"); 
+            } catch (err) { 
                 if(loader) loader.classList.add('hidden');
-                window.notify("Error: " + (err.code === 'auth/email-already-in-use' ? 'El correo ya está registrado.' : err.code)); 
-            } 
+                window.notify("Error: " + (err.code === 'auth/email-already-in-use' ? 'El correo ya está registrado.' : err.code)); 
+            } 
         };
 
         window.handlePasswordReset = async (e) => { e.preventDefault(); try { document.getElementById('loading-screen')?.classList.remove('hidden'); await sendPasswordResetEmail(auth, e.target.resetEmail.value); window.notify("Correo enviado", "success"); window.showView('login-view'); } catch (err) { window.notify("Error"); } finally { document.getElementById('loading-screen')?.classList.add('hidden'); } };
         window.cerrarSesion = () => signOut(auth);
         window.updateAppPassword = async (e) => { e.preventDefault(); if(!auth.currentUser) return; try { document.getElementById('loading-screen')?.classList.remove('hidden'); await updatePassword(auth.currentUser, e.target.newPassword.value); window.notify("Clave actualizada", "success"); e.target.reset(); } catch (err) { window.notify("Sesión expirada"); } finally { document.getElementById('loading-screen')?.classList.add('hidden'); } };
 
-        window.refreshData = async () => { 
-            if(auth.currentUser) { 
-                document.getElementById('loading-screen')?.classList.remove('hidden'); 
-                const f = encodeURIComponent(`(LOWER({Email})=LOWER('${auth.currentUser.email}'))`);
-                const u = `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${AIRTABLE_TABLE_NAME}?filterByFormula=${f}`; 
-                try {
-                    const res = await fetch(u, { headers: { Authorization: `Bearer ${AIRTABLE_PAT}` } }); 
-                    const d = await res.json(); 
-                    cachedAirtableData = d.records?.[0]?.fields || null; 
-            
-                    // VALIDACIÓN DE ESTATUS EN REFRESH
-                    if (!isSpecialistMode) {
-                        if (!cachedAirtableData) {
-                            window.notify("Usuario no encontrado en base de datos.");
-                            await signOut(auth);
-                            document.getElementById('loading-screen')?.classList.add('hidden');
-                            return;
-                        }
-                        const status = String(cachedAirtableData["Estatus"] || "").toLowerCase();
-                        if (status.includes("inactivo") || (!status.includes("activo") && !status.includes("actívo"))) {
-                            window.notify("Tu cuenta no está activa. Será activada en tu próxima consulta.");
-                            await signOut(auth);
-                            document.getElementById('loading-screen')?.classList.add('hidden');
-                            return;
-                        }
-                    }
-                    
-                    window.refreshUIWithData(); 
-                    if(typeof window.syncAIInstructions === 'function') window.syncAIInstructions(); 
-                    
-                    setTimeout(() => { 
-                        document.getElementById('loading-screen')?.classList.add('hidden'); 
-                        window.notify("Datos actualizados", "success"); 
-                    }, 600);
-                } catch (e) {
-                     console.error(e);
-                     document.getElementById('loading-screen')?.classList.add('hidden');
-                }
-            }
-        };
+        window.refreshData = async () => { if(auth.currentUser) { document.getElementById('loading-screen')?.classList.remove('hidden'); const f = encodeURIComponent(`(LOWER({Email})=LOWER('${auth.currentUser.email}'))`), u = `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${AIRTABLE_TABLE_NAME}?filterByFormula=${f}`; const res = await fetch(u, { headers: { Authorization: `Bearer ${AIRTABLE_PAT}` } }); const d = await res.json(); cachedAirtableData = d.records?.[0]?.fields || null; 
+        
+        // VALIDACIÓN DE ESTATUS EN REFRESH
+        if (!isSpecialistMode) {
+             if (!cachedAirtableData) {
+                  window.notify("Usuario no encontrado en base de datos.");
+                  await signOut(auth);
+                  if(document.getElementById('loading-screen')) document.getElementById('loading-screen').classList.add('hidden');
+                  return;
+             }
+             const status = String(cachedAirtableData["Estatus"] || "").toLowerCase();
+             if (status.includes("inactivo") || (!status.includes("activo") && !status.includes("actívo"))) {
+                  window.notify("Tu cuenta no está activa. Será activada en tu próxima consulta.");
+                  await signOut(auth);
+                  if(document.getElementById('loading-screen')) document.getElementById('loading-screen').classList.add('hidden');
+                  return;
+             }
+        }
+        
+        window.refreshUIWithData(); setTimeout(() => { document.getElementById('loading-screen')?.classList.add('hidden'); window.notify("Datos actualizados", "success"); }, 600); } };
 
         async function fetchAirtableData(email) {
             const f = encodeURIComponent(`(LOWER({Email})=LOWER('${email}'))`), u = `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${AIRTABLE_TABLE_NAME}?filterByFormula=${f}`;
@@ -997,7 +777,7 @@
 
         function updateDashboardUI(data) {
             if (!data) return;
-            currentAppData = data; 
+            currentAppData = data; 
             window.safeSetText('display-nombre', data["Nombre + Edad"] || "Usuario IMNUFIT");
             if (chatHistory.length === 0) window.clearChat();
             const g = window.getGreeting(); window.safeUpdate('display-greeting', (el) => el.innerHTML = `<span class="text-xl mr-2">${g.icon}</span> ${g.text}`);
@@ -1087,9 +867,7 @@
                     }
                 }
 
-                window.refreshUIWithData(); 
-                if(typeof window.syncAIInstructions === 'function') window.syncAIInstructions(); 
-                window.showView('patient-view', false);
+                window.refreshUIWithData(); window.syncAIInstructions(); window.showView('patient-view', false);
             } else { 
                 window.resetUI(); 
                 const sp = document.getElementById('specialist-panel'); if(sp) sp.classList.add('hidden');
@@ -1369,7 +1147,7 @@
             <div class="w-full">
                 <a href="https://billing.stripe.com/p/login/bIY9CF3un99T2XefYY" target="_blank" class="btn-secure-portal w-full justify-center text-center">
                     Gestionar Membresía y Pagos 
-                    <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 00-2-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
+                    <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
                 </a>
             </div>
         </section>
