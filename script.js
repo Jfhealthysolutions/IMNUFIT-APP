@@ -49,7 +49,7 @@ const apiKey = _partA + _partB;
 // Variables Globales
 const SPECIALIST_EMAIL = "imnufit@gmail.com";
 let isSpecialistMode = false;
-let specModeSelection = "sin_programa";
+let specModeSelection = "sin_programa"; // Por defecto usa lo que diga Airtable
 let aiCustomInstructions = ""; 
 let cachedAirtableData = null;
 let currentAppData = null; 
@@ -658,10 +658,26 @@ window.viewProgramResources = () => {
 
 window.refreshUIWithData = () => {
     if (isSpecialistMode) {
-        let mockProg = specModeSelection === "adios_diabetes" ? "Adiós Diabetes 2 (Mes 3)" : (specModeSelection === "quema_grasa" ? "Quema Grasa (Mes 4)" : (specModeSelection === "sano" ? "SANO (Mes 2)" : ""));
-        let mockData = { ...cachedAirtableData, "Nombre + Edad": "Especialista (Demo)", "Programa": mockProg, "Estatus": "Activo", "Link Calendar": CALENDAR_LINK_DEFAULT, "Link Consultas": "https://airtable.com/" };
-        updateDashboardUI(mockData);
-    } else updateDashboardUI(cachedAirtableData);
+        // 1. Usamos los datos REALES de Airtable como base
+        // Si por alguna razón no cargo Airtable (ej. error de red), usamos objeto vacío para evitar crash
+        let displayData = cachedAirtableData ? { ...cachedAirtableData } : {};
+
+        // 2. Solo sobrescribimos el PROGRAMA si seleccionas algo en el menú
+        if (specModeSelection === "adios_diabetes") {
+            displayData["Programa"] = "Adiós Diabetes 2 (Mes 3)";
+        } else if (specModeSelection === "quema_grasa") {
+            displayData["Programa"] = "Quema Grasa (Mes 4)";
+        } else if (specModeSelection === "sano") {
+            displayData["Programa"] = "SANO (Mes 2)";
+        }
+        // Si es "sin_programa", se queda con lo que venga de Airtable (o vacío)
+
+        // 3. Renderizamos con esta mezcla (La IA usará displayData)
+        updateDashboardUI(displayData);
+    } else {
+        // Usuario normal: Usa datos puros de Airtable
+        updateDashboardUI(cachedAirtableData);
+    }
 };
 
 window.handleLogin = async (e) => {
@@ -816,9 +832,12 @@ onAuthStateChanged(auth, async (user) => {
         window.resetInactivityTimer();
         isSpecialistMode = (user.email === SPECIALIST_EMAIL);
         const sp = document.getElementById('specialist-panel'); if(sp) sp.classList.toggle('hidden', !isSpecialistMode);
+        
+        // AHORA EL ADMIN TAMBIÉN BUSCA SUS DATOS
         cachedAirtableData = await fetchAirtableData(user.email);
         
-        // REGLA DE ORO: SI NO EXISTE EN AIRTABLE -> FUERA
+        // REGLA DE ORO: SI NO EXISTE EN AIRTABLE -> FUERA (Solo para usuarios normales)
+        // El admin NO es expulsado, pero si no tiene registro, cachedAirtableData será null
         if (!isSpecialistMode) {
             if (!cachedAirtableData) {
                 window.notify("Usuario no encontrado en base de datos.");
