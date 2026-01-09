@@ -187,7 +187,8 @@ window.resetUI = () => {
     document.getElementById('restricted-banner')?.classList.add('hidden');
     document.getElementById('card-ai')?.classList.remove('hidden'); 
     window.clearChat();
-    ['card-entrenamientos', 'card-reporte', 'card-citas', 'card-consultas', 'card-community', 'card-install-app-main'].forEach(id => { 
+    // AÑADIDO card-upload AL RESET
+    ['card-entrenamientos', 'card-reporte', 'card-citas', 'card-consultas', 'card-community', 'card-install-app-main', 'card-upload'].forEach(id => { 
         document.getElementById(id)?.classList.add('hidden'); 
     });
     clearTimeout(inactivityTimeout);
@@ -583,6 +584,7 @@ window.sendMessageToAI = async (source) => {
 
     REGLAS DE ACCIÓN OBLIGATORIAS:
     - **Check-in**: Muestra [Hacer Check-in](https://airtable.com/appCHcm7XPzeoyBCs/pagh79fwniuSPmusB/form).
+    - **Subir Documentos/Exámenes**: Muestra [Subir Archivos](https://airtable.com/appCHcm7XPzeoyBCs/pagYI9IBX65B8OsAY/form).
     - **Entrenar**: Muestra [Ver Entrenamientos](https://imnufit.com/entrenaconfrenplus/).
     - **Agendar Cita**: Muestra [Reservar Cita](${info["Link Calendar"] || CALENDAR_LINK_DEFAULT}) y añade: "Recuerda que es preferible completar tu Check-in 24 horas antes.".
     - **Ver Recursos/Manual**: SOLO si piden manuales o material de apoyo, muestra [Ver Guías PDF](function:program-detail-view).
@@ -784,7 +786,7 @@ function updateDashboardUI(data) {
     if (data.Programa) window.safeSetText('plan-banner-title', data.Programa);
     
     // SHOW ALL CARDS
-    ['card-entrenamientos', 'card-reporte', 'card-citas', 'card-consultas', 'card-community', 'card-install-app-main'].forEach(id => {
+    ['card-entrenamientos', 'card-reporte', 'card-citas', 'card-consultas', 'card-community', 'card-install-app-main', 'card-upload'].forEach(id => {
         const el = document.getElementById(id);
         if(el) el.classList.remove('hidden');
     });
@@ -795,25 +797,20 @@ function updateDashboardUI(data) {
         document.getElementById('card-install-app-main')?.classList.add('hidden');
     }
 
-    // CHECK LINK CONSULTAS (LÓGICA CORREGIDA)
+    // CHECK LINK CONSULTAS
     const linkCons = data["Link Consultas"];
     const cardCons = document.getElementById('card-consultas');
-    const btnCons = document.getElementById('btn-consultas-action');
-
     if (cardCons) {
-        // Si no hay link o está vacío, ocultamos la tarjeta completa
-        if (!linkCons || linkCons.trim() === "") {
-            cardCons.classList.add('hidden');
-        } else {
+        if (!linkCons || linkCons.trim() === "") cardCons.classList.add('hidden');
+        else {
             cardCons.classList.remove('hidden');
-            if (btnCons) { 
-                btnCons.href = linkCons; 
-                btnCons.style.opacity = "1"; 
-            }
+            const btn = document.getElementById('btn-consultas-action');
+            if (btn) { btn.href = linkCons; btn.style.opacity = "1"; }
         }
     }
 
     window.safeUpdate('calendar-action-container', el => el.innerHTML = `<a href="${data["Link Calendar"] || CALENDAR_LINK_DEFAULT}" target="_blank" class="btn-ghost-sm text-center">Ir al Calendario</a>`);
+    const bh = document.getElementById('btn-consultas-action'); if (bh) { bh.href = data["Link Consultas"] || "#"; bh.style.opacity = bh.href.includes("#") ? "0.4" : "1"; }
     
     window.safeSetText('acc-nombre', data["Nombre + Edad"] || "---"); window.safeSetText('acc-email', auth.currentUser?.email || "--"); window.safeSetText('display-frase', frasesCreyentes[Math.floor(Math.random() * frasesCreyentes.length)]);
     window.safeSetText('acc-pais', data["País"] || "--"); window.safeSetText('acc-telefono', data["Telefono"] || "--");
