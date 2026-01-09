@@ -2,40 +2,44 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut, setPersistence, browserLocalPersistence, updatePassword, sendPasswordResetEmail, signInWithCustomToken, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-// --- 0. INYECCIÓN DE MANIFIESTO PWA (CORREGIDO PARA PC/MAC) ---
-const manifest = {
-    "name": "IMNUFIT Portal",
-    "short_name": "IMNUFIT",
-    "start_url": ".",
-    "display": "standalone",
-    "background_color": "#FBFBFC",
-    "theme_color": "#FBFBFC",
-    "icons": [
-        {
-            "src": "https://imnufit.com/wp-content/uploads/2026/01/IMG_8520.png",
-            "sizes": "192x192",
-            "type": "image/png",
-            "purpose": "any"
-        },
-        {
-            "src": "https://imnufit.com/wp-content/uploads/2026/01/IMG_8520.png",
-            "sizes": "512x512",
-            "type": "image/png",
-            "purpose": "any"
-        },
-        {
-            "src": "https://imnufit.com/wp-content/uploads/2026/01/IMG_8520.png",
-            "sizes": "512x512",
-            "type": "image/png",
-            "purpose": "maskable"
-        }
-    ]
-};
-const blob = new Blob([JSON.stringify(manifest)], {type: 'application/json'});
-const link = document.createElement('link');
-link.rel = 'manifest';
-link.href = URL.createObjectURL(blob);
-document.head.appendChild(link);
+// --- 0. INYECCIÓN DE MANIFIESTO PWA (CON PROTECCIÓN DE ERRORES) ---
+try {
+    const manifest = {
+        "name": "IMNUFIT Portal",
+        "short_name": "IMNUFIT",
+        "start_url": ".",
+        "display": "standalone",
+        "background_color": "#FBFBFC",
+        "theme_color": "#FBFBFC",
+        "icons": [
+            {
+                "src": "https://imnufit.com/wp-content/uploads/2026/01/IMG_8520.png",
+                "sizes": "192x192",
+                "type": "image/png",
+                "purpose": "any"
+            },
+            {
+                "src": "https://imnufit.com/wp-content/uploads/2026/01/IMG_8520.png",
+                "sizes": "512x512",
+                "type": "image/png",
+                "purpose": "any"
+            },
+            {
+                "src": "https://imnufit.com/wp-content/uploads/2026/01/IMG_8520.png",
+                "sizes": "512x512",
+                "type": "image/png",
+                "purpose": "maskable"
+            }
+        ]
+    };
+    const blob = new Blob([JSON.stringify(manifest)], {type: 'application/json'});
+    const link = document.createElement('link');
+    link.rel = 'manifest';
+    link.href = URL.createObjectURL(blob);
+    document.head.appendChild(link);
+} catch (e) {
+    console.error("Error cargando icono:", e);
+}
 
 // --- 1. CONFIGURACIÓN ---
 const firebaseConfig = {
@@ -63,7 +67,7 @@ const apiKey = _partA + _partB;
 // Variables Globales
 const SPECIALIST_EMAIL = "imnufit@gmail.com";
 let isSpecialistMode = false;
-let specModeSelection = "sin_programa"; // Por defecto usa lo que diga Airtable
+let specModeSelection = "sin_programa"; 
 let aiCustomInstructions = ""; 
 let cachedAirtableData = null;
 let currentAppData = null; 
@@ -642,3 +646,8 @@ onAuthStateChanged(auth, async (user) => {
 
 // --- INIT ---
 setPersistence(auth, browserLocalPersistence).then(() => {});
+window.handleLogin = handleLogin;
+window.handleSignup = handleSignup;
+window.handlePasswordReset = handlePasswordReset;
+window.updateAppPassword = updateAppPassword;
+window.cerrarSesion = closingSession;
