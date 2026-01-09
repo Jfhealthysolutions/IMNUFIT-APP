@@ -746,26 +746,13 @@ window.handlePasswordReset = async (e) => { e.preventDefault(); try { document.g
 window.cerrarSesion = () => signOut(auth);
 window.updateAppPassword = async (e) => { e.preventDefault(); if(!auth.currentUser) return; try { document.getElementById('loading-screen')?.classList.remove('hidden'); await updatePassword(auth.currentUser, e.target.newPassword.value); window.notify("Clave actualizada", "success"); e.target.reset(); } catch (err) { window.notify("Sesión expirada"); } finally { document.getElementById('loading-screen')?.classList.add('hidden'); } };
 
-window.refreshData = async () => { if(auth.currentUser) { document.getElementById('loading-screen')?.classList.remove('hidden'); const f = encodeURIComponent(`(LOWER({Email})=LOWER('${auth.currentUser.email}'))`), u = `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${AIRTABLE_TABLE_NAME}?filterByFormula=${f}`; const res = await fetch(u, { headers: { Authorization: `Bearer ${AIRTABLE_PAT}` } }); const d = await res.json(); cachedAirtableData = d.records?.[0]?.fields || null; 
-    
-// VALIDACIÓN DE ESTATUS EN REFRESH
-if (!isSpecialistMode) {
-        if (!cachedAirtableData) {
-            window.notify("Usuario no encontrado en base de datos.");
-            await signOut(auth);
-            if(document.getElementById('loading-screen')) document.getElementById('loading-screen').classList.add('hidden');
-            return;
-        }
-        const status = String(cachedAirtableData["Estatus"] || "").toLowerCase();
-        if (status.includes("inactivo") || (!status.includes("activo") && !status.includes("actívo"))) {
-            window.notify("Tu cuenta no está activa. Será activada en tu próxima consulta.");
-            await signOut(auth);
-            if(document.getElementById('loading-screen')) document.getElementById('loading-screen').classList.add('hidden');
-            return;
-        }
-}
-    
-window.refreshUIWithData(); setTimeout(() => { document.getElementById('loading-screen')?.classList.add('hidden'); window.notify("Datos actualizados", "success"); }, 600); } };
+// --- MODIFICACIÓN DE REFRESH POTENTE (NUCLEAR RELOAD) ---
+window.refreshData = () => { 
+    const loader = document.getElementById('loading-screen');
+    if(loader) loader.classList.remove('hidden');
+    // Fuerza la recarga completa del navegador para traer cambios de código y datos
+    window.location.reload();
+};
 
 async function fetchAirtableData(email) {
     const f = encodeURIComponent(`(LOWER({Email})=LOWER('${email}'))`), u = `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${AIRTABLE_TABLE_NAME}?filterByFormula=${f}`;
