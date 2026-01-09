@@ -2,7 +2,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut, setPersistence, browserLocalPersistence, updatePassword, sendPasswordResetEmail, signInWithCustomToken, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-// --- 0. INYECCIÓN DE MANIFIESTO PWA ---
+// --- 0. INYECCIÓN DE MANIFIESTO PWA (CORREGIDO PARA PC/MAC) ---
 const manifest = {
     "name": "IMNUFIT Portal",
     "short_name": "IMNUFIT",
@@ -10,12 +10,26 @@ const manifest = {
     "display": "standalone",
     "background_color": "#FBFBFC",
     "theme_color": "#FBFBFC",
-    "icons": [{
-        "src": "https://imnufit.com/wp-content/uploads/2026/01/IMG_8520.png",
-        "sizes": "512x512",
-        "type": "image/png",
-        "purpose": "any maskable"
-    }]
+    "icons": [
+        {
+            "src": "https://imnufit.com/wp-content/uploads/2026/01/IMG_8520.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "any"
+        },
+        {
+            "src": "https://imnufit.com/wp-content/uploads/2026/01/IMG_8520.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "any"
+        },
+        {
+            "src": "https://imnufit.com/wp-content/uploads/2026/01/IMG_8520.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "maskable"
+        }
+    ]
 };
 const blob = new Blob([JSON.stringify(manifest)], {type: 'application/json'});
 const link = document.createElement('link');
@@ -508,243 +522,6 @@ window.saveAITraining = async () => {
     } catch (e) { window.notify("Error al guardar"); }
     finally { btn.disabled = false; btn.textContent = "Guardar Cambios"; }
 };
-
-async function fetchWithRetry(url, options, retries = 3) {
-    const backoffs = [1000, 2000, 4000, 8000];
-    for (let i = 0; i <= retries; i++) {
-        try {
-            const response = await fetch(url, options);
-            if (response.status === 429) {
-                if (i === retries) throw new Error("quota-exceeded");
-                await new Promise(r => setTimeout(r, backoffs[i]));
-                continue;
-            }
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
-            return await response.json();
-        } catch (error) {
-            if (i === retries || error.message === "quota-exceeded") throw error;
-            await new Promise(r => setTimeout(r, backoffs[i]));
-        }
-    }
-}
-
-window.sendMessageToAI = async (source) => {
-    const input = document.getElementById(source === 'mobile' ? 'ai-input-mobile' : 'ai-input-desktop');
-    const userMsg = input?.value.trim();
-    
-    // Permitir enviar solo imagen si no hay texto, o texto solo, o ambos
-    if (!userMsg && !currentImageBase64) return;
-    
-    const msgToSend = userMsg || (currentImageBase64 ? "Analiza esta imagen." : "");
-    
-    input.value = ''; if(source === 'mobile') input.blur();
-
-    // Mostrar mensaje en el chat con la imagen si existe
-    let displayImg = currentImageBase64 ? `data:${currentImageMime};base64,${currentImageBase64}` : null;
-    window.appendChatMessageToAll('user', msgToSend, displayImg);
-    
-    // Guardar imagen temporalmente para enviarla y luego limpiar
-    const imageToSend = currentImageBase64;
-    const mimeToSend = currentImageMime;
-    window.removeImage(); // Limpiar UI inmediatamente
-
-    const loaderHtml = `<div class="ai-loading-indicator flex justify-start mb-4"><div class="bg-slate-100 text-slate-400 px-4 py-2 rounded-2xl text-[11px] animate-pulse italic">Analizando...</div></div>`;
-    const m = document.getElementById('ai-messages-mobile');
-    const d = document.getElementById('ai-messages-desktop');
-    if(m) { m.insertAdjacentHTML('beforeend', loaderHtml); m.scrollTop = m.scrollHeight; }
-    if(d) { d.insertAdjacentHTML('beforeend', loaderHtml); d.scrollTop = d.scrollHeight; }
-
-    const info = currentAppData || {};
-    const patientData = JSON.stringify(info, null, 2);
-    
-    // --- CONTEXTO TEMPORAL ---
-    const now = new Date();
-    const fechaHora = now.toLocaleString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-
-    const sysPrompt = `Eres el Asistente Personal AI de IMNUFIT. Hablas con **${info["Nombre + Edad"] || "Paciente"}**. 
-    
-    --- CONTEXTO ACTUAL ---
-    Fecha y Hora del Paciente: ${fechaHora}
-    (Usa esto para responder preguntas como "qué como ahora" o "qué ejercicio toca hoy").
-
-    --- DATOS DEL PACIENTE (AIRTABLE) ---
-    Usa estos datos como tu única fuente de verdad para preguntas personales.
-    ${patientData}
-    -------------------------------------
-
-    INSTRUCCIONES CLAVE DEL ADMINISTRADOR: ${aiCustomInstructions}
-    
-    DIRECTRICES ESTRICTAS:
-    1. **Estilo**: Responde de forma clara, precisa, amable y fluida. NO uses caracteres extraños. Respeta el formato de **negritas** y signos de puntuación.
-    2. **Formato Enlaces**: Cuando des un enlace, MUESTRA UN BOTÓN usando el formato Markdown: [Texto del Botón](URL o funcion).
-    3. **Alcance**: NUNCA respondas preguntas que no tengan nada que ver con IMNUFIT o la salud del paciente.
-    4. **Prioridad Datos**: Para preguntas sobre dieta o plan, usa SOLO la información de Airtable (arriba).
-    5. **Prohibido**: NO sugerir la "Guía PDF" como respuesta al plan diario.
-    6. **Análisis de Imágenes**: Si el usuario envía una foto de comida o producto, analízala estrictamente basándote en su plan nutricional actual. Indica si es adecuado o no y por qué. Se breve y directo.
-
-    REGLAS DE ACCIÓN OBLIGATORIAS:
-    - **Check-in**: Muestra [Hacer Check-in](https://airtable.com/appCHcm7XPzeoyBCs/pagh79fwniuSPmusB/form).
-    - **Subir Documentos/Exámenes**: Muestra [Subir Archivos](https://airtable.com/appCHcm7XPzeoyBCs/pagYI9IBX65B8OsAY/form).
-    - **Entrenar**: Muestra [Ver Entrenamientos](https://imnufit.com/entrenaconfrenplus/).
-    - **Agendar Cita**: Muestra [Reservar Cita](${info["Link Calendar"] || CALENDAR_LINK_DEFAULT}) y añade: "Recuerda que es preferible completar tu Check-in 24 horas antes.".
-    - **Ver Recursos/Manual**: SOLO si piden manuales o material de apoyo, muestra [Ver Guías PDF](function:program-detail-view).
-    - **Ver Consultas**: Muestra [Historial de Consultas](${info["Link Consultas"] || "#"}).
-    - **Contactar**: Muestra [Contactar Soporte](function:contact-view).
-    - **Cancelar Membresía/Clave**: Muestra [Mi Cuenta](function:membership-view). (NO ofrecer pausar).
-    - **Precios/Web**: Muestra [Visitar Web](https://imnufit.com).
-    - **Comunidad**: [Unirme a la Comunidad](https://chat.whatsapp.com/FNoToJXy8HO7iLVhPseQHB).`;
-
-    try {
-        // Construir historial previo
-        const history = chatHistory.map(m => ({ role: m.role === 'user' ? 'user' : 'model', parts: [{ text: m.text }] }));
-        
-        // Construir parte del usuario actual
-        let userParts = [{ text: msgToSend }];
-        if (imageToSend) {
-            userParts.push({ inlineData: { mimeType: mimeToSend, data: imageToSend } });
-        }
-
-        const res = await fetchWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ contents: [...history, { role: 'user', parts: userParts }], systemInstruction: { parts: [{ text: sysPrompt }] } })
-        });
-        
-        const aiText = res.candidates?.[0]?.content?.parts?.[0]?.text || "No pude procesar tu solicitud.";
-        
-        document.querySelectorAll('.ai-loading-indicator').forEach(el => el.remove());
-        window.appendChatMessageToAll('ai', aiText);
-        chatHistory.push({ role: 'user', text: msgToSend }, { role: 'ai', text: aiText });
-    } catch (e) { 
-        document.querySelectorAll('.ai-loading-indicator').forEach(el => el.remove());
-        window.appendChatMessageToAll('ai', `⚠️ Hubo un error al procesar. Intenta con una imagen más pequeña o texto.`); 
-    }
-};
-
-window.viewProgramResources = () => {
-    const data = currentAppData;
-    if (!data) return;
-    const progKey = window.getProgramKey(data["Programa"] || "");
-    if (!progKey || !PROGRAMAS_INFO[progKey]) { window.notify("Sin programa asignado"); return; }
-
-    const progInfo = PROGRAMAS_INFO[progKey];
-    const container = document.getElementById('program-guias-list');
-    let mes = 1;
-    if (data["Programa"].includes("Mes 2")) mes = 2;
-    else if (data["Programa"].includes("Mes 3")) mes = 3;
-    else if (data["Programa"].includes("Mes 4")) mes = 4;
-
-    if (container) {
-        container.innerHTML = "";
-        for (let i = 1; i <= mes; i++) {
-            if (!progInfo.meses[i]) continue;
-            const card = document.createElement('div');
-            card.className = "w-full bg-white rounded-[2rem] p-6 border border-slate-100 shadow-sm mb-6 fade-in text-left";
-            card.innerHTML = `<h4 class="text-xs font-extrabold text-slate-400 uppercase tracking-[0.2em] mb-4 text-center">${progInfo.monthTitles?.[i] || 'MES ' + i}</h4>`;
-            const list = document.createElement('div'); list.className = "flex flex-col gap-3";
-            [...progInfo.meses[i]].sort((a,b) => a.type === 'VIDEO' ? 1 : -1).forEach(guia => {
-                const isVideo = guia.type === "VIDEO";
-                list.innerHTML += `<a href="${guia.url}" target="_blank" class="group flex items-start gap-4 p-4 rounded-2xl bg-slate-50 border border-slate-100 hover:bg-[#DEE9FA]/30 transition-all text-left"><div class="w-12 h-12 rounded-xl ${isVideo ? 'bg-rose-100 text-rose-500' : 'bg-blue-100 text-[#2E4982]'} flex items-center justify-center shrink-0 text-center">${isVideo ? '<svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>' : '<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>'}</div><div class="text-left"><h4 class="text-sm font-bold text-slate-800">${guia.label}</h4><p class="text-xs text-slate-500 font-medium mt-1 leading-relaxed">${guia.desc}</p></div></a>`;
-            });
-            card.appendChild(list); container.appendChild(card);
-        }
-    }
-    const imgEl = document.getElementById('program-img-main');
-    if (imgEl) { 
-        imgEl.src = progInfo.img; 
-        document.getElementById('program-img-container').className = `flex justify-center mb-10 transition-transform duration-500 ${progInfo.imgWidth || 'w-32'}`;
-        document.getElementById('program-img-container')?.classList.remove('hidden'); 
-    }
-    window.showView('program-detail-view');
-};
-
-window.refreshUIWithData = () => {
-    if (isSpecialistMode) {
-        // 1. Usamos los datos REALES de Airtable como base
-        // Si por alguna razón no cargo Airtable (ej. error de red), usamos objeto vacío para evitar crash
-        let displayData = cachedAirtableData ? { ...cachedAirtableData } : {};
-
-        // 2. Solo sobrescribimos el PROGRAMA si seleccionas algo en el menú
-        if (specModeSelection === "adios_diabetes") {
-            displayData["Programa"] = "Adiós Diabetes 2 (Mes 3)";
-        } else if (specModeSelection === "quema_grasa") {
-            displayData["Programa"] = "Quema Grasa (Mes 4)";
-        } else if (specModeSelection === "sano") {
-            displayData["Programa"] = "SANO (Mes 2)";
-        }
-        // Si es "sin_programa", se queda con lo que venga de Airtable (o vacío)
-
-        // 3. Renderizamos con esta mezcla (La IA usará displayData)
-        updateDashboardUI(displayData);
-    } else {
-        // Usuario normal: Usa datos puros de Airtable
-        updateDashboardUI(cachedAirtableData);
-    }
-};
-
-window.handleLogin = async (e) => {
-    e.preventDefault();
-    const email = e.target.email.value;
-    const pass = e.target.pass.value;
-    const loader = document.getElementById('loading-screen');
-    try {
-        if(loader) loader.classList.remove('hidden');
-        await signInWithEmailAndPassword(auth, email, pass);
-    } catch (error) {
-        console.log("Login fail:", error.code);
-        if(loader) loader.classList.add('hidden');
-        let msg = "Error al iniciar sesión.";
-        if (['auth/invalid-credential', 'auth/user-not-found', 'auth/wrong-password', 'auth/invalid-email'].includes(error.code)) msg = "Correo o contraseña incorrectos.";
-        else if (error.code === 'auth/too-many-requests') msg = "Demasiados intentos. Espera un momento.";
-        window.notify(msg, 'error');
-    }
-};
-
-window.handleSignup = async (e) => { 
-    e.preventDefault(); 
-    const email = e.target.email.value; 
-    const pass = e.target.pass.value; 
-    const confirmPass = e.target.confirmPass.value;
-    
-    if (pass.length < 6) { window.notify("La contraseña debe tener al menos 6 caracteres"); return; }
-    if (pass !== confirmPass) { window.notify("Las contraseñas no coinciden"); return; } 
-    
-    const loader = document.getElementById('loading-screen');
-    if(loader) loader.classList.remove('hidden');
-
-    try { 
-        const airtableUser = await fetchAirtableData(email);
-        if (!airtableUser) {
-            if(loader) loader.classList.add('hidden');
-            window.notify("Este correo no está registrado en nuestra base de datos. Debes ser atendido en consulta primero.");
-            return; 
-        }
-        
-        const status = String(airtableUser["Estatus"] || "").toLowerCase();
-        // REGLA ESTRICTA: SOLO ACTIVO
-        if (!status.includes("activo") && !status.includes("actívo")) {
-            if(loader) loader.classList.add('hidden');
-            window.notify("Tu cuenta no está activa. Será activada en tu próxima consulta.");
-            return; 
-        }
-        
-        if (status.includes("inactivo")) {
-            if(loader) loader.classList.add('hidden');
-            window.notify("Tu cuenta no está activa. Será activada en tu próxima consulta.");
-            return; 
-        }
-
-        await createUserWithEmailAndPassword(auth, email, pass); 
-        window.notify("Cuenta creada exitosamente", "success"); 
-    } catch (err) { 
-        if(loader) loader.classList.add('hidden');
-        window.notify("Error: " + (err.code === 'auth/email-already-in-use' ? 'El correo ya está registrado.' : err.code)); 
-    } 
-};
-
-window.handlePasswordReset = async (e) => { e.preventDefault(); try { document.getElementById('loading-screen')?.classList.remove('hidden'); await sendPasswordResetEmail(auth, e.target.resetEmail.value); window.notify("Correo enviado", "success"); window.showView('login-view'); } catch (err) { window.notify("Error"); } finally { document.getElementById('loading-screen')?.classList.add('hidden'); } };
-window.cerrarSesion = () => signOut(auth);
-window.updateAppPassword = async (e) => { e.preventDefault(); if(!auth.currentUser) return; try { document.getElementById('loading-screen')?.classList.remove('hidden'); await updatePassword(auth.currentUser, e.target.newPassword.value); window.notify("Clave actualizada", "success"); e.target.reset(); } catch (err) { window.notify("Sesión expirada"); } finally { document.getElementById('loading-screen')?.classList.add('hidden'); } };
 
 // --- MODIFICACIÓN DE REFRESH POTENTE (NUCLEAR RELOAD) ---
 window.refreshData = () => { 
