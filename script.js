@@ -140,6 +140,34 @@ window.notify = (msg, type = 'error') => {
     } else { alert(msg); }
 };
 
+// --- LOGICA DE HORARIO DE ESPECIALISTA ---
+window.checkSpecialistHours = () => {
+    const btn = document.getElementById('btn-specialist-chat');
+    const badge = document.getElementById('specialist-badge');
+    if (!btn || !badge) return;
+
+    const now = new Date();
+    const day = now.getDay(); // 0 = Domingo, 1 = Lunes, ..., 6 = Sábado
+    const hour = now.getHours(); // 0 - 23
+
+    // Horario: Lunes (1) a Viernes (5), de 10:00 a 17:59 (cierra a las 18:00)
+    const isOpen = (day >= 1 && day <= 5) && (hour >= 10 && hour < 18);
+
+    if (isOpen) {
+        // ABIERTO
+        btn.classList.remove('opacity-50', 'pointer-events-none', 'grayscale', 'bg-slate-400');
+        btn.classList.add('bg-emerald-500', 'hover:bg-emerald-600', 'shadow-lg');
+        btn.textContent = "Iniciar Chat Clínico";
+        badge.innerHTML = '<span class="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-600 text-[9px] font-black uppercase tracking-widest border border-emerald-200">● En línea</span>';
+    } else {
+        // CERRADO
+        btn.classList.add('opacity-50', 'pointer-events-none', 'grayscale', 'bg-slate-400');
+        btn.classList.remove('bg-emerald-500', 'hover:bg-emerald-600', 'shadow-lg');
+        btn.textContent = "Cerrado (Lun-Vie 10am-6pm)";
+        badge.innerHTML = '<span class="px-2 py-0.5 rounded-full bg-slate-100 text-slate-400 text-[9px] font-black uppercase tracking-widest border border-slate-200">● Ausente</span>';
+    }
+};
+
 // --- OPTIMIZACIÓN: THROTTLE PARA INACTIVIDAD ---
 let inactivityThrottle = false;
 window.resetInactivityTimer = () => {
@@ -173,6 +201,11 @@ window.showView = (id, save = true) => {
     views.forEach(v => { const el = document.getElementById(v); if (el) el.classList.toggle('hidden', v !== id); });
     window.scrollTo(0, 0);
     if (save) history.pushState({ viewId: id }, "", "");
+    
+    // Si entramos a contacto, checar horario
+    if (id === 'contact-view') {
+        window.checkSpecialistHours();
+    }
 };
 
 window.resetUI = () => {
@@ -581,6 +614,9 @@ window.sendMessageToAI = async (source) => {
     4. **Prioridad Datos**: Para preguntas sobre dieta o plan, usa SOLO la información de Airtable (arriba).
     5. **Prohibido**: NO sugerir la "Guía PDF" como respuesta al plan diario.
     6. **Análisis de Imágenes**: Si el usuario envía una foto de comida o producto, analízala estrictamente basándote en su plan nutricional actual. Indica si es adecuado o no y por qué. Se breve y directo.
+    7. **Derivación de Soporte**:
+       - Si es tema TÉCNICO (App no abre, pagos, clave): Muestra [Soporte Técnico](https://wa.me/14076325438).
+       - Si es tema CLÍNICO (dieta, síntomas): **NO** sugieras a la especialista a menos que sea una **emergencia extrema** o que la IA no pueda resolverlo. Si debes hacerlo, avisa que contestará en orden de llegada y muestra [Chat Especialista](https://wa.me/16893194100).
 
     REGLAS DE ACCIÓN OBLIGATORIAS:
     - **Check-in**: Muestra [Hacer Check-in](https://airtable.com/appCHcm7XPzeoyBCs/pagh79fwniuSPmusB/form).
@@ -661,7 +697,6 @@ window.viewProgramResources = () => {
 window.refreshUIWithData = () => {
     if (isSpecialistMode) {
         // 1. Usamos los datos REALES de Airtable como base
-        // Si por alguna razón no cargo Airtable (ej. error de red), usamos objeto vacío para evitar crash
         let displayData = cachedAirtableData ? { ...cachedAirtableData } : {};
 
         // 2. Solo sobrescribimos el PROGRAMA si seleccionas algo en el menú
@@ -672,8 +707,7 @@ window.refreshUIWithData = () => {
         } else if (specModeSelection === "sano") {
             displayData["Programa"] = "SANO (Mes 2)";
         }
-        // Si es "sin_programa", se queda con lo que venga de Airtable (o vacío)
-
+        
         // 3. Renderizamos con esta mezcla (La IA usará displayData)
         updateDashboardUI(displayData);
     } else {
