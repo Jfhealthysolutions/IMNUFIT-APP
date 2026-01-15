@@ -191,13 +191,20 @@ body.paused-animations * {
     border-radius: 10px; 
 }
 
-/* --- FIX DE CABECERA SEGURO Y ESTABLE --- */
-/* Esto garantiza que SIEMPRE mida 6rem (96px) MÁS el espacio de la cámara */
+/* --- FIX CABECERA CON ESPACIO/MARGEN --- */
 header {
-    height: calc(6rem + env(safe-area-inset-top)) !important;
-    height: calc(6rem + constant(safe-area-inset-top)) !important; 
-    padding-top: env(safe-area-inset-top) !important;
-    padding-top: constant(safe-area-inset-top) !important;
+    /* Altura automática para crecer con el relleno */
+    height: auto !important; 
+    min-height: 6rem !important;
+
+    /* ESPACIO SUPERIOR: Safe Area + 20px extra */
+    padding-top: calc(env(safe-area-inset-top) + 20px) !important;
+    padding-top: calc(constant(safe-area-inset-top) + 20px) !important;
+
+    /* ESPACIO INFERIOR: 20px extra */
+    padding-bottom: 20px !important;
+
+    /* Alineación */
     display: flex !important;
     align-items: center !important;
     box-sizing: border-box !important;
