@@ -23,7 +23,7 @@ body {
     pointer-events: none; 
 }
 
-/* OPTIMIZACIÓN: Eliminado backdrop-filter y animaciones infinitas para mejor rendimiento */
+/* OPTIMIZACIÓN: Eliminado backdrop-filter y animaciones infinitas */
 .bento-card { 
     @apply bg-white border border-slate-100 flex flex-col justify-between; 
     border-radius: 40px; 
@@ -160,7 +160,7 @@ body {
     color: #333; 
 }
 
-/* OPTIMIZACIÓN MÁXIMA IA CARD: ESTATICO + HOVER */
+/* OPTIMIZACIÓN MÁXIMA IA CARD */
 .ai-card-glow { 
     background: #ffffff; 
     box-shadow: 0 10px 30px -5px rgba(139, 92, 246, 0.15); 
@@ -168,9 +168,9 @@ body {
     transition: all 0.3s ease;
 }
 
-.ai-card-glow:active { /* Solo al tocar */
+.ai-card-glow:active { 
     box-shadow: 0 15px 35px -5px rgba(139, 92, 246, 0.25); 
-    border-color: rgba(139, 92, 246, 0.6);
+    border-color: rgba(139, 92, 246, 0.6); 
 }
 
 /* Pausa global si la app no es visible */
@@ -191,10 +191,14 @@ body.paused-animations * {
     border-radius: 10px; 
 }
 
-/* --- FIX: RESPETA EL ESPACIO DE LA CÁMARA Y RELOJ EN MOVILES --- */
+/* --- FIX DE CABECERA SEGURO Y ESTABLE --- */
+/* Esto garantiza que SIEMPRE mida 6rem (96px) MÁS el espacio de la cámara */
 header {
+    height: calc(6rem + env(safe-area-inset-top)) !important;
+    height: calc(6rem + constant(safe-area-inset-top)) !important; 
     padding-top: env(safe-area-inset-top) !important;
-    padding-top: constant(safe-area-inset-top) !important; /* Para iOS viejos */
-    height: auto !important; /* Deja que la cabecera crezca si el notch es grande */
-    min-height: 6rem; /* Mantiene el tamaño base original */
+    padding-top: constant(safe-area-inset-top) !important;
+    display: flex !important;
+    align-items: center !important;
+    box-sizing: border-box !important;
 }
