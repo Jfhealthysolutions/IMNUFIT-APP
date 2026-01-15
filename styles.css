@@ -162,14 +162,14 @@ body {
 
 /* OPTIMIZACIÓN MÁXIMA IA CARD: ESTATICO + HOVER */
 .ai-card-glow { 
-    background: #ffffff;
-    box-shadow: 0 10px 30px -5px rgba(139, 92, 246, 0.15);
-    border-color: rgba(139, 92, 246, 0.3);
+    background: #ffffff; 
+    box-shadow: 0 10px 30px -5px rgba(139, 92, 246, 0.15); 
+    border-color: rgba(139, 92, 246, 0.3); 
     transition: all 0.3s ease;
 }
 
 .ai-card-glow:active { /* Solo al tocar */
-    box-shadow: 0 15px 35px -5px rgba(139, 92, 246, 0.25);
+    box-shadow: 0 15px 35px -5px rgba(139, 92, 246, 0.25); 
     border-color: rgba(139, 92, 246, 0.6);
 }
 
@@ -189,4 +189,12 @@ body.paused-animations * {
 ::-webkit-scrollbar-thumb { 
     background: #E2E8F0; 
     border-radius: 10px; 
+}
+
+/* --- FIX: RESPETA EL ESPACIO DE LA CÁMARA Y RELOJ EN MOVILES --- */
+header {
+    padding-top: env(safe-area-inset-top) !important;
+    padding-top: constant(safe-area-inset-top) !important; /* Para iOS viejos */
+    height: auto !important; /* Deja que la cabecera crezca si el notch es grande */
+    min-height: 6rem; /* Mantiene el tamaño base original */
 }
