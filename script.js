@@ -841,6 +841,16 @@ function updateDashboardUI(data) {
         else if (genero.toLowerCase().includes("femenino")) el.className = "px-4 py-1.5 rounded-full text-[10px] font-extrabold bg-rose-50 text-rose-600 border border-rose-100 uppercase tracking-widest shadow-sm inline-block";
         else el.className = "hidden";
     });
+
+    // --- LOGICA VISUAL: BADGE DE MEMBRESÍA EN MI CUENTA ---
+    const nombreMembresia = data["Suscripción o Membresia"] || data["Membresía"] || "Sin Plan";
+
+    window.safeUpdate('acc-membresia-badge', el => {
+        el.textContent = nombreMembresia;
+        // Aplicamos ESTILO APPLE PREMIUM (Azul corporativo, pill shape, bold, uppercase)
+        el.className = "px-3 py-1.5 rounded-full text-[9px] font-extrabold bg-[#DEE9FA] text-[#2E4982] border border-blue-100 uppercase tracking-widest shadow-sm inline-block";
+        el.classList.remove('hidden');
+    });
 }
 
 // --- AUTH OBSERVER (GATEKEEPER BLINDADO) ---
