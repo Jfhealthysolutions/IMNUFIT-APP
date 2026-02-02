@@ -399,7 +399,7 @@ window.showInstallInstructions = () => {
         }
     } else if (isAndroid) {
         msg = `
-         <div class="text-center space-y-6">
+        <div class="text-center space-y-6">
             <div class="bg-slate-50 p-4 rounded-3xl inline-block border border-slate-100 shadow-sm">
                 <svg class="w-10 h-10 text-[#2E4982]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>
             </div>
@@ -763,11 +763,17 @@ function updateDashboardUI(data) {
     if (!data) return;
     currentAppData = data; 
     window.safeSetText('display-nombre', data["Nombre + Edad"] || "Usuario IMNUFIT");
+    
     if (chatHistory.length === 0) window.clearChat();
-    const g = window.getGreeting(); window.safeUpdate('display-greeting', (el) => el.innerHTML = `<span class="text-xl mr-2">${g.icon}</span> ${g.text}`);
+    
+    const g = window.getGreeting(); 
+    window.safeUpdate('display-greeting', (el) => el.innerHTML = `<span class="text-xl mr-2">${g.icon}</span> ${g.text}`);
     
     const st = data["Estatus"] || "Activo";
-    window.safeUpdate('display-estatus', (el) => { el.textContent = st; el.className = `px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-widest border inline-block mt-2 ${window.getStatusClass(st)}`; });
+    window.safeUpdate('display-estatus', (el) => { 
+        el.textContent = st; 
+        el.className = `px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-widest border inline-block mt-2 ${window.getStatusClass(st)}`; 
+    });
     
     document.getElementById('featured-plan-banner')?.classList.toggle('hidden', !data.Programa);
     if (data.Programa) window.safeSetText('plan-banner-title', data.Programa);
@@ -796,11 +802,33 @@ function updateDashboardUI(data) {
         }
     }
 
-    window.safeUpdate('calendar-action-container', el => el.innerHTML = `<a href="${data["Link Calendar"] || CALENDAR_LINK_DEFAULT}" target="_blank" class="btn-ghost-sm text-center">Ir al Calendario</a>`);
-    const bh = document.getElementById('btn-consultas-action'); if (bh) { bh.href = data["Link Consultas"] || "#"; bh.style.opacity = bh.href.includes("#") ? "0.4" : "1"; }
+    // --- NUEVA LÓGICA: ESCONDER BOTÓN CONTACTO SI ES PLAN BÁSICO ---
+    const membresia = String(data["Membresía"] || "").toLowerCase();
     
-    window.safeSetText('acc-nombre', data["Nombre + Edad"] || "---"); window.safeSetText('acc-email', auth.currentUser?.email || "--"); window.safeSetText('display-frase', frasesCreyentes[Math.floor(Math.random() * frasesCreyentes.length)]);
-    window.safeSetText('acc-pais', data["País"] || "--"); window.safeSetText('acc-telefono', data["Telefono"] || "--");
+    // Buscamos el CONTENEDOR (Wrapper) que agregamos en el HTML
+    const btnWrapper = document.getElementById('specialist-btn-wrapper');
+    
+    if (btnWrapper) {
+        if (membresia.includes("básico") || membresia.includes("basico")) {
+            btnWrapper.classList.add('hidden'); // Lo escondemos completamente
+        } else {
+            btnWrapper.classList.remove('hidden'); // Lo mostramos
+        }
+    }
+    // -------------------------------------------------------------
+
+    window.safeUpdate('calendar-action-container', el => el.innerHTML = `<a href="${data["Link Calendar"] || CALENDAR_LINK_DEFAULT}" target="_blank" class="btn-ghost-sm text-center">Ir al Calendario</a>`);
+    const bh = document.getElementById('btn-consultas-action'); 
+    if (bh) { 
+        bh.href = data["Link Consultas"] || "#"; 
+        bh.style.opacity = bh.href.includes("#") ? "0.4" : "1"; 
+    }
+    
+    window.safeSetText('acc-nombre', data["Nombre + Edad"] || "---"); 
+    window.safeSetText('acc-email', auth.currentUser?.email || "--"); 
+    window.safeSetText('display-frase', frasesCreyentes[Math.floor(Math.random() * frasesCreyentes.length)]);
+    window.safeSetText('acc-pais', data["País"] || "--"); 
+    window.safeSetText('acc-telefono', data["Telefono"] || "--");
     window.safeSetText('acc-nacimiento', window.formatDateMDY(data["Fecha de Nacimiento"]));
     
     const genero = String(data["Género"] || "");
@@ -822,11 +850,8 @@ onAuthStateChanged(auth, async (user) => {
         isSpecialistMode = (user.email === SPECIALIST_EMAIL);
         const sp = document.getElementById('specialist-panel'); if(sp) sp.classList.toggle('hidden', !isSpecialistMode);
         
-        // AHORA EL ADMIN TAMBIÉN BUSCA SUS DATOS
         cachedAirtableData = await fetchAirtableData(user.email);
         
-        // REGLA DE ORO: SI NO EXISTE EN AIRTABLE -> FUERA (Solo para usuarios normales)
-        // El admin NO es expulsado, pero si no tiene registro, cachedAirtableData será null
         if (!isSpecialistMode) {
             if (!cachedAirtableData) {
                 window.notify("Usuario no encontrado en base de datos.");
@@ -837,7 +862,6 @@ onAuthStateChanged(auth, async (user) => {
             
             const status = String(cachedAirtableData["Estatus"] || "").toLowerCase();
             
-            // REGLA ESTRICTA DE "INACTIVO"
             if (status.includes("inactivo")) {
                 window.notify("Tu cuenta no está activa. Será activada en tu próxima consulta.");
                 await signOut(auth);
@@ -845,7 +869,6 @@ onAuthStateChanged(auth, async (user) => {
                 return;
             }
 
-            // REGLA DE "SOLO ACTIVO"
             if (!status.includes("activo") && !status.includes("actívo")) {
                 window.notify("Tu cuenta no está activa. Será activada en tu próxima consulta.");
                 await signOut(auth);
