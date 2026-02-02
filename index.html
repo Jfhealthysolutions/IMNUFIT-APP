@@ -197,7 +197,6 @@
         <main class="max-w-xl mx-auto py-16 px-6 fade-in space-y-12 flex flex-col items-center text-center text-left"><div id="program-img-container" class="flex justify-center text-left transition-transform duration-500 w-32"><img id="program-img-main" src="" class="object-contain mix-blend-multiply text-center"></div><div id="program-guias-list" class="grid gap-5 text-left w-full text-left"></div><p class="text-slate-300 text-[10px] font-medium italic text-center">© IMNUFIT — Nutrición con Propósito</p></main>
     </section>
 
-    <!-- CONTACT VIEW (ACTUALIZADA) -->
     <section id="contact-view" class="min-h-screen hidden bg-white text-left">
         <header class="h-24 flex items-center px-8 border-b border-slate-50 justify-between sticky top-0 bg-white z-50 text-left"><button onclick="window.showView('patient-view')" class="flex items-center gap-2 text-slate-400 hover:text-[#2E4982] font-bold text-xs uppercase tracking-widest transition-colors text-left"><svg class="w-4 h-4 transform group-hover:-translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path d="M15 19l-7-7 7-7"></path></svg> Volver</button><span class="text-sm font-bold text-[#494949] uppercase tracking-[0.2em] text-left text-left">Contacto</span><div class="w-10 text-left"></div></header>
         <main class="max-w-xl mx-auto py-16 px-6 fade-in space-y-12 text-left">
@@ -206,7 +205,6 @@
                 <p class="text-slate-500 text-sm text-left">Selecciona el canal adecuado para tu consulta.</p>
             </div>
 
-            <!-- Panel de Horario -->
             <div id="business-hours-card" class="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 text-left transition-colors duration-300">
                 <div class="flex items-center gap-3 mb-2">
                     <div class="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center text-slate-400"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg></div>
@@ -216,9 +214,7 @@
                 <p class="text-[10px] uppercase font-bold tracking-widest text-slate-400 mt-2">Lunes a Viernes (10:00 AM - 6:00 PM)</p>
             </div>
 
-            <!-- Botones de Acción -->
             <div class="space-y-4">
-                <!-- Botón SOPORTE -->
                 <button id="btn-support" onclick="openWhatsapp('admin')" class="w-full bg-slate-200 text-slate-400 p-6 rounded-[2rem] text-left transition-all duration-300 group shadow-none cursor-not-allowed" disabled>
                     <div class="flex items-center justify-between">
                         <div class="flex items-center gap-4">
@@ -229,20 +225,21 @@
                     </div>
                 </button>
 
-                <!-- Botón ESPECIALISTA -->
-                <button id="btn-specialist" onclick="openWhatsapp('clinic')" class="w-full bg-slate-200 text-slate-400 p-6 rounded-[2rem] text-left transition-all duration-300 group shadow-none cursor-not-allowed" disabled>
-                    <div class="flex items-center justify-between">
-                        <div class="flex items-center gap-4">
-                            <div class="w-12 h-12 rounded-2xl bg-white/20 flex items-center justify-center text-white shrink-0"><svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"/></svg></div>
-                            <div><h4 class="font-bold text-lg">Contactar a tu Especialista</h4><p class="text-xs opacity-80 mt-1">Plan Nutricional, Emergencias</p></div>
+                <div id="specialist-btn-wrapper" class="w-full">
+                    <button id="btn-specialist" onclick="openWhatsapp('clinic')" class="w-full bg-slate-200 text-slate-400 p-6 rounded-[2rem] text-left transition-all duration-300 group shadow-none cursor-not-allowed" disabled>
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center gap-4">
+                                <div class="w-12 h-12 rounded-2xl bg-white/20 flex items-center justify-center text-white shrink-0"><svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"/></svg></div>
+                                <div><h4 class="font-bold text-lg">Contactar a tu Especialista</h4><p class="text-xs opacity-80 mt-1">Plan Nutricional, Emergencias</p></div>
+                            </div>
+                            <svg class="w-5 h-5 opacity-60 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
                         </div>
-                        <svg class="w-5 h-5 opacity-60 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
-                    </div>
-                </button>
+                    </button>
+                </div>
+
                 <p class="text-[10px] text-slate-400 text-center leading-relaxed mt-4">⚠️ Atendemos todas las consultas en el orden que fueron recibidas.</p>
             </div>
 
-            <!-- Redes Sociales (Mismo código original) -->
             <div class="grid gap-4 text-left pt-6 border-t border-slate-50">
                 <p class="text-slate-300 text-[10px] font-black uppercase tracking-[0.5em] text-center text-left">Nuestras Redes</p>
                 <div class="grid gap-3 text-left">
@@ -358,7 +355,6 @@
         <div class="h-8 w-8 border-[3px] border-[#2E4982] border-t-transparent rounded-full animate-spin"></div>
     </div>
 
-    <!-- LÓGICA DE CONTACTO Y HORARIOS -->
     <script>
         // Función para verificar horario (Lunes-Viernes 10am-6pm)
         function checkBusinessHours() {
@@ -388,12 +384,12 @@
                 statusMsg.className = "text-sm font-bold text-slate-600 mt-1 flex items-center gap-2";
                 card.classList.remove('bg-red-50', 'border-red-100');
                 card.classList.add('bg-white', 'border-slate-100');
-                
+               
                 // Habilitar Botón SOPORTE
                 btnSupport.disabled = false;
                 btnSupport.classList.remove('bg-slate-200', 'text-slate-400', 'cursor-not-allowed', 'shadow-none');
                 btnSupport.classList.add('bg-[#25D366]', 'text-white', 'hover:scale-[1.02]', 'shadow-lg', 'cursor-pointer');
-                
+               
                 // Habilitar Botón ESPECIALISTA
                 btnSpecialist.disabled = false;
                 btnSpecialist.classList.remove('bg-slate-200', 'text-slate-400', 'cursor-not-allowed', 'shadow-none');
@@ -410,7 +406,7 @@
                 btnSupport.disabled = true;
                 btnSupport.classList.add('bg-slate-200', 'text-slate-400', 'cursor-not-allowed', 'shadow-none');
                 btnSupport.classList.remove('bg-[#25D366]', 'text-white', 'hover:scale-[1.02]', 'shadow-lg', 'cursor-pointer');
-                
+               
                 btnSpecialist.disabled = true;
                 btnSpecialist.classList.add('bg-slate-200', 'text-slate-400', 'cursor-not-allowed', 'shadow-none');
                 btnSpecialist.classList.remove('bg-[#2E4982]', 'text-white', 'hover:scale-[1.02]', 'shadow-lg', 'cursor-pointer');
