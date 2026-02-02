@@ -802,17 +802,20 @@ function updateDashboardUI(data) {
         }
     }
 
-    // --- NUEVA LÓGICA: ESCONDER BOTÓN CONTACTO SI ES PLAN BÁSICO ---
-    const membresia = String(data["Membresía"] || "").toLowerCase();
+    // --- NUEVA LÓGICA CORREGIDA: NOMBRE EXACTO DE COLUMNA ---
+    // Buscamos "Suscripción o Membresia" exactamente como lo tienes en Airtable
+    const rawMembresia = data["Suscripción o Membresia"] || data["Membresía"] || data["Membresia"] || "";
+    const membresia = String(rawMembresia).toLowerCase();
     
     // Buscamos el CONTENEDOR (Wrapper) que agregamos en el HTML
     const btnWrapper = document.getElementById('specialist-btn-wrapper');
     
     if (btnWrapper) {
+        // Si el texto incluye "básico" o "basico", lo escondemos
         if (membresia.includes("básico") || membresia.includes("basico")) {
-            btnWrapper.classList.add('hidden'); // Lo escondemos completamente
+            btnWrapper.classList.add('hidden'); // OCULTAR
         } else {
-            btnWrapper.classList.remove('hidden'); // Lo mostramos
+            btnWrapper.classList.remove('hidden'); // MOSTRAR
         }
     }
     // -------------------------------------------------------------
