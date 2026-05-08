@@ -134,19 +134,49 @@
             </div>
 
             <div id="dashboard-grid" class="grid grid-cols-1 md:grid-cols-2 gap-8 text-left">
-                <div id="card-install-app-main" class="bg-gradient-to-r from-slate-900 to-slate-800 rounded-[2rem] p-8 text-white shadow-xl relative overflow-hidden group cursor-pointer hidden text-left" onclick="window.openVideoModal()">
-                    <div class="absolute -right-8 -top-8 w-32 h-32 bg-white/10 rounded-full blur-2xl"></div>
-                    <div class="relative z-10 flex items-center justify-between">
-                        <div>
-                            <span class="text-[10px] font-black uppercase tracking-[0.2em] text-white/60">Video Tutorial</span>
-                            <h3 class="text-lg font-bold mt-1">Instalar App</h3>
-                            <p class="text-[12px] text-white/70 mt-1 max-w-[200px]">Mira cómo añadir IMNUFIT a tu pantalla de inicio en 1 minuto.</p>
-                        </div>
-                        <div class="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-sm group-hover:scale-110 transition-transform">
-                            <svg class="w-5 h-5 ml-1" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-                        </div>
-                    </div>
-                </div>
+                <div id="card-install-app-main" class="bg-gradient-to-r from-slate-900 to-slate-800 rounded-[2rem] p-8 text-white shadow-xl relative overflow-hidden text-left transition-all duration-300">
+    <div class="absolute -right-8 -top-8 w-32 h-32 bg-white/10 rounded-full blur-2xl pointer-events-none"></div>
+    
+    <div class="relative z-10 flex items-center justify-between cursor-pointer group" onclick="toggleInlineVideo()">
+        <div>
+            <span class="text-[10px] font-black uppercase tracking-[0.2em] text-white/60">Video Tutorial</span>
+            <h3 class="text-lg font-bold mt-1">Instalar App</h3>
+            <p class="text-[12px] text-white/70 mt-1 max-w-[200px]">Toca aquí para ver cómo añadirla a tu pantalla de inicio.</p>
+        </div>
+        <div class="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-sm group-hover:scale-110 transition-transform shrink-0">
+            <svg id="icon-play-inline" class="w-5 h-5 ml-1" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+            <svg id="icon-close-inline" class="w-5 h-5 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l18 18"></path></svg>
+        </div>
+    </div>
+
+    <div id="inline-video-wrapper" class="hidden relative z-10 mt-6 pt-6 border-t border-white/10">
+        <div class="w-full aspect-[9/16] bg-black rounded-2xl overflow-hidden shadow-inner max-w-xs mx-auto">
+            <iframe id="youtube-iframe-inline" class="w-full h-full" src="https://www.youtube.com/embed/qXIGF_VfD3o?rel=0&modestbranding=1" title="Tutorial Instalar App" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+        </div>
+        <p class="text-[10px] font-bold text-center text-white/50 mt-4 uppercase tracking-widest">Sigue estos pasos en tu navegador</p>
+    </div>
+</div>
+
+<script>
+    // Lógica exclusiva para el acordeón del video
+    function toggleInlineVideo() {
+        const wrapper = document.getElementById('inline-video-wrapper');
+        const iconPlay = document.getElementById('icon-play-inline');
+        const iconClose = document.getElementById('icon-close-inline');
+        const iframe = document.getElementById('youtube-iframe-inline');
+
+        if (wrapper.classList.contains('hidden')) {
+            wrapper.classList.remove('hidden');
+            iconPlay.classList.add('hidden');
+            iconClose.classList.remove('hidden');
+        } else {
+            wrapper.classList.add('hidden');
+            iconPlay.classList.remove('hidden');
+            iconClose.classList.add('hidden');
+            iframe.src = iframe.src; 
+        }
+    }
+</script>
 
                 <section id="card-ai" class="ai-card-glow rounded-[2.5rem] p-8 border border-white relative overflow-hidden cursor-pointer group transition-transform hover:-translate-y-1 text-left" onclick="window.openAIChat()">
                     <div class="relative z-10 flex flex-col justify-between h-full min-h-[220px] text-left">
