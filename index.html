@@ -490,46 +490,5 @@
         });
     </script>
 
-    <div id="video-tutorial-modal" class="fixed inset-0 z-[9999] bg-slate-900/60 backdrop-blur-md hidden items-center justify-center p-4 transition-opacity">
-        <div class="bg-white w-full max-w-sm rounded-[2.5rem] overflow-hidden shadow-2xl flex flex-col relative animate-fade-in-up">
-            
-            <div class="h-16 flex items-center justify-between px-6 border-b border-slate-50 bg-white">
-                <span class="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Tutorial de Instalación</span>
-                <button onclick="window.closeVideoModal()" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition-colors">
-                    <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M6 18L18 6M6 6l18 18"></path></svg>
-                </button>
-            </div>
-            
-            <div class="relative w-full aspect-[9/16] bg-slate-900">
-                <iframe id="youtube-iframe" class="absolute inset-0 w-full h-full" src="https://www.youtube.com/embed/qXIGF_VfD3o?rel=0&modestbranding=1" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
-            </div>
-            
-            <div class="p-6 bg-white text-center">
-                <button onclick="window.closeVideoModal()" class="w-full bg-[#2E4982] text-white py-4 rounded-full font-bold text-xs uppercase tracking-widest shadow-xl active:scale-95 transition-all">
-                    ¡Entendido, hacerlo ahora!
-                </button>
-            </div>
-
-        </div>
-    </div>
-
-    <script>
-        // Lógica para abrir y cerrar el modal
-        window.openVideoModal = function() {
-            document.getElementById('video-tutorial-modal').classList.remove('hidden');
-            document.getElementById('video-tutorial-modal').classList.add('flex');
-        };
-
-        window.closeVideoModal = function() {
-            const modal = document.getElementById('video-tutorial-modal');
-            modal.classList.add('hidden');
-            modal.classList.remove('flex');
-            
-            // Pausar el video al cerrar recargando el iframe
-            const iframe = document.getElementById('youtube-iframe');
-            iframe.src = iframe.src;
-        };
-    </script>
-
 </body>
 </html>
