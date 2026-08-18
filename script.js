@@ -585,7 +585,7 @@ window.sendMessageToAI = async (source) => {
     REGLAS DE ACCIÓN OBLIGATORIAS:
     - **Check-in**: Muestra [Hacer Check-in](https://airtable.com/appCHcm7XPzeoyBCs/pagh79fwniuSPmusB/form).
     - **Subir Documentos/Exámenes**: Muestra [Subir Archivos](https://airtable.com/appCHcm7XPzeoyBCs/pagYI9IBX65B8OsAY/form).
-    - **Entrenar**: Muestra [Ver Entrenamientos](https://imnufit.com/entrenaconfrenplus/).
+    - **Entrenar**: Muestra [Ver Entrenamientos](https://www.youtube.com/@entrenaconfren).
     - **Agendar Cita**: Muestra [Reservar Cita](${info["Link Calendar"] || CALENDAR_LINK_DEFAULT}) y añade: "Recuerda que es preferible completar tu Check-in 24 horas antes.".
     - **Ver Recursos/Manual**: SOLO si piden manuales o material de apoyo, muestra [Ver Guías PDF](function:program-detail-view).
     - **Ver Consultas**: Muestra [Historial de Consultas](${info["Link Consultas"] || "#"}).
