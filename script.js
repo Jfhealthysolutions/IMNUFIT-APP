@@ -103,8 +103,8 @@ const PROGRAMAS_INFO = {
         img: "https://imnufit.com/wp-content/uploads/2023/11/Sano-logo-1-e1755541161822.png", 
         imgWidth: "w-32 md:w-36",
         meses: {
-            1: [{ label: "Manual SANO - Mes 1", desc: "Alimentación Consciente", url: "https://imnufit.com/wp-content/uploads/2023/12/SANO-MES-1.pdf", type: "PDF" }],
-            2: [{ label: "Manual SANO - Mes 2", desc: "Nuevos Hábitos", url: "https://imnufit.com/wp-content/uploads/2024/02/SANO-Mes-2.pdf", type: "PDF" }]
+            1: [{ label: "Manual SANO - Mes 1", desc: "Alimentación Consciente", url: "https://res.cloudinary.com/hbhbyjgn/image/upload/v1787077333/SANO-MES-1-.pdf", type: "PDF" }],
+            2: [{ label: "Manual SANO - Mes 2", desc: "Nuevos Hábitos", url: "https://res.cloudinary.com/hbhbyjgn/image/upload/v1787077334/SANO-MES-2-.pdf", type: "PDF" }]
         }
     }
 };
