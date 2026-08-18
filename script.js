@@ -68,7 +68,7 @@ const WHATSAPP_COMMUNITY_LINK = "https://chat.whatsapp.com/FNoToJXy8HO7iLVhPseQH
 
 const PROGRAMAS_INFO = {
     "Adiós Diabetes 2": {
-        img: "https://imnufit.com/wp-content/uploads/2024/04/Imagen-de-WhatsApp-2024-04-30-a-las-18.35.48_16bb1ed2.jpg",
+        img: "https://imnufit.com/wp-content/uploads/2025/05/cropped-logo-y-nombre-AZUL.png",
         imgWidth: "w-48 md:w-56",
         meses: {
             1: [{ label: "Guía Nutricional - Mes 1", desc: "Desintoxicación", url: "https://imnufit.com/wp-content/uploads/2025/12/Mes-1-Nueva-Edicion.pdf", type: "PDF" }],
@@ -77,8 +77,8 @@ const PROGRAMAS_INFO = {
         }
     },
     "Quema Grasa": {
-        img: "https://imnufit.com/wp-content/uploads/2022/04/qg.png",
-        imgWidth: "w-36 md:w-40",
+        img: "https://imnufit.com/wp-content/uploads/2025/05/cropped-logo-y-nombre-AZUL.png",
+        imgWidth: "w-48 md:w-56",
         monthTitles: { 1: "MES 1 - DEPURACIÓN", 2: "MES 2 - SACIEDAD", 3: "MES 3 - AYUNO INICIAL", 4: "MES 4 - AYUNO 16-18" },
         meses: {
             1: [
@@ -100,8 +100,8 @@ const PROGRAMAS_INFO = {
         }
     },
     "SANO": { 
-        img: "https://imnufit.com/wp-content/uploads/2023/11/Sano-logo-1-e1755541161822.png", 
-        imgWidth: "w-32 md:w-36",
+        img: "https://imnufit.com/wp-content/uploads/2025/05/cropped-logo-y-nombre-AZUL.png", 
+        imgWidth: "w-48 md:w-56",
         meses: {
             1: [{ label: "Manual SANO - Mes 1", desc: "Alimentación Consciente", url: "https://res.cloudinary.com/hbhbyjgn/image/upload/v1787077333/SANO-MES-1-.pdf", type: "PDF" }],
             2: [{ label: "Manual SANO - Mes 2", desc: "Nuevos Hábitos", url: "https://res.cloudinary.com/hbhbyjgn/image/upload/v1787077334/SANO-MES-2-.pdf", type: "PDF" }]
