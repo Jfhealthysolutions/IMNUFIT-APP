@@ -71,9 +71,9 @@ const PROGRAMAS_INFO = {
         img: "https://imnufit.com/wp-content/uploads/2025/05/cropped-logo-y-nombre-AZUL.png",
         imgWidth: "w-28 md:w-32",
         meses: {
-            1: [{ label: "Guía Nutricional - Mes 1", desc: "Desintoxicación", url: "https://imnufit.com/wp-content/uploads/2025/12/Mes-1-Nueva-Edicion.pdf", type: "PDF" }],
-            2: [{ label: "Guía Nutricional - Mes 2", desc: "Control Glucémico", url: "https://imnufit.com/wp-content/uploads/2025/12/Mes-2-Nueva-Edicion.pdf", type: "PDF" }],
-            3: [{ label: "Guía Nutricional - Mes 3", desc: "Mantenimiento", url: "https://imnufit.com/wp-content/uploads/2025/12/Mes-3-Nueva-Edicion.pdf", type: "PDF" }]
+            1: [{ label: "Guía Nutricional - Mes 1", desc: "Desintoxicación", url: "https://res.cloudinary.com/hbhbyjgn/image/upload/v1787088498/ADIOS-DIABETES-MES-1.pdf", type: "PDF" }],
+            2: [{ label: "Guía Nutricional - Mes 2", desc: "Control Glucémico", url: "https://res.cloudinary.com/hbhbyjgn/image/upload/v1787088498/ADIOS-DIABETES-MES-2.pdf", type: "PDF" }],
+            3: [{ label: "Guía Nutricional - Mes 3", desc: "Mantenimiento", url: "https://res.cloudinary.com/hbhbyjgn/image/upload/v1787088498/ADIOS-DIABETES-MES-3.pdf", type: "PDF" }]
         }
     },
     "Quema Grasa": {
