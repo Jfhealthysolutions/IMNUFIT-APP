@@ -82,19 +82,19 @@ const PROGRAMAS_INFO = {
         monthTitles: { 1: "MES 1 - DEPURACIÓN", 2: "MES 2 - SACIEDAD", 3: "MES 3 - AYUNO INICIAL", 4: "MES 4 - AYUNO 16-18" },
         meses: {
             1: [
-                { label: "Guía PDF Descargable", desc: "Objetivo: Eliminar comestibles dañinos.", url: "https://imnufit.com/wp-content/uploads/2025/12/Mes-1-Completo-Depuracion.pdf", type: "PDF" },
+                { label: "Guía PDF Descargable", desc: "Objetivo: Eliminar comestibles dañinos.", url: "https://res.cloudinary.com/hbhbyjgn/image/upload/v1787089073/QUEMA-GRASA-MES-1.pdf", type: "PDF" },
                 { label: "Video Explicativo", desc: "Resúmen del mes.", url: "https://youtu.be/iO5ihFR8Vrg", type: "VIDEO" }
             ],
             2: [
-                { label: "Guía PDF Descargable", desc: "Objetivo: Nutrición densa.", url: "https://imnufit.com/wp-content/uploads/2025/12/Mes-2-Completo-Saciedad.pdf", type: "PDF" },
+                { label: "Guía PDF Descargable", desc: "Objetivo: Nutrición densa.", url: "https://res.cloudinary.com/hbhbyjgn/image/upload/v1787089072/Mes_2_Completo_Saciedad.pdf", type: "PDF" },
                 { label: "Video Explicativo", desc: "Resúmen del mes.", url: "https://youtu.be/AeIQAgoc0Fc", type: "VIDEO" }
             ],
             3: [
-                { label: "Guía PDF Descargable", desc: "Objetivo: Ayuno natural.", url: "https://imnufit.com/wp-content/uploads/2025/12/Mes-3-Completo-Ayuno-Inicial.pdf", type: "PDF" },
+                { label: "Guía PDF Descargable", desc: "Objetivo: Ayuno natural.", url: "https://res.cloudinary.com/hbhbyjgn/image/upload/v1787089073/Mes_3_Completo_Ayuno_Inicial.pdf", type: "PDF" },
                 { label: "Video Explicativo", desc: "Resúmen del mes.", url: "https://youtu.be/CTevX300uG8", type: "VIDEO" }
             ],
             4: [
-                { label: "Guía PDF Descargable", desc: "Objetivo: Ayuno prolongado.", url: "https://imnufit.com/wp-content/uploads/2025/12/Mes-4-Completo-Ayuno16-18.pdf", type: "PDF" },
+                { label: "Guía PDF Descargable", desc: "Objetivo: Ayuno prolongado.", url: "https://res.cloudinary.com/hbhbyjgn/image/upload/v1787089073/Mes_4_Completo_Ayuno16-18.pdf", type: "PDF" },
                 { label: "Video Explicativo", desc: "Resúmen del mes.", url: "https://youtu.be/15VyQaKcOU4", type: "VIDEO" }
             ]
         }
