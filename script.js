@@ -823,76 +823,63 @@ window.viewProgramResources = () => {
 const DIAS_LARGOS = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"];
 let entrenamientosCargados = [];
 
-// El paciente puede corregir la semana si el cálculo automático no cuadra con su avance real
+// El calendario del programa es una referencia de orden, no una agenda: la instrucción de
+// la especialista es la que manda. Solo recordamos por dónde iba navegando el paciente.
 const claveSemana = (key) => `imnufit_semana_${key}`;
-window.getSemanaActual = (key, asignado, totalSemanas) => {
-    let manual = NaN;
-    try { manual = parseInt(localStorage.getItem(claveSemana(key)), 10); } catch (e) {}
-    if (manual >= 1 && manual <= totalSemanas) return manual;
-    if (!asignado) return 1;
-    const transcurridas = Math.floor((Date.now() - new Date(asignado).getTime()) / (7 * 24 * 60 * 60 * 1000));
-    if (!isFinite(transcurridas) || transcurridas < 0) return 1;
-    return Math.min(transcurridas + 1, totalSemanas);
+window.getSemanaVista = (key, totalSemanas) => {
+    let guardada = NaN;
+    try { guardada = parseInt(localStorage.getItem(claveSemana(key)), 10); } catch (e) {}
+    return (guardada >= 1 && guardada <= totalSemanas) ? guardada : 1;
 };
 window.cambiarSemana = (key, semana) => {
     try { localStorage.setItem(claveSemana(key), String(semana)); } catch (e) {}
     window.verEntrenamientos();
 };
 
-// Arma el calendario de un programa propio: lo de hoy arriba y la semana completa debajo
-window.renderCalendario = (key, asignado) => {
+// Orden sugerido del programa, plegado para no imponerse sobre lo que indicó la especialista
+window.renderCalendario = (key) => {
     const cal = CALENDARIOS[key];
     if (!cal) return "";
 
+    let cuerpo;
     if (cal.tipo === "secuencial") {
-        return `<div class="mt-5 pt-5 border-t border-slate-100">
-            ${cal.rutinas.map(r => `<div class="mb-3 last:mb-0">
-                <p class="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">${r.titulo}</p>
-                ${r.nombre ? `<p class="text-[14px] font-bold text-slate-700">${window.esc(r.nombre)}</p>` : ""}
-                ${r.ejercicios ? `<p class="text-[12px] text-slate-500 leading-relaxed">${window.esc(r.ejercicios.join(" · "))}</p>` : ""}
-            </div>`).join("")}
+        cuerpo = cal.rutinas.map(r => `<div class="mb-3 last:mb-0">
+            <p class="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">${r.titulo}</p>
+            ${r.nombre ? `<p class="text-[14px] font-bold text-slate-700">${window.esc(r.nombre)}</p>` : ""}
+            ${r.ejercicios ? `<p class="text-[12px] text-slate-500 leading-relaxed">${window.esc(r.ejercicios.join(" · "))}</p>` : ""}
+        </div>`).join("");
+    } else {
+        const totalSemanas = cal.etapas.length * 4;
+        const semana = window.getSemanaVista(key, totalSemanas);
+        const etapa = cal.etapas[Math.floor((semana - 1) / 4)];
+        const fila = etapa.semanas[(semana - 1) % 4];
+
+        const filas = Array.from({ length: cal.dias }, (_, i) => {
+            const val = fila[i] || "Descanso";
+            const [principal, complemento] = val.split("|");
+            return `<div class="flex items-baseline gap-3 py-2 border-b border-slate-50 last:border-0">
+                <span class="text-[10px] font-black uppercase text-slate-400 w-9 shrink-0">${DIAS_LARGOS[i].slice(0, 3)}</span>
+                <span class="text-[13px] text-slate-700 leading-snug">${window.esc(principal)}${complemento ? `<span class="text-slate-400"> + ${window.esc(complemento)}</span>` : ""}</span>
+            </div>`;
+        }).join("");
+
+        const nav = `<div class="flex items-center justify-between gap-2 mb-3">
+            <button onclick="window.cambiarSemana('${key}',${Math.max(1, semana - 1)})" class="text-slate-400 hover:text-[#2E4982] p-1 transition-colors disabled:opacity-30" ${semana === 1 ? "disabled" : ""} aria-label="Semana anterior">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path d="M15 19l-7-7 7-7"></path></svg></button>
+            <p class="text-[11px] font-black uppercase tracking-widest text-slate-400">${etapa.nombre} · Semana ${((semana - 1) % 4) + 1}</p>
+            <button onclick="window.cambiarSemana('${key}',${Math.min(totalSemanas, semana + 1)})" class="text-slate-400 hover:text-[#2E4982] p-1 transition-colors disabled:opacity-30" ${semana === totalSemanas ? "disabled" : ""} aria-label="Semana siguiente">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path d="M9 5l7 7-7 7"></path></svg></button>
         </div>`;
+        cuerpo = nav + filas;
     }
 
-    const totalSemanas = cal.etapas.length * 4;
-    const semana = window.getSemanaActual(key, asignado, totalSemanas);
-    const etapa = cal.etapas[Math.floor((semana - 1) / 4)];
-    const fila = etapa.semanas[(semana - 1) % 4];
-    const hoyIdx = (new Date().getDay() + 6) % 7;
-
-    const celda = (i) => {
-        const val = fila[i];
-        if (!val) return { principal: "Descanso", complemento: "", descanso: true };
-        const [principal, complemento] = val.split("|");
-        return { principal, complemento: complemento || "", descanso: false };
-    };
-
-    const hoy = hoyIdx < cal.dias ? celda(hoyIdx) : { principal: "Descanso", complemento: "", descanso: true };
-    const bloqueHoy = `<div class="rounded-2xl p-5 mb-5 ${hoy.descanso ? 'bg-slate-50' : 'bg-[#DEE9FA]'}">
-        <p class="text-[10px] font-black uppercase tracking-widest ${hoy.descanso ? 'text-slate-400' : 'text-[#2E4982]/60'} mb-1">Hoy · ${DIAS_LARGOS[hoyIdx]}</p>
-        <p class="text-[17px] font-bold ${hoy.descanso ? 'text-slate-500' : 'text-[#2E4982]'} leading-snug">${window.esc(hoy.principal)}</p>
-        ${hoy.complemento ? `<p class="text-[13px] text-[#2E4982]/70 mt-0.5">+ ${window.esc(hoy.complemento)}</p>` : ""}
-    </div>`;
-
-    const grid = `<div class="grid gap-1.5 mb-4" style="grid-template-columns:repeat(${cal.dias},minmax(0,1fr))">
-        ${Array.from({ length: cal.dias }, (_, i) => {
-            const c = celda(i), esHoy = i === hoyIdx;
-            return `<div class="rounded-xl px-1 py-2.5 text-center overflow-hidden ${esHoy ? 'bg-[#2E4982]' : 'bg-slate-50'}" title="${window.esc(c.principal)}">
-                <p class="text-[10px] font-black ${esHoy ? 'text-white/60' : 'text-slate-400'}">${DIAS_LARGOS[i][0]}</p>
-                <p class="text-[9px] font-bold leading-tight mt-1 truncate ${esHoy ? 'text-white' : 'text-slate-600'}">${window.esc(c.principal.split(" ")[0])}</p>
-            </div>`;
-        }).join("")}
-    </div>`;
-
-    const nav = `<div class="flex items-center justify-between gap-2 mb-2">
-        <button onclick="window.cambiarSemana('${key}',${Math.max(1, semana - 1)})" class="text-slate-400 hover:text-[#2E4982] p-1 transition-colors" ${semana === 1 ? "disabled" : ""} aria-label="Semana anterior">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path d="M15 19l-7-7 7-7"></path></svg></button>
-        <p class="text-[11px] font-black uppercase tracking-widest text-slate-400">${etapa.nombre} · Semana ${((semana - 1) % 4) + 1}</p>
-        <button onclick="window.cambiarSemana('${key}',${Math.min(totalSemanas, semana + 1)})" class="text-slate-400 hover:text-[#2E4982] p-1 transition-colors" ${semana === totalSemanas ? "disabled" : ""} aria-label="Semana siguiente">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path d="M9 5l7 7-7 7"></path></svg></button>
-    </div>`;
-
-    return `<div class="mt-5 pt-5 border-t border-slate-100">${bloqueHoy}${nav}${grid}</div>`;
+    return `<details class="mt-5 pt-5 border-t border-slate-100 group">
+        <summary class="flex items-center justify-between cursor-pointer list-none text-[11px] font-black uppercase tracking-widest text-slate-400 hover:text-[#2E4982] transition-colors">
+            <span>Ver orden sugerido</span>
+            <svg class="w-4 h-4 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path d="M19 9l-7 7-7-7"></path></svg>
+        </summary>
+        <div class="mt-4">${cuerpo}</div>
+    </details>`;
 };
 
 window.verEntrenamientos = async () => {
@@ -918,7 +905,60 @@ window.verEntrenamientos = async () => {
         return;
     }
 
-    cont.innerHTML = items.map(r => {
+    // Cada entrenamiento con lo que la especialista indicó
+    const planes = items.map(r => ({
+        nombre: r.nombre,
+        key: window.getEntrenamientoKey(r.nombre, r.instrucciones),
+        dias: window.extraerDias(r.nombre + " " + r.instrucciones),
+        links: window.extraerLinks(r.instrucciones),
+        texto: window.limpiarInstrucciones(r.instrucciones)
+    }));
+
+    const irA = (p) => {
+        const info = p.key ? ENTRENAMIENTOS_INFO[p.key] : null;
+        return p.links[0] || info?.playlist || YOUTUBE_CANAL;
+    };
+
+    // La semana se arma con los días que ella escribió, no con suposiciones nuestras
+    const conDias = planes.filter(p => p.dias.length);
+    const sinDias = planes.filter(p => !p.dias.length);
+
+    let semanaHtml = "";
+    if (conDias.length) {
+        const filas = DIAS_LARGOS.map((dia, i) => {
+            const corto = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"][i];
+            const deEseDia = conDias.filter(p => p.dias.includes(corto));
+            if (!deEseDia.length) return "";
+            return deEseDia.map(p => `<a href="${window.esc(irA(p))}" target="_blank" rel="noopener" class="flex items-center gap-3 py-3 border-b border-slate-50 last:border-0 group">
+                <span class="text-[10px] font-black uppercase text-slate-400 w-9 shrink-0">${corto}</span>
+                <span class="text-[14px] text-slate-700 flex-1 leading-snug">${window.esc(p.nombre)}</span>
+                <svg class="w-4 h-4 text-slate-300 group-hover:text-[#2E4982] transition-colors shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><circle cx="12" cy="12" r="9"></circle></svg>
+            </a>`).join("");
+        }).join("");
+
+        semanaHtml = `<div class="w-full mb-6">
+            <p class="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-3 px-1">Tu semana</p>
+            <div class="bg-white rounded-[2rem] px-6 py-3 border border-slate-100 shadow-sm">${filas}</div>
+        </div>`;
+    }
+
+    let libresHtml = "";
+    if (sinDias.length) {
+        libresHtml = `<div class="w-full mb-6">
+            <p class="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-3 px-1">Cuando puedas</p>
+            <div class="bg-white rounded-[2rem] px-6 py-3 border border-slate-100 shadow-sm">
+            ${sinDias.map(p => `<a href="${window.esc(irA(p))}" target="_blank" rel="noopener" class="flex items-center gap-3 py-3 border-b border-slate-50 last:border-0 group">
+                <span class="flex-1 min-w-0">
+                    <span class="block text-[14px] text-slate-700 leading-snug">${window.esc(p.nombre)}</span>
+                    ${p.texto ? `<span class="block text-[12px] text-slate-400 leading-relaxed mt-0.5">${window.esc(p.texto)}</span>` : ""}
+                </span>
+                <svg class="w-4 h-4 text-slate-300 group-hover:text-[#2E4982] transition-colors shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><circle cx="12" cy="12" r="9"></circle></svg>
+            </a>`).join("")}
+            </div>
+        </div>`;
+    }
+
+    const tarjetas = items.map(r => {
         const key = window.getEntrenamientoKey(r.nombre, r.instrucciones);
         const info = key ? ENTRENAMIENTOS_INFO[key] : null;
         const dias = window.extraerDias(r.nombre + " " + r.instrucciones);
@@ -945,9 +985,13 @@ window.verEntrenamientos = async () => {
             ${texto ? `<p class="text-[13px] text-slate-500 leading-relaxed mb-4">${window.esc(texto)}</p>` : `<div class="mb-4"></div>`}
             ${pills}
             ${botones.length ? `<div class="flex flex-wrap gap-3">${botones.join("")}</div>` : ""}
-            ${key ? window.renderCalendario(key, r.asignado) : ""}
+            ${key ? window.renderCalendario(key) : ""}
         </div>`;
     }).join("");
+
+    cont.innerHTML = semanaHtml + libresHtml
+        + `<p class="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-3 px-1">Detalle</p>`
+        + tarjetas;
 };
 
 window.refreshUIWithData = () => {
