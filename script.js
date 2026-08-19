@@ -109,8 +109,88 @@ const PROGRAMAS_INFO = {
     }
 };
 
+const YOUTUBE_CANAL = "https://www.youtube.com/@entrenaconfren";
+
+// Programas de entrenamiento propios. Cada uno lleva su playlist y su material de apoyo
+// (calendario u hojas de trabajo, según el programa). El material se activa al poner la url.
+const ENTRENAMIENTOS_INFO = {
+    "CINCO/30": {
+        playlist: "https://www.youtube.com/playlist?list=PLqovcsbkQCLYbz2QCPDRMnNS8GeM2G_RC",
+        videos: 11,
+        material: { label: "Ver calendario", url: "https://res.cloudinary.com/hbhbyjgn/image/upload/v1787151581/Calendario_-_CINCO30-.pdf" }
+    },
+    "IRON ABS": {
+        playlist: "https://www.youtube.com/playlist?list=PLqovcsbkQCLYc9560lUIWTOWUUXTKDx9r",
+        videos: 6,
+        material: { label: "Ver calendario", url: "https://res.cloudinary.com/hbhbyjgn/image/upload/v1787151581/Calendario_IRON_ABS.pdf" }
+    },
+    "POWERLIFTING": {
+        playlist: "https://www.youtube.com/playlist?list=PLqovcsbkQCLbVpQ0i10KoyBqiyDjZINhL",
+        videos: 8,
+        material: { label: "Ver calendario", url: "https://res.cloudinary.com/hbhbyjgn/image/upload/v1787151581/Calendario_PWL.png" }
+    },
+    "WEEK ON FIRE": {
+        playlist: "https://www.youtube.com/playlist?list=PLqovcsbkQCLaZoK2PKxnmW04MCjA79dHn",
+        videos: 11,
+        material: { label: "Hojas de trabajo", url: "https://res.cloudinary.com/hbhbyjgn/image/upload/v1787151581/Hojas_de_Trabajo-Week_on_fire.pdf" }
+    }
+};
+
+// Calendarios transcritos de los PDF. "principal|complemento" cuando el día lleva rutina de abs.
+// Semanales: 5 o 6 días de entreno, el resto descanso. Secuenciales: rutinas numeradas sin día fijo.
+const CALENDARIOS = {
+    "CINCO/30": {
+        tipo: "semanal", dias: 5,
+        etapas: [
+            { nombre: "Mes 1", semanas: [
+                ["Full Body Cardio", "HIIT & Legs", "Upper Body Focus", "Isometrics & Pulse", "Lower Body Power"],
+                ["Upper Body Focus", "Lower Body Power", "Full Body Cardio", "HIIT & Legs", "Isometrics & Pulse"],
+                ["Full Body Cardio", "HIIT & Legs", "Upper Body Focus", "Isometrics & Pulse", "Lower Body Power"],
+                ["Upper Body Focus|Full Abs", "Lower Body Power", "Full Body Cardio|Obliques", "HIIT & Legs", "Isometrics & Pulse|Full Abs No Crunches"]
+            ]},
+            { nombre: "Mes 2", semanas: [
+                ["Tabata Total Body|Full Abs", "Isometrics Total Body", "Lower Body|Lower/Upper Abs", "Upper Body", "On Fire|Just Crunches"],
+                ["Upper Body", "Lower Body|Lower/Upper Abs", "Isometrics Total Body", "Tabata Total Body|Obliques", "On Fire"],
+                ["Tabata Total Body|Full Abs", "Isometric Total Body|Lower/Upper Abs", "Lower Body|Abs No Crunches", "Upper Body|Obliques", "On Fire|Just Crunches"],
+                ["Upper Body|Full Abs", "Lower Body|Lower/Upper Abs", "Isometrics Total|Abs No Crunches", "Tabata Total Body|Obliques", "On Fire|Just Crunches"]
+            ]}
+        ]
+    },
+    "POWERLIFTING": {
+        tipo: "semanal", dias: 6,
+        etapas: [
+            { nombre: "Calendario", semanas: [
+                ["Biceps & Triceps", "Shoulders & Back|Upper Body Heat", "Legs & Glutes", "Biceps & Triceps", "Shoulders & Back|Upper Body Heat", "Legs & Glutes"],
+                ["Power Biceps & Triceps", "Shoulders, Chest & Back", "Power Legs & Glutes", "Power Biceps & Triceps", "Shoulders, Chest & Back", "Power Legs & Glutes"],
+                ["Legs & Glutes", "Power Biceps & Triceps", "Shoulders & Back|Upper Body Heat", "Power Legs & Glutes", "Biceps & Triceps", "Shoulders, Chest & Back"],
+                ["Legs & Glutes", "Power Biceps & Triceps", "Shoulders & Back|Upper Body Heat", "Power Legs & Glutes", "Biceps & Triceps", "Shoulders, Chest & Back"]
+            ]}
+        ]
+    },
+    "IRON ABS": {
+        tipo: "secuencial",
+        rutinas: [
+            { titulo: "Día 1", nombre: "Full Abs" },
+            { titulo: "Día 2", nombre: "Lower/Upper Abs" },
+            { titulo: "Día 3", nombre: "Abs No Crunches" },
+            { titulo: "Día 4", nombre: "Obliques" },
+            { titulo: "Día 5", nombre: "Just Crunches" }
+        ]
+    },
+    "WEEK ON FIRE": {
+        tipo: "secuencial",
+        rutinas: [
+            { titulo: "Día 1", ejercicios: ["Plank con slider", "Abs pull back", "Squats con ketlebell", "Lunge side D/I", "Burpees", "Squats push", "Abs Sides", "Lunge slider biceps curl D/I", "Plank back", "Squats shoulder press single D/I"] },
+            { titulo: "Día 2", ejercicios: ["Reverse lunge shoulder press D/I", "Side plank/slider D/I", "Squat walking bicep curl", "Stand to plank elbow knee", "Low plank walking", "High plank to squat", "Back row/ bicep curl/ shoulder press", "Shoulder rise/ squat stand", "Lunge jumps", "Sprint"] },
+            { titulo: "Día 3", ejercicios: ["Femorales sliders", "Burpees", "Leg rise & Triceps con ligas", "Superman Fly pulse", "Front Lunge bands arms", "High plank/squat jump", "Abs pull back", "Reverse lunge bicep curl", "Wall of death", "Peso muerto con ligas"] },
+            { titulo: "Día 4", ejercicios: ["Abs crunch abduction", "Lunge front and upper back", "Walking plank con ligas", "Oblicuos con ligas en ancla", "Squat push", "Frog jump 4 points", "Plank bear walking", "Femorales con ligas biceps curl", "Abs sides", "Squats walking"] },
+            { titulo: "Día 5 · Isométricos", ejercicios: ["Superman Fly", "Squat pulse", "Low plank", "1 Leg 4 derecha", "1 Leg 4 izquierda", "Touch toe stretching", "V Push-up", "Triceps Push-up", "Sumo touch floor", "Brigde"] }
+        ]
+    }
+};
+
 const frasesCreyentes = [
-    "Todo lo puedo en Cristo que me fortalece. - Filipenses 4:13", 
+    "Todo lo puedo en Cristo que me fortalece. - Filipenses 4:13",
     "Nuevas son sus misericordias cada mañana. - Lamentaciones 3:23", 
     "Jehová es mi pastor; nada me faltará. - Salmos 23:1",
     "Jehová es mi fortaleza y mi escudo. - Salmos 28:7", 
@@ -169,14 +249,14 @@ document.addEventListener('visibilitychange', () => {
 });
 
 window.showView = (id, save = true) => {
-    const views = ['login-view', 'signup-view', 'patient-view', 'membership-view', 'program-detail-view', 'forgot-password-view', 'contact-view', 'mobile-ai-view'];
+    const views = ['login-view', 'signup-view', 'patient-view', 'membership-view', 'program-detail-view', 'training-view', 'forgot-password-view', 'contact-view', 'mobile-ai-view'];
     views.forEach(v => { const el = document.getElementById(v); if (el) el.classList.toggle('hidden', v !== id); });
     window.scrollTo(0, 0);
     if (save) history.pushState({ viewId: id }, "", "");
 };
 
 window.resetUI = () => {
-    cachedAirtableData = null; currentAppData = null; chatHistory = []; isSpecialistMode = false;
+    cachedAirtableData = null; currentAppData = null; chatHistory = []; entrenamientosCargados = []; isSpecialistMode = false;
     window.removeImage();
     window.safeSetText('display-nombre', "..."); window.safeSetText('display-estatus', "...");
     window.safeSetText('display-frase', "..."); window.safeSetText('plan-banner-title', "...");
@@ -223,6 +303,88 @@ window.getProgramKey = (p) => {
     if (pl.includes("sano")) return "SANO";
     if (pl.includes("adiós diabetes 2") || pl.includes("adios diabetes 2")) return "Adiós Diabetes 2";
     return null;
+};
+
+// Lo que escribe la especialista en Airtable se inserta como HTML, así que hay que escaparlo:
+// un "&" o un "<" en un nombre rompería la tarjeta
+window.esc = (t) => String(t ?? "").replace(/[&<>"']/g, c =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+// Quita acentos, signos y espacios sobrantes para poder comparar nombres escritos de formas distintas
+window.normalizarTexto = (t) => {
+    if (!t) return "";
+    return String(t).normalize("NFD").replace(/[̀-ͯ]/g, "")
+        .toUpperCase().replace(/[^A-Z0-9]+/g, " ").trim();
+};
+
+// Detecta a cuál de los 4 programas propios corresponde. Revisa nombre e instrucciones
+// porque a veces el programa está escrito en las instrucciones y no en el título.
+window.getEntrenamientoKey = (nombre, instrucciones) => {
+    const t = window.normalizarTexto(nombre) + " " + window.normalizarTexto(instrucciones);
+    if (/\bCINCO\s*30\b/.test(t)) return "CINCO/30";
+    if (/\bIRON\s*ABS\b/.test(t)) return "IRON ABS";
+    if (/\bPOWER\s*LIFTING\b/.test(t)) return "POWERLIFTING";
+    if (/\bWEEK\s*ON\s*FIRE\b/.test(t)) return "WEEK ON FIRE";
+    return null;
+};
+
+const DIAS_SEMANA = [
+    { corto: "Lun", regex: /\bLUNES\b/ },
+    { corto: "Mar", regex: /\bMARTES\b/ },
+    { corto: "Mié", regex: /\bMIERCOLES\b/ },
+    { corto: "Jue", regex: /\bJUEVES\b/ },
+    { corto: "Vie", regex: /\bVIERNES\b/ },
+    { corto: "Sáb", regex: /\bSABADO\b/ },
+    { corto: "Dom", regex: /\bDOMINGO\b/ }
+];
+
+// Saca los días de la semana del texto libre. Entiende "de lunes a viernes" como rango.
+window.extraerDias = (texto) => {
+    const t = window.normalizarTexto(texto);
+    if (!t) return [];
+
+    const rango = t.match(/\bDE\s+(LUNES|MARTES|MIERCOLES|JUEVES|VIERNES|SABADO|DOMINGO)\s+A\s+(LUNES|MARTES|MIERCOLES|JUEVES|VIERNES|SABADO|DOMINGO)\b/);
+    if (rango) {
+        const nombres = ["LUNES", "MARTES", "MIERCOLES", "JUEVES", "VIERNES", "SABADO", "DOMINGO"];
+        const ini = nombres.indexOf(rango[1]), fin = nombres.indexOf(rango[2]);
+        if (ini !== -1 && fin !== -1 && ini <= fin) return DIAS_SEMANA.slice(ini, fin + 1).map(d => d.corto);
+    }
+
+    return DIAS_SEMANA.filter(d => d.regex.test(t)).map(d => d.corto);
+};
+
+// La especialista escribe los links de 4 formas distintas: markdown, <url>, url cruda
+// y [(CLICK AQUI)](url). Esto las normaliza todas.
+window.extraerLinks = (texto) => {
+    if (!texto) return [];
+    const links = [];
+    const vistos = new Set();
+    const agregar = (url) => {
+        const limpia = url.replace(/[)\].,\s]+$/, "");
+        if (limpia && !vistos.has(limpia)) { vistos.add(limpia); links.push(limpia); }
+    };
+
+    let resto = String(texto);
+    resto = resto.replace(/\[([^\]]*)\]\((https?:\/\/[^)\s]+)\)/g, (_, __, url) => { agregar(url); return " "; });
+    resto = resto.replace(/<(https?:\/\/[^>\s]+)>/g, (_, url) => { agregar(url); return " "; });
+    (resto.match(/https?:\/\/[^\s<>()\[\]]+/g) || []).forEach(agregar);
+
+    return links;
+};
+
+// Deja el texto de instrucciones legible: sin markdown ni URLs sueltas
+window.limpiarInstrucciones = (texto) => {
+    if (!texto) return "";
+    // Los textos tipo "CLICK AQUI" sobran: el enlace ya se muestra como botón
+    const esGenerico = (s) => /^[\s(]*(DALE\s+)?(CLICK|CLIC|VER|ENTRA|PRESIONA)?\s*(AQUI|AQUÍ|HERE)?[\s)]*$/i.test(s || "");
+    return String(texto)
+        .replace(/\[([^\]]*)\]\((https?:\/\/[^)\s]+)\)/g, (_, label) => esGenerico(label) ? " " : label)
+        .replace(/<(https?:\/\/[^>\s]+)>/g, "")
+        .replace(/https?:\/\/[^\s<>()\[\]]+/g, "")
+        .replace(/\(\s*\)/g, "")
+        .replace(/\s*\n+\s*/g, " ")
+        .replace(/\s{2,}/g, " ")
+        .trim();
 };
 
 window.parseAIResponse = (text) => {
@@ -339,7 +501,7 @@ window.clearChat = () => {
     if(m) m.innerHTML = html; if(d) d.innerHTML = html;
 };
 
-window.handleAIAction = (viewId) => { window.closeDesktopAIModal(); if (viewId === 'program-detail-view') window.viewProgramResources(); else window.showView(viewId); };
+window.handleAIAction = (viewId) => { window.closeDesktopAIModal(); if (viewId === 'program-detail-view') window.viewProgramResources(); else if (viewId === 'training-view') window.verEntrenamientos(); else window.showView(viewId); };
 window.openDesktopAIModal = () => { const m = document.getElementById('ai-modal-overlay'); if(m){ m.classList.remove('hidden'); m.classList.add('flex'); setTimeout(() => { m.classList.remove('opacity-0'); m.querySelector('div')?.classList.remove('scale-95', 'opacity-0'); document.getElementById('ai-input-desktop')?.focus(); }, 10); }};
 window.closeDesktopAIModal = () => { const m = document.getElementById('ai-modal-overlay'); if(!m) return; m.classList.add('opacity-0'); m.querySelector('div')?.classList.add('scale-95', 'opacity-0'); setTimeout(() => { m.classList.add('hidden'); m.classList.remove('flex'); window.clearChat(); }, 300); };
 window.openAIChat = () => { if (window.innerWidth < 768) { window.showView('mobile-ai-view'); setTimeout(() => document.getElementById('ai-input-mobile')?.focus(), 300); } else window.openDesktopAIModal(); };
@@ -585,7 +747,7 @@ window.sendMessageToAI = async (source) => {
     REGLAS DE ACCIÓN OBLIGATORIAS:
     - **Check-in**: Muestra [Hacer Check-in](https://airtable.com/appCHcm7XPzeoyBCs/pagh79fwniuSPmusB/form).
     - **Subir Documentos/Exámenes**: Muestra [Subir Archivos](https://airtable.com/appCHcm7XPzeoyBCs/pagYI9IBX65B8OsAY/form).
-    - **Entrenar**: Muestra [Ver Entrenamientos](https://www.youtube.com/@entrenaconfren).
+    - **Entrenar**: Muestra [Ver Entrenamientos](function:training-view).
     - **Agendar Cita**: Muestra [Reservar Cita](${info["Link Calendar"] || CALENDAR_LINK_DEFAULT}) y añade: "Recuerda que es preferible completar tu Check-in 24 horas antes.".
     - **Ver Recursos/Manual**: SOLO si piden manuales o material de apoyo, muestra [Ver Guías PDF](function:program-detail-view).
     - **Ver Consultas**: Muestra [Historial de Consultas](${info["Link Consultas"] || "#"}).
@@ -656,6 +818,136 @@ window.viewProgramResources = () => {
         document.getElementById('program-img-container')?.classList.remove('hidden'); 
     }
     window.showView('program-detail-view');
+};
+
+const DIAS_LARGOS = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"];
+let entrenamientosCargados = [];
+
+// El paciente puede corregir la semana si el cálculo automático no cuadra con su avance real
+const claveSemana = (key) => `imnufit_semana_${key}`;
+window.getSemanaActual = (key, asignado, totalSemanas) => {
+    let manual = NaN;
+    try { manual = parseInt(localStorage.getItem(claveSemana(key)), 10); } catch (e) {}
+    if (manual >= 1 && manual <= totalSemanas) return manual;
+    if (!asignado) return 1;
+    const transcurridas = Math.floor((Date.now() - new Date(asignado).getTime()) / (7 * 24 * 60 * 60 * 1000));
+    if (!isFinite(transcurridas) || transcurridas < 0) return 1;
+    return Math.min(transcurridas + 1, totalSemanas);
+};
+window.cambiarSemana = (key, semana) => {
+    try { localStorage.setItem(claveSemana(key), String(semana)); } catch (e) {}
+    window.verEntrenamientos();
+};
+
+// Arma el calendario de un programa propio: lo de hoy arriba y la semana completa debajo
+window.renderCalendario = (key, asignado) => {
+    const cal = CALENDARIOS[key];
+    if (!cal) return "";
+
+    if (cal.tipo === "secuencial") {
+        return `<div class="mt-5 pt-5 border-t border-slate-100">
+            ${cal.rutinas.map(r => `<div class="mb-3 last:mb-0">
+                <p class="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">${r.titulo}</p>
+                ${r.nombre ? `<p class="text-[14px] font-bold text-slate-700">${window.esc(r.nombre)}</p>` : ""}
+                ${r.ejercicios ? `<p class="text-[12px] text-slate-500 leading-relaxed">${window.esc(r.ejercicios.join(" · "))}</p>` : ""}
+            </div>`).join("")}
+        </div>`;
+    }
+
+    const totalSemanas = cal.etapas.length * 4;
+    const semana = window.getSemanaActual(key, asignado, totalSemanas);
+    const etapa = cal.etapas[Math.floor((semana - 1) / 4)];
+    const fila = etapa.semanas[(semana - 1) % 4];
+    const hoyIdx = (new Date().getDay() + 6) % 7;
+
+    const celda = (i) => {
+        const val = fila[i];
+        if (!val) return { principal: "Descanso", complemento: "", descanso: true };
+        const [principal, complemento] = val.split("|");
+        return { principal, complemento: complemento || "", descanso: false };
+    };
+
+    const hoy = hoyIdx < cal.dias ? celda(hoyIdx) : { principal: "Descanso", complemento: "", descanso: true };
+    const bloqueHoy = `<div class="rounded-2xl p-5 mb-5 ${hoy.descanso ? 'bg-slate-50' : 'bg-[#DEE9FA]'}">
+        <p class="text-[10px] font-black uppercase tracking-widest ${hoy.descanso ? 'text-slate-400' : 'text-[#2E4982]/60'} mb-1">Hoy · ${DIAS_LARGOS[hoyIdx]}</p>
+        <p class="text-[17px] font-bold ${hoy.descanso ? 'text-slate-500' : 'text-[#2E4982]'} leading-snug">${window.esc(hoy.principal)}</p>
+        ${hoy.complemento ? `<p class="text-[13px] text-[#2E4982]/70 mt-0.5">+ ${window.esc(hoy.complemento)}</p>` : ""}
+    </div>`;
+
+    const grid = `<div class="grid gap-1.5 mb-4" style="grid-template-columns:repeat(${cal.dias},minmax(0,1fr))">
+        ${Array.from({ length: cal.dias }, (_, i) => {
+            const c = celda(i), esHoy = i === hoyIdx;
+            return `<div class="rounded-xl px-1 py-2.5 text-center overflow-hidden ${esHoy ? 'bg-[#2E4982]' : 'bg-slate-50'}" title="${window.esc(c.principal)}">
+                <p class="text-[10px] font-black ${esHoy ? 'text-white/60' : 'text-slate-400'}">${DIAS_LARGOS[i][0]}</p>
+                <p class="text-[9px] font-bold leading-tight mt-1 truncate ${esHoy ? 'text-white' : 'text-slate-600'}">${window.esc(c.principal.split(" ")[0])}</p>
+            </div>`;
+        }).join("")}
+    </div>`;
+
+    const nav = `<div class="flex items-center justify-between gap-2 mb-2">
+        <button onclick="window.cambiarSemana('${key}',${Math.max(1, semana - 1)})" class="text-slate-400 hover:text-[#2E4982] p-1 transition-colors" ${semana === 1 ? "disabled" : ""} aria-label="Semana anterior">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path d="M15 19l-7-7 7-7"></path></svg></button>
+        <p class="text-[11px] font-black uppercase tracking-widest text-slate-400">${etapa.nombre} · Semana ${((semana - 1) % 4) + 1}</p>
+        <button onclick="window.cambiarSemana('${key}',${Math.min(totalSemanas, semana + 1)})" class="text-slate-400 hover:text-[#2E4982] p-1 transition-colors" ${semana === totalSemanas ? "disabled" : ""} aria-label="Semana siguiente">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path d="M9 5l7 7-7 7"></path></svg></button>
+    </div>`;
+
+    return `<div class="mt-5 pt-5 border-t border-slate-100">${bloqueHoy}${nav}${grid}</div>`;
+};
+
+window.verEntrenamientos = async () => {
+    window.showView('training-view');
+    const cont = document.getElementById('training-list');
+    if (!cont) return;
+    cont.innerHTML = `<p class="text-slate-400 text-[13px] italic text-center py-10">Cargando tus entrenamientos...</p>`;
+
+    let registros = entrenamientosCargados;
+    if (!registros.length) {
+        registros = await fetchEntrenamientos(currentAppData?.["Entrenamientos"] || []);
+        entrenamientosCargados = registros;
+    }
+
+    // Sin nombre no hay nada que mostrar en la tarjeta
+    const items = registros.filter(r => r.nombre);
+
+    if (!items.length) {
+        cont.innerHTML = `<div class="w-full bg-white rounded-[2rem] p-8 border border-slate-100 shadow-sm text-center">
+            <p class="text-[15px] font-bold text-slate-700 mb-2">Aún no tienes entrenamientos asignados</p>
+            <p class="text-[13px] text-slate-500 leading-relaxed">Tu especialista te los asignará en tu próxima consulta. Mientras tanto puedes explorar todos nuestros entrenamientos.</p>
+        </div>`;
+        return;
+    }
+
+    cont.innerHTML = items.map(r => {
+        const key = window.getEntrenamientoKey(r.nombre, r.instrucciones);
+        const info = key ? ENTRENAMIENTOS_INFO[key] : null;
+        const dias = window.extraerDias(r.nombre + " " + r.instrucciones);
+        const links = window.extraerLinks(r.instrucciones);
+        const texto = window.limpiarInstrucciones(r.instrucciones);
+
+        const pills = dias.length ? `<div class="flex flex-wrap gap-2 mb-5">${dias.map(d =>
+            `<span class="text-[11px] font-bold text-[#2E4982] bg-[#DEE9FA] px-3 py-1.5 rounded-lg">${d}</span>`).join("")}</div>` : "";
+
+        const botones = [];
+        if (info) {
+            if (info.material?.url) botones.push(`<a href="${info.material.url}" target="_blank" class="btn-ghost-sm text-center">${info.material.label}</a>`);
+            botones.push(`<a href="${info.playlist}" target="_blank" class="btn-ghost-sm text-center">Ver ${info.videos} videos</a>`);
+        }
+        links.forEach((url, i) => {
+            botones.push(`<a href="${window.esc(url)}" target="_blank" rel="noopener" class="btn-ghost-sm text-center">${links.length > 1 ? `Entrenamiento ${i + 1}` : "Ir a entrenar"}</a>`);
+        });
+
+        return `<div class="w-full bg-white rounded-[2rem] p-6 md:p-7 border border-slate-100 shadow-sm mb-5 fade-in text-left">
+            <div class="flex items-start justify-between gap-3 mb-1">
+                <h4 class="text-[17px] font-bold text-slate-800 leading-snug">${window.esc(r.nombre)}</h4>
+                ${key ? `<span class="text-[10px] font-black uppercase tracking-widest text-[#2E4982] bg-[#DEE9FA] px-3 py-1.5 rounded-lg shrink-0">Imnufit</span>` : ""}
+            </div>
+            ${texto ? `<p class="text-[13px] text-slate-500 leading-relaxed mb-4">${window.esc(texto)}</p>` : `<div class="mb-4"></div>`}
+            ${pills}
+            ${botones.length ? `<div class="flex flex-wrap gap-3">${botones.join("")}</div>` : ""}
+            ${key ? window.renderCalendario(key, r.asignado) : ""}
+        </div>`;
+    }).join("");
 };
 
 window.refreshUIWithData = () => {
@@ -757,6 +1049,23 @@ window.refreshData = () => {
 async function fetchAirtableData(email) {
     const f = encodeURIComponent(`(LOWER({Email})=LOWER('${email}'))`), u = `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${AIRTABLE_TABLE_NAME}?filterByFormula=${f}`;
     try { const res = await fetch(u, { headers: { Authorization: `Bearer ${AIRTABLE_PAT}` } }); const data = await res.json(); return data.records?.[0]?.fields || null; } catch (e) { return null; }
+}
+
+// Trae los entrenamientos asignados. Hay que leer la tabla directamente porque los campos
+// derivados (Resumen Entrenam, Compilación) pierden las URLs al convertir el texto enriquecido.
+async function fetchEntrenamientos(ids) {
+    if (!Array.isArray(ids) || !ids.length) return [];
+    const f = encodeURIComponent(`OR(${ids.map(id => `RECORD_ID()='${id}'`).join(",")})`);
+    const u = `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/Entrenamientos?filterByFormula=${f}`;
+    try {
+        const res = await fetch(u, { headers: { Authorization: `Bearer ${AIRTABLE_PAT}` } });
+        const data = await res.json();
+        return (data.records || []).map(r => ({
+            nombre: (r.fields?.["Entrenamiento"] || "").trim(),
+            instrucciones: (r.fields?.["Instrucciones"] || "").trim(),
+            asignado: r.createdTime || null
+        }));
+    } catch (e) { return []; }
 }
 
 function updateDashboardUI(data) {
