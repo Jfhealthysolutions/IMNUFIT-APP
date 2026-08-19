@@ -136,59 +136,6 @@ const ENTRENAMIENTOS_INFO = {
     }
 };
 
-// Calendarios transcritos de los PDF. "principal|complemento" cuando el día lleva rutina de abs.
-// Semanales: 5 o 6 días de entreno, el resto descanso. Secuenciales: rutinas numeradas sin día fijo.
-const CALENDARIOS = {
-    "CINCO/30": {
-        tipo: "semanal", dias: 5,
-        etapas: [
-            { nombre: "Mes 1", semanas: [
-                ["Full Body Cardio", "HIIT & Legs", "Upper Body Focus", "Isometrics & Pulse", "Lower Body Power"],
-                ["Upper Body Focus", "Lower Body Power", "Full Body Cardio", "HIIT & Legs", "Isometrics & Pulse"],
-                ["Full Body Cardio", "HIIT & Legs", "Upper Body Focus", "Isometrics & Pulse", "Lower Body Power"],
-                ["Upper Body Focus|Full Abs", "Lower Body Power", "Full Body Cardio|Obliques", "HIIT & Legs", "Isometrics & Pulse|Full Abs No Crunches"]
-            ]},
-            { nombre: "Mes 2", semanas: [
-                ["Tabata Total Body|Full Abs", "Isometrics Total Body", "Lower Body|Lower/Upper Abs", "Upper Body", "On Fire|Just Crunches"],
-                ["Upper Body", "Lower Body|Lower/Upper Abs", "Isometrics Total Body", "Tabata Total Body|Obliques", "On Fire"],
-                ["Tabata Total Body|Full Abs", "Isometric Total Body|Lower/Upper Abs", "Lower Body|Abs No Crunches", "Upper Body|Obliques", "On Fire|Just Crunches"],
-                ["Upper Body|Full Abs", "Lower Body|Lower/Upper Abs", "Isometrics Total|Abs No Crunches", "Tabata Total Body|Obliques", "On Fire|Just Crunches"]
-            ]}
-        ]
-    },
-    "POWERLIFTING": {
-        tipo: "semanal", dias: 6,
-        etapas: [
-            { nombre: "Calendario", semanas: [
-                ["Biceps & Triceps", "Shoulders & Back|Upper Body Heat", "Legs & Glutes", "Biceps & Triceps", "Shoulders & Back|Upper Body Heat", "Legs & Glutes"],
-                ["Power Biceps & Triceps", "Shoulders, Chest & Back", "Power Legs & Glutes", "Power Biceps & Triceps", "Shoulders, Chest & Back", "Power Legs & Glutes"],
-                ["Legs & Glutes", "Power Biceps & Triceps", "Shoulders & Back|Upper Body Heat", "Power Legs & Glutes", "Biceps & Triceps", "Shoulders, Chest & Back"],
-                ["Legs & Glutes", "Power Biceps & Triceps", "Shoulders & Back|Upper Body Heat", "Power Legs & Glutes", "Biceps & Triceps", "Shoulders, Chest & Back"]
-            ]}
-        ]
-    },
-    "IRON ABS": {
-        tipo: "secuencial",
-        rutinas: [
-            { titulo: "Día 1", nombre: "Full Abs" },
-            { titulo: "Día 2", nombre: "Lower/Upper Abs" },
-            { titulo: "Día 3", nombre: "Abs No Crunches" },
-            { titulo: "Día 4", nombre: "Obliques" },
-            { titulo: "Día 5", nombre: "Just Crunches" }
-        ]
-    },
-    "WEEK ON FIRE": {
-        tipo: "secuencial",
-        rutinas: [
-            { titulo: "Día 1", ejercicios: ["Plank con slider", "Abs pull back", "Squats con ketlebell", "Lunge side D/I", "Burpees", "Squats push", "Abs Sides", "Lunge slider biceps curl D/I", "Plank back", "Squats shoulder press single D/I"] },
-            { titulo: "Día 2", ejercicios: ["Reverse lunge shoulder press D/I", "Side plank/slider D/I", "Squat walking bicep curl", "Stand to plank elbow knee", "Low plank walking", "High plank to squat", "Back row/ bicep curl/ shoulder press", "Shoulder rise/ squat stand", "Lunge jumps", "Sprint"] },
-            { titulo: "Día 3", ejercicios: ["Femorales sliders", "Burpees", "Leg rise & Triceps con ligas", "Superman Fly pulse", "Front Lunge bands arms", "High plank/squat jump", "Abs pull back", "Reverse lunge bicep curl", "Wall of death", "Peso muerto con ligas"] },
-            { titulo: "Día 4", ejercicios: ["Abs crunch abduction", "Lunge front and upper back", "Walking plank con ligas", "Oblicuos con ligas en ancla", "Squat push", "Frog jump 4 points", "Plank bear walking", "Femorales con ligas biceps curl", "Abs sides", "Squats walking"] },
-            { titulo: "Día 5 · Isométricos", ejercicios: ["Superman Fly", "Squat pulse", "Low plank", "1 Leg 4 derecha", "1 Leg 4 izquierda", "Touch toe stretching", "V Push-up", "Triceps Push-up", "Sumo touch floor", "Brigde"] }
-        ]
-    }
-};
-
 const frasesCreyentes = [
     "Todo lo puedo en Cristo que me fortalece. - Filipenses 4:13",
     "Nuevas son sus misericordias cada mañana. - Lamentaciones 3:23", 
@@ -820,67 +767,7 @@ window.viewProgramResources = () => {
     window.showView('program-detail-view');
 };
 
-const DIAS_LARGOS = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"];
 let entrenamientosCargados = [];
-
-// El calendario del programa es una referencia de orden, no una agenda: la instrucción de
-// la especialista es la que manda. Solo recordamos por dónde iba navegando el paciente.
-const claveSemana = (key) => `imnufit_semana_${key}`;
-window.getSemanaVista = (key, totalSemanas) => {
-    let guardada = NaN;
-    try { guardada = parseInt(localStorage.getItem(claveSemana(key)), 10); } catch (e) {}
-    return (guardada >= 1 && guardada <= totalSemanas) ? guardada : 1;
-};
-window.cambiarSemana = (key, semana) => {
-    try { localStorage.setItem(claveSemana(key), String(semana)); } catch (e) {}
-    window.verEntrenamientos();
-};
-
-// Orden sugerido del programa, plegado para no imponerse sobre lo que indicó la especialista
-window.renderCalendario = (key) => {
-    const cal = CALENDARIOS[key];
-    if (!cal) return "";
-
-    let cuerpo;
-    if (cal.tipo === "secuencial") {
-        cuerpo = cal.rutinas.map(r => `<div class="mb-3 last:mb-0">
-            <p class="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">${r.titulo}</p>
-            ${r.nombre ? `<p class="text-[14px] font-bold text-slate-700">${window.esc(r.nombre)}</p>` : ""}
-            ${r.ejercicios ? `<p class="text-[12px] text-slate-500 leading-relaxed">${window.esc(r.ejercicios.join(" · "))}</p>` : ""}
-        </div>`).join("");
-    } else {
-        const totalSemanas = cal.etapas.length * 4;
-        const semana = window.getSemanaVista(key, totalSemanas);
-        const etapa = cal.etapas[Math.floor((semana - 1) / 4)];
-        const fila = etapa.semanas[(semana - 1) % 4];
-
-        const filas = Array.from({ length: cal.dias }, (_, i) => {
-            const val = fila[i] || "Descanso";
-            const [principal, complemento] = val.split("|");
-            return `<div class="flex items-baseline gap-3 py-2 border-b border-slate-50 last:border-0">
-                <span class="text-[10px] font-black uppercase text-slate-400 w-9 shrink-0">${DIAS_LARGOS[i].slice(0, 3)}</span>
-                <span class="text-[13px] text-slate-700 leading-snug">${window.esc(principal)}${complemento ? `<span class="text-slate-400"> + ${window.esc(complemento)}</span>` : ""}</span>
-            </div>`;
-        }).join("");
-
-        const nav = `<div class="flex items-center justify-between gap-2 mb-3">
-            <button onclick="window.cambiarSemana('${key}',${Math.max(1, semana - 1)})" class="text-slate-400 hover:text-[#2E4982] p-1 transition-colors disabled:opacity-30" ${semana === 1 ? "disabled" : ""} aria-label="Semana anterior">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path d="M15 19l-7-7 7-7"></path></svg></button>
-            <p class="text-[11px] font-black uppercase tracking-widest text-slate-400">${etapa.nombre} · Semana ${((semana - 1) % 4) + 1}</p>
-            <button onclick="window.cambiarSemana('${key}',${Math.min(totalSemanas, semana + 1)})" class="text-slate-400 hover:text-[#2E4982] p-1 transition-colors disabled:opacity-30" ${semana === totalSemanas ? "disabled" : ""} aria-label="Semana siguiente">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path d="M9 5l7 7-7 7"></path></svg></button>
-        </div>`;
-        cuerpo = nav + filas;
-    }
-
-    return `<details class="mt-5 pt-5 border-t border-slate-100 group">
-        <summary class="flex items-center justify-between cursor-pointer list-none text-[11px] font-black uppercase tracking-widest text-slate-400 hover:text-[#2E4982] transition-colors">
-            <span>Ver orden sugerido</span>
-            <svg class="w-4 h-4 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path d="M19 9l-7 7-7-7"></path></svg>
-        </summary>
-        <div class="mt-4">${cuerpo}</div>
-    </details>`;
-};
 
 window.verEntrenamientos = async () => {
     window.showView('training-view');
@@ -905,60 +792,7 @@ window.verEntrenamientos = async () => {
         return;
     }
 
-    // Cada entrenamiento con lo que la especialista indicó
-    const planes = items.map(r => ({
-        nombre: r.nombre,
-        key: window.getEntrenamientoKey(r.nombre, r.instrucciones),
-        dias: window.extraerDias(r.nombre + " " + r.instrucciones),
-        links: window.extraerLinks(r.instrucciones),
-        texto: window.limpiarInstrucciones(r.instrucciones)
-    }));
-
-    const irA = (p) => {
-        const info = p.key ? ENTRENAMIENTOS_INFO[p.key] : null;
-        return p.links[0] || info?.playlist || YOUTUBE_CANAL;
-    };
-
-    // La semana se arma con los días que ella escribió, no con suposiciones nuestras
-    const conDias = planes.filter(p => p.dias.length);
-    const sinDias = planes.filter(p => !p.dias.length);
-
-    let semanaHtml = "";
-    if (conDias.length) {
-        const filas = DIAS_LARGOS.map((dia, i) => {
-            const corto = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"][i];
-            const deEseDia = conDias.filter(p => p.dias.includes(corto));
-            if (!deEseDia.length) return "";
-            return deEseDia.map(p => `<a href="${window.esc(irA(p))}" target="_blank" rel="noopener" class="flex items-center gap-3 py-3 border-b border-slate-50 last:border-0 group">
-                <span class="text-[10px] font-black uppercase text-slate-400 w-9 shrink-0">${corto}</span>
-                <span class="text-[14px] text-slate-700 flex-1 leading-snug">${window.esc(p.nombre)}</span>
-                <svg class="w-4 h-4 text-slate-300 group-hover:text-[#2E4982] transition-colors shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><circle cx="12" cy="12" r="9"></circle></svg>
-            </a>`).join("");
-        }).join("");
-
-        semanaHtml = `<div class="w-full mb-6">
-            <p class="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-3 px-1">Tu semana</p>
-            <div class="bg-white rounded-[2rem] px-6 py-3 border border-slate-100 shadow-sm">${filas}</div>
-        </div>`;
-    }
-
-    let libresHtml = "";
-    if (sinDias.length) {
-        libresHtml = `<div class="w-full mb-6">
-            <p class="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-3 px-1">Cuando puedas</p>
-            <div class="bg-white rounded-[2rem] px-6 py-3 border border-slate-100 shadow-sm">
-            ${sinDias.map(p => `<a href="${window.esc(irA(p))}" target="_blank" rel="noopener" class="flex items-center gap-3 py-3 border-b border-slate-50 last:border-0 group">
-                <span class="flex-1 min-w-0">
-                    <span class="block text-[14px] text-slate-700 leading-snug">${window.esc(p.nombre)}</span>
-                    ${p.texto ? `<span class="block text-[12px] text-slate-400 leading-relaxed mt-0.5">${window.esc(p.texto)}</span>` : ""}
-                </span>
-                <svg class="w-4 h-4 text-slate-300 group-hover:text-[#2E4982] transition-colors shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><circle cx="12" cy="12" r="9"></circle></svg>
-            </a>`).join("")}
-            </div>
-        </div>`;
-    }
-
-    const tarjetas = items.map(r => {
+    cont.innerHTML = items.map(r => {
         const key = window.getEntrenamientoKey(r.nombre, r.instrucciones);
         const info = key ? ENTRENAMIENTOS_INFO[key] : null;
         const dias = window.extraerDias(r.nombre + " " + r.instrucciones);
@@ -985,13 +819,8 @@ window.verEntrenamientos = async () => {
             ${texto ? `<p class="text-[13px] text-slate-500 leading-relaxed mb-4">${window.esc(texto)}</p>` : `<div class="mb-4"></div>`}
             ${pills}
             ${botones.length ? `<div class="flex flex-wrap gap-3">${botones.join("")}</div>` : ""}
-            ${key ? window.renderCalendario(key) : ""}
         </div>`;
     }).join("");
-
-    cont.innerHTML = semanaHtml + libresHtml
-        + `<p class="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-3 px-1">Detalle</p>`
-        + tarjetas;
 };
 
 window.refreshUIWithData = () => {
