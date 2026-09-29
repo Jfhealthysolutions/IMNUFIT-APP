@@ -62,6 +62,8 @@ const INACTIVITY_LIMIT = 10 * 60 * 1000;
 let currentImageBase64 = null;
 let currentImageMime = null;
 
+// Aparcado el 29 sep 2026: las reservas de control se mudan a la app nueva y
+// nadie usa este enlace. Se deja escrito para poder volver atrás en un minuto.
 const CALENDAR_LINK_DEFAULT = "https://calendar.app.google/CE4KjKxPeFiV93GV7";
 const PLANES_LINK = "https://imnufit.com/planes-y-precios/";
 const WHATSAPP_COMMUNITY_LINK = "https://chat.whatsapp.com/FNoToJXy8HO7iLVhPseQHB";
@@ -695,7 +697,7 @@ window.sendMessageToAI = async (source) => {
     - **Check-in**: Muestra [Hacer Check-in](https://airtable.com/appCHcm7XPzeoyBCs/pagh79fwniuSPmusB/form).
     - **Subir Documentos/Exámenes**: Muestra [Subir Archivos](https://airtable.com/appCHcm7XPzeoyBCs/pagYI9IBX65B8OsAY/form).
     - **Entrenar**: Muestra [Ver Entrenamientos](function:training-view).
-    - **Agendar Cita**: Muestra [Reservar Cita](${info["Link Calendar"] || CALENDAR_LINK_DEFAULT}) y añade: "Recuerda que es preferible completar tu Check-in 24 horas antes.".
+    - **Agendar Cita**: NO des ningún enlace de calendario. Las reservas están en pausa mientras mudamos el sistema. Responde exactamente esto: "Estamos mudando las reservas a la nueva app. Desde el 1 de octubre podrás reservar tu consulta desde allí, y te avisaremos en cuanto esté lista." Si insiste o tiene algo urgente, muestra [Contactar Soporte](function:contact-view).
     - **Ver Recursos/Manual**: SOLO si piden manuales o material de apoyo, muestra [Ver Guías PDF](function:program-detail-view).
     - **Ver Consultas**: Muestra [Historial de Consultas](${info["Link Consultas"] || "#"}).
     - **Contactar**: Muestra [Contactar Soporte](function:contact-view).
@@ -1002,7 +1004,20 @@ function updateDashboardUI(data) {
     }
     // -------------------------------------------------------------
 
-    window.safeUpdate('calendar-action-container', el => el.innerHTML = `<a href="${data["Link Calendar"] || CALENDAR_LINK_DEFAULT}" target="_blank" class="btn-ghost-sm text-center">Ir al Calendario</a>`);
+    // RESERVAS EN PAUSA (29 sep 2026) --------------------------------------
+    // Las consultas de control dejan de entrar por el calendario viejo: desde el
+    // 1 de octubre se reservan en la app nueva. El botón se queda a la vista pero
+    // apagado, con el motivo escrito: un botón que desaparece sin explicación
+    // hace pensar que la app se rompió.
+    window.safeUpdate('calendar-action-container', el => el.innerHTML = `
+        <p class="text-[13px] text-slate-500 leading-relaxed text-center">
+            Estamos mudando las reservas a su nueva app.
+            <b class="text-[#2E4982]">Desde el 1 de octubre</b> podrá reservar su
+            consulta desde allí, y le avisaremos en cuanto esté lista.
+        </p>
+        <span class="btn-ghost-sm text-center inline-block mt-5 opacity-40 cursor-not-allowed select-none">
+            Reservas en pausa
+        </span>`);
     const bh = document.getElementById('btn-consultas-action'); 
     if (bh) { 
         bh.href = data["Link Consultas"] || "#"; 
