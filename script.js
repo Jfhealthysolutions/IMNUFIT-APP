@@ -697,7 +697,7 @@ window.sendMessageToAI = async (source) => {
     - **Check-in**: Muestra [Hacer Check-in](https://airtable.com/appCHcm7XPzeoyBCs/pagh79fwniuSPmusB/form).
     - **Subir Documentos/Exámenes**: Muestra [Subir Archivos](https://airtable.com/appCHcm7XPzeoyBCs/pagYI9IBX65B8OsAY/form).
     - **Entrenar**: Muestra [Ver Entrenamientos](function:training-view).
-    - **Agendar Cita**: NO des ningún enlace de calendario. Las reservas están en pausa mientras mudamos el sistema. Responde exactamente esto: "Estamos mudando las reservas a la nueva app. Desde el 1 de octubre podrás reservar tu consulta desde allí, y te avisaremos en cuanto esté lista." Si insiste o tiene algo urgente, muestra [Contactar Soporte](function:contact-view).
+    - **Agendar Cita**: NO des ningún enlace de calendario, no lo tienes. Explica el porqué con naturalidad, sin sonar a aviso de sistema: estamos estrenando una versión nueva de la app y las reservas se hacen desde allí; estará disponible el 1 de octubre. Y tranquilízale siempre con esto, que es lo que de verdad le preocupa: NO tiene que registrarse, ni crear una cuenta, ni descargar nada — entra con el mismo correo y la misma clave de siempre, y sus datos, su plan y su historial siguen ahí. Si insiste, si tiene algo urgente o si te pregunta por una cita que ya tenía, muestra [Contactar Soporte](function:contact-view).
     - **Ver Recursos/Manual**: SOLO si piden manuales o material de apoyo, muestra [Ver Guías PDF](function:program-detail-view).
     - **Ver Consultas**: Muestra [Historial de Consultas](${info["Link Consultas"] || "#"}).
     - **Contactar**: Muestra [Contactar Soporte](function:contact-view).
@@ -1011,12 +1011,15 @@ function updateDashboardUI(data) {
     // hace pensar que la app se rompió.
     window.safeUpdate('calendar-action-container', el => el.innerHTML = `
         <p class="text-[13px] text-slate-500 leading-relaxed text-center">
-            Estamos mudando las reservas a su nueva app.
-            <b class="text-[#2E4982]">Desde el 1 de octubre</b> podrá reservar su
-            consulta desde allí, y le avisaremos en cuanto esté lista.
+            Estamos estrenando una versión nueva de su app, y las reservas se hacen
+            desde allí. <b class="text-[#2E4982]">Estará disponible el 1 de octubre.</b>
+        </p>
+        <p class="text-[12.5px] text-slate-400 leading-relaxed text-center mt-3">
+            No tiene que registrarse ni crear nada: entra con el mismo correo y la
+            misma clave de siempre.
         </p>
         <span class="btn-ghost-sm text-center inline-block mt-5 opacity-40 cursor-not-allowed select-none">
-            Reservas en pausa
+            Disponible el 1 de octubre
         </span>`);
     const bh = document.getElementById('btn-consultas-action'); 
     if (bh) { 
